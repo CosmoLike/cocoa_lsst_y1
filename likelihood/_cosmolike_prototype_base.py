@@ -147,6 +147,7 @@ class _cosmolike_prototype_base(DataSetLikelihood):
       self.emulator = ee2
     elif self.non_linear_emul == 3: # KI add
       self.emulator = demu = darkemu.base_class() 
+      ci.init_galaxy_power_spectrum(2)
 
   # ------------------------------------------------------------------------
   # ------------------------------------------------------------------------
@@ -274,10 +275,8 @@ class _cosmolike_prototype_base(DataSetLikelihood):
         else:  
           pknl = demu_local_pk_mm(10**demu_log10k, z_2D)
         
-        lnpknl = interp1d(demu_log10k, np.log(pknl), fill_value='extrapolate', 
-                          assume_sorted=True)(log10k_interp_2D)
-        lnPNL[i::self.len_z_interp_2D] = lnpknl
-    
+        lnPNL[i::self.len_z_interp_2D] = interp1d(demu_log10k, np.log(pknl), 
+          fill_value='extrapolate', assume_sorted=True)(log10k_interp_2D)
     else:
       raise LoggedError(self.log, "non_linear_emul = %d is an invalid option", non_linear_emul)
 

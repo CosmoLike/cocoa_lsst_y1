@@ -328,6 +328,12 @@ PYBIND11_MODULE(cosmolike_lsst_y1_interface, m)
       py::arg("bias_model").none(false)
     );
 
+  m.def("init_galaxy_power_spectrum", 
+      &cosmolike_interface::init_galaxy_power_spectrum, 
+      "Set option for using emulator for PGM and PGG",
+      py::arg("USE_HALO_MODEL").none(false).noconvert()
+    );
+
   m.def("init_binning",
       &cosmolike_interface::init_binning_real_space,
       "Init Bining related variables",
