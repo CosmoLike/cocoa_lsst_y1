@@ -8,7 +8,7 @@ likelihood:
     print_datavector: False
     accuracyboost: 1.0
     integration_accuracy: 0
-    kmax_boltzmann: 5.0
+    kmax_boltzmann: 7.0
     # 1 EE2, 2 Halofit (check below on the slow/fast decomposition)
     non_linear_emul: 1
     IA_model: 0
@@ -332,8 +332,7 @@ sampler:
       - [4,
           [
             LSST_DZ_S1, LSST_DZ_S2, LSST_DZ_S3, LSST_DZ_S4, LSST_DZ_S5, 
-            LSST_A1_1, LSST_A1_2,
-            LSST_M1, LSST_M2, LSST_M3, LSST_M4, LSST_M5
+            LSST_A1_1, LSST_A1_2, LSST_M1, LSST_M2, LSST_M3, LSST_M4, LSST_M5
           ]
         ]
     oversample_power: 0.2

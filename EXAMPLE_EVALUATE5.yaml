@@ -5,13 +5,14 @@ stop_at_error: True
 likelihood:
   lsst_y1.lsst_y1_xi_gg:
     path: ./external_modules/data/lsst_y1
+    data_file: lsst_y1_M1_GGL0.05.dataset 
     print_datavector: False
     accuracyboost: 1.0
     integration_accuracy: 0
-    kmax_boltzmann: 5.0
+    kmax_boltzmann: 7.0
     # 1 EE2, 2 Halofit
     non_linear_emul: 2
-    IA_model: 0
+    IA_model: 0 # 0 = NLA, 1 = TATT
     IA_redshift_evolution: 3
 
 params:

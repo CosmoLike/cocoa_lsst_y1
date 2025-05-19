@@ -12,7 +12,7 @@ from cobaya.likelihoods.base_classes import DataSetLikelihood
 from cobaya.log import LoggedError
 from getdist import IniFile
 
-import euclidemu2
+import euclidemu2 as ee2
 import math
 
 import cosmolike_lsst_y1_interface as ci
@@ -142,9 +142,9 @@ class _cosmolike_prototype_base(DataSetLikelihood):
 
     self.npcs = 4
     self.baryon_pcs_qs = np.zeros(self.npcs)
-        
+
     if self.non_linear_emul == 1:
-      self.emulator = ee2=euclidemu2.PyEuclidEmulator()
+      self.emulator = ee2
     elif self.non_linear_emul == 3: # KI add
       self.emulator = demu = darkemu.base_class() 
 

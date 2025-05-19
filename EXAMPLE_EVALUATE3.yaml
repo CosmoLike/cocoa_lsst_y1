@@ -9,10 +9,10 @@ likelihood:
     print_datavector: False
     accuracyboost: 1.0
     integration_accuracy: 0
-    kmax_boltzmann: 5.0
+    kmax_boltzmann: 7.0
     # 1 EE2, 2 Halofit
     non_linear_emul: 2
-    IA_model: 0
+    IA_model: 0 # 0 = NLA, 1 = TATT
     IA_redshift_evolution: 3
 
 params:
@@ -186,6 +186,10 @@ sampler:
       LSST_M5: -0.0158096
       LSST_A1_1: 0.606102
       LSST_A1_2: -1.51541
+      # TESTING TATT
+      #LSST_A2_1: 0.0
+      #LSST_A2_2: -1.51541
+      #LSST_BTA_1: 0.0
       LSST_DZ_L1: 0.00457604
       LSST_DZ_L2: 0.000309875
       LSST_DZ_L3: 0.00855907
