@@ -17,7 +17,7 @@ likelihood:
     integration_accuracy: 0
     kmax_boltzmann: 5.0
     # 1 EE2, 2 Halofit
-    non_linear_emul: 1
+    non_linear_emul: 2
     IA_model: 0
     IA_redshift_evolution: 3
   

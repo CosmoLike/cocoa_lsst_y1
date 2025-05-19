@@ -248,42 +248,37 @@ class _cosmolike_prototype_base(DataSetLikelihood):
 
     elif self.non_linear_emul == 3:
 
-      def pkmm_demu(k, z):
+      def demu_local_pk_mm(k, z):
         xs = np.logspace(-3, 3, 2000)
         xinl = self.emulator.get_xinl(xs, z)
         # N_extrap_high=1024 is better than 0
         ks, pk = fftlog.xi2pk(xs,xinl,nu=1.01,N_extrap_low=1024,N_extrap_high=1024)
         return ius(ks, pk)(k)
 
-      # read cosmo. params.
-      omc = self.provider.get_param("omegam")-self.provider.get_param("omegab")
-      cparam = np.array([
+      self.emulator.set_cosmology(np.array([
         self.provider.get_param("omegab")*h**2.,
-        omc*h**2.,
+        (self.provider.get_param("omegam")-self.provider.get_param("omegab"))*h**2.,
         1-self.provider.get_param("omegam"),
         np.log(self.provider.get_param("As")*10**10),
         self.provider.get_param("ns"),
         self.provider.get_param("w")
-      ])
-      self.emulator.set_cosmology(cparam)
+      ]))
+
+      demu_log10k = np.linspace(np.log10(2e-3),1.,self.len_k_interp_2D)
+      imax = np.where(self.z_interp_2D <= 1.48)[0].max()
+      zmax = self.z_interp_2D[imax]
 
       for i, z_2D in enumerate(self.z_interp_2D):
         if z_2D > 1.48:
-          lnPNL[i::self.len_z_interp_2D] = \
-            t1[i*self.len_k_interp_2D:(i+1)*self.len_k_interp_2D] + np.log((h**3))
-          continue
-
-        log10k_interp = np.linspace(np.log10(2e-3),1.,self.len_k_interp_2D)
-        pknl = pkmm_demu(10**log10k_interp, z_2D)
-        lnpknl = interp1d(log10k_interp, 
-                          np.log(pknl), 
-                          fill_value='extrapolate', 
-                          assume_sorted=True
-                         )(log10k_interp_2D)
+          pknl = demu_local_pk_mm(10**demu_log10k,zmax)*(1+zmax)**2/(1+z_2D)**2
+        else:  
+          pknl = demu_local_pk_mm(10**demu_log10k, z_2D)
+        
+        lnpknl = interp1d(demu_log10k, np.log(pknl), fill_value='extrapolate', 
+                          assume_sorted=True)(log10k_interp_2D)
         lnPNL[i::self.len_z_interp_2D] = lnpknl
     
     else:
-    
       raise LoggedError(self.log, "non_linear_emul = %d is an invalid option", non_linear_emul)
 
     G_growth = np.sqrt(PKL.P(self.z_interp_2D,0.0005)/PKL.P(0,0.0005))
@@ -301,6 +296,57 @@ class _cosmolike_prototype_base(DataSetLikelihood):
       z_1D=self.z_interp_1D,
       chi=self.provider.get_comoving_radial_distance(self.z_interp_1D)*h # convert to Mpc/h
     )
+
+    if self.non_linear_emul == 3:
+      lnPgg = np.empty(self.len_pkz_interp_2D)
+      lnPgm = np.empty(self.len_pkz_interp_2D)
+
+      demu_local_pk_gx = demu_pk_gx()
+
+      demu_local_pk_gx.set_cosmology(np.array([
+        self.provider.get_param("omegab")*h**2,
+        (self.provider.get_param("omegam")-self.provider.get_param("omegab"))*h**2.,
+        1-self.provider.get_param("omegam"),
+        np.log(self.provider.get_param("As")*10**10),
+        self.provider.get_param("ns"),
+        self.provider.get_param("w")
+      ]))
+
+      gparam = {"logMmin":13.13, 
+                "sigma_sq":0.22, 
+                "logM1": 14.21, 
+                "alpha": 1.13, 
+                "kappa": 1.25, # HOD parameters
+                "poff": 0.2, 
+                "Roff": 0.1, # off-centering parameters p_off is the fraction of off-centered galaxies. Roff is the typical off-centered scale with respect to R200m.
+                "sat_dist_type": "emulator", # satellite distribution. Chosse emulator of NFW. In the case of NFW, the c-M relation by Diemer & Kravtsov (2015) is assumed.
+                "alpha_inc": 0.44, 
+                "logM_inc": 13.57}
+      demu_local_pk_gx.set_galaxy(gparam)
+
+      demu_log10k = np.linspace(np.log10(2e-3),1.,self.len_k_interp_2D)
+      imax = np.where(self.z_interp_2D <= 1.48)[0].max()
+      zmax = self.z_interp_2D[imax]
+
+      for i, z_2D in enumerate(self.z_interp_2D):
+        if z_2D > 1.48:
+          pkgg = demu_local_pk_gx.get_pk_gg(10**demu_log10k,zmax)*(1+zmax)**2/(1+z_2D)**2
+          pkgm = demu_local_pk_gx.get_pk_gm(10**demu_log10k,zmax)*(1+zmax)**2/(1+z_2D)**2
+        else:  
+          pkgg = demu_local_pk_gx.get_pk_gg(10**demu_log10k,z_2D)
+          pkgm = demu_local_pk_gx.get_pk_gm(10**demu_log10k,z_2D)
+
+        lnPgg[i::self.len_z_interp_2D] = interp1d(demu_log10k, np.log(pkgg), 
+          fill_value='extrapolate', assume_sorted=True)(log10k_interp_2D)
+
+        lnPgm[i::self.len_z_interp_2D] = interp1d(demu_log10k, np.log(pkgm), 
+          fill_value='extrapolate', assume_sorted=True)(log10k_interp_2D)
+
+      ci.set_galaxy_power_spectrum(log10k_2D=log10k_interp_2D,
+                                   z_2D=self.z_interp_2D,
+                                   lnPGM_nonlinear=lnPgm,
+                                   lnPGG_nonlinear=lnPgg)
+
   # ------------------------------------------------------------------------
   # ------------------------------------------------------------------------
   # ------------------------------------------------------------------------

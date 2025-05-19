@@ -134,6 +134,25 @@ void set_cosmology(
   spdlog::debug("\x1b[90m{}\x1b[0m: Ends", "set_cosmology");
 }
 
+void set_pmx_power_spectrum(
+    std::vector<double> io_log10k_2D,
+    std::vector<double> io_z_2D, 
+    std::vector<double> io_lnPGM_nonlinear,
+    std::vector<double> io_lnPGG_nonlinear
+  ) 
+{
+  cosmolike_interface::set_pgm_power_spectrum(
+      arma::conv_to<arma::Col<double>>::from(io_log10k_2D),
+      arma::conv_to<arma::Col<double>>::from(io_z_2D),
+      arma::conv_to<arma::Col<double>>::from(io_lnPGM_nonlinear)
+    );
+  cosmolike_interface::set_pgg_power_spectrum(
+      arma::conv_to<arma::Col<double>>::from(io_log10k_2D),
+      arma::conv_to<arma::Col<double>>::from(io_z_2D),
+      arma::conv_to<arma::Col<double>>::from(io_lnPGG_nonlinear)
+    );
+}
+
 void set_nuisance_IA(
     std::vector<double> A1, 
     std::vector<double> A2,
@@ -373,7 +392,7 @@ PYBIND11_MODULE(cosmolike_lsst_y1_interface, m)
 
   m.def("set_cosmology",
       &set_cosmology,
-      "Set Cosmological Paramters, Distance, Matter Power Spectrum, Growth Factor",
+      "Set Cosmological Parameters, Distance, Matter Power Spectrum, Growth Factor",
        py::arg("omegam").none(false),
        py::arg("H0").none(false),
        py::arg("log10k_2D").none(false),
@@ -383,6 +402,15 @@ PYBIND11_MODULE(cosmolike_lsst_y1_interface, m)
        py::arg("G").none(false),
        py::arg("z_1D").none(false),
        py::arg("chi").none(false)
+    );
+
+  m.def("set_galaxy_power_spectrum",
+      &set_pmx_power_spectrum,
+      "Set PGM and PGG from emulator",
+       py::arg("log10k_2D").none(false),
+       py::arg("z_2D").none(false),
+       py::arg("lnPGM_nonlinear").none(false),
+       py::arg("lnPGG_nonlinear").none(false)
     );
 
   m.def("set_baryon_pcs",
