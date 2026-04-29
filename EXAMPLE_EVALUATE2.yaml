@@ -261,12 +261,12 @@ theory:
       accurate_massive_neutrino_transfers: false
       k_per_logint: 15
       kmax: 7.5
-  fastpt:
-    path: ./external_modules/code/FAST-PT
-    extra_args:
-      accuracyboost: 5
-      kmax_boltzmann: 7.5
-      extrap_kmax: 250.0
+#  fastpt:
+#    path: ./external_modules/code/FAST-PT
+#    extra_args:
+#      accuracyboost: 5
+#      kmax_boltzmann: 7.5
+#      extrap_kmax: 250.0
 sampler:
   evaluate:
     N: 1
