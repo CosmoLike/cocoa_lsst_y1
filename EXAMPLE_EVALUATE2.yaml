@@ -267,6 +267,7 @@ theory:
 #      accuracyboost: 5
 #      kmax_boltzmann: 7.5
 #      extrap_kmax: 250.0
+
 sampler:
   evaluate:
     N: 1
