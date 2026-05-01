@@ -4,10 +4,18 @@ stop_at_error: True
 
 likelihood:
   lsst_y1.cosmic_shear:
+    use_emulator: 2
     path: ./external_modules/data/lsst_y1
     data_file: lsst_y1_M1_GGL0.05.dataset   # 705 non-masked elements  (EE2 delta chi^2 ~ 11.8)
-    use_emulator: 2
+    accuracyboost: 1.0
+    integration_accuracy: 0
+    lmax: 50000 
+    kmax_boltzmann: 5.0
+    # 1 EE2, 2 Halofit
     non_linear_emul: 2
+    IA_model: 0
+    IA_code: 0    # CFASTPT (0) or FASTPT (1) (only works if not NLA)
+    IA_redshift_evolution: 3
     print_datavector: False
     print_datavector_file: "./projects/lsst_y1/chains/example1_lsst_y1_theory_emul.modelvector"
 params: # EE2 PRIORS
@@ -124,7 +132,9 @@ theory:
     path: ./cobaya/cobaya/theories/
     stop_at_error: True
     extra_args:
-      use_syren: True
+      use_syren: False
+      model_file:    "external_modules/data/emultrf/emulmps/npce_emul/emulator_npce.keras"
+      metadata_file: "external_modules/data/emultrf/emulmps/npce_emul/metadata.joblib"
       param_order: ["As_1e9", "ns", "H0", "omegab", "omegam", 'w', 'wa']
 sampler:
   evaluate:
