@@ -230,5 +230,4 @@ sampler:
       LSST_B1_3: 1.61423
       LSST_B1_4: 1.92886
       LSST_B1_5: 2.11633
-  
 output: ./projects/lsst_y1/chains/EXAMPLE_EMUL2_EVALUATE2
