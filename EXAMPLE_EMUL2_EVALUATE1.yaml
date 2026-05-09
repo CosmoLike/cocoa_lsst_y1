@@ -106,6 +106,44 @@ params: # EE2 PRIORS
   As:
     value: 'lambda As_1e9: 1e-9*As_1e9'
     latex: 'A_\mathrm{s}'
+  # ------------------------------------------------------------------------
+  # ------------------------------------------------------------------------
+  # Nuisance parameters below (it overwrites the default settings)
+  # ------------------------------------------------------------------------
+  # ------------------------------------------------------------------------
+  # ------------------------------------------------------------------------
+  # ------------------------------------------------------------------------
+  # Intrinsic alignment
+  LSST_A2_1:
+    prior:
+      min: -5
+      max:  5
+    ref:
+      dist: norm
+      loc: -1.36
+      scale: 0.5
+    proposal: 0.5
+    latex: A_\mathrm{2-IA,LSST}^1
+  LSST_A2_2:
+    prior:
+      min: -5
+      max:  5
+    ref:
+      dist: norm
+      loc: -2.5
+      scale: 0.5
+    proposal: 0.5
+    latex: A_\mathrm{2-IA,LSST}^2
+  LSST_BTA_1:
+    prior:
+      min: 0
+      max: 2
+    ref:
+      dist: norm
+      loc: 1
+      scale: 0.15
+    proposal: 0.1
+    latex: A_\mathrm{BTA-IA,LSST}^1
 
 theory:
   emulrdrag:
@@ -132,9 +170,11 @@ theory:
     path: ./cobaya/cobaya/theories/
     stop_at_error: True
     extra_args:
-      use_syren: False
       model_file:    "external_modules/data/emultrf/emulmps/npce_emul/emulator_npce.keras"
       metadata_file: "external_modules/data/emultrf/emulmps/npce_emul/metadata.joblib"
+      nl_model_file:    "external_modules/data/emultrf/emulmps/w0wa_halofit/emulator_halofit.keras"
+      nl_metadata_file: "external_modules/data/emultrf/emulmps/w0wa_halofit/metadata.joblib"
+      use_syren: False
       param_order: ["As_1e9", "ns", "H0", "omegab", "omegam", 'w', 'wa']
 sampler:
   evaluate:
@@ -159,4 +199,9 @@ sampler:
       LSST_M5: -0.0158096
       LSST_A1_1: 0.606102
       LSST_A1_2: -1.51541
+      LSST_A2_1: 0.0
+      LSST_BTA_1: 0.0
+      #LSST_A2_1:  0.05
+      #LSST_BTA_1: 0.05
+      LSST_A2_2: -1.51541
 output: ./projects/lsst_y1/chains/EXAMPLE_EMUL2_EVALUATE1

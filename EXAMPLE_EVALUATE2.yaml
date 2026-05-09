@@ -15,7 +15,7 @@ likelihood:
     #data_file: lsst_y1_ones.dataset
     print_datavector: False
     print_datavector_file: "./projects/lsst_y1/chains/theory.modelvector"
-    accuracyboost: 1.0
+    accuracyboost: 1
     integration_accuracy: 0
     lmax: 65000 # lmax computed for real space correlation function
     kmax_boltzmann: 5.0
@@ -199,55 +199,6 @@ params:
       loc: 1
       scale: 0.15
     proposal: 0.1
-# FIXED LSST PARAMETERS
-  LSST_BMAG_1:
-#    value: 0.05
-    value: 0.0
-    latex: b_\mathrm{BMAG-LSST}^1
-  LSST_BMAG_2:
-#    value: 0.05
-    value: 0.0
-    latex: b_\mathrm{BMAG-LSST}^2
-  LSST_BMAG_3:
-#    value: 0.05
-    value: 0.0
-    latex: b_\mathrm{BMAG-LSST}^3
-  LSST_BMAG_4:
-#    value: 0.05
-    value: 0.0
-    latex: b_\mathrm{BMAG-LSST}^4
-  LSST_BMAG_5:
-#    value: 0.05
-    value: 0.0
-    latex: b_\mathrm{BMAG-LSST}^5
-  LSST_B2_1:
-#    value: 0.05
-    value: 0.0
-    latex: b_\mathrm{2-LSST}^1
-  LSST_B2_2:
-#    value: 0.05
-    value: 0.0
-    latex: b_\mathrm{2-Roman}^2
-  LSST_B2_3:
-#    value: 0.05
-    value: 0.0
-    latex: b_\mathrm{2-LSST}^1
-  LSST_B2_4:
-#    value: 0.05
-    value: 0.0
-    latex: b_\mathrm{2-Roman}^2
-  LSST_B3NL_1:
-    value: 0.0
-    latex: b_\mathrm{B3NL-LSST}^1
-  LSST_B3NL_2:
-    value: 0.0
-    latex: b_\mathrm{B3NL-LSST}^2
-  LSST_BK_1:
-    value: 0.0
-    latex: b_\mathrm{B3NL-LSST}^1
-  LSST_BK_2:
-    value: 0.0
-    latex: b_\mathrm{B3NL-LSST}^2
 theory:
   camb:
     path: ./external_modules/code/CAMB
@@ -264,10 +215,9 @@ theory:
 #  fastpt:
 #    path: ./external_modules/code/FAST-PT
 #    extra_args:
-#      accuracyboost: 5
+#      accuracyboost: 10
 #      kmax_boltzmann: 7.5
 #      extrap_kmax: 250.0
-
 sampler:
   evaluate:
     N: 1
