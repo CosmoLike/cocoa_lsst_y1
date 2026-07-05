@@ -18,8 +18,8 @@ data:
   ram_frac:      0.7
 
 train_args:
-  nepochs:      2500
-  trunk_epochs: 1500
+  nepochs:      2250
+  trunk_epochs: 150
   bs:           768
   loss_mode:    sqrt
   silent:       false
@@ -38,9 +38,10 @@ train_args:
     cnn:
       kernel_size: 11       # (must be odd, kz w/ nblock=1)
       rescale_kernel: true  # preserves a single block's view as the conv head deepens.
-      groups: 6             # 1 = dense | 3 = per-template | 6 = both cuts
-      n_blocks:  2
+      groups: 3             # 1 = dense | 3 = per-template | 6 = both cuts
+      n_blocks: 3
       separable: true
+      film: true
       gate_init: 1
     trf:
       n_heads:      2       # must divide the bin length (26 → 1 | 2 | 13)

@@ -26,10 +26,14 @@ matplotlib.rcParams['grid.color'] = 'lightgray'
 matplotlib.rcParams['legend.labelspacing'] = 0.77
 matplotlib.rcParams['savefig.bbox'] = 'tight'
 matplotlib.rcParams['savefig.format'] = 'pdf'
-parameter = [u'As_1e9', u'ns', u'H0', u'omegam', u'omegab', 
-             u'LSST_DZ_S1', u'LSST_DZ_S2', u'LSST_DZ_S3', 
+#parameter = [u'As_1e9', u'ns', u'H0', u'omegam', u'omegab', 
+#             u'LSST_DZ_S1', u'LSST_DZ_S2', u'LSST_DZ_S3', 
+#             u'LSST_DZ_S4', u'LSST_DZ_S5', 
+#             u'LSST_A1_1', u'LSST_A1_2']
+parameter = [u'As_1e9', u'ns', u'H0', u'omegam', u'omegab', u'w', u'w0pwa',
+             u'omm2h2', u'ombh2', u'LSST_DZ_S1', u'LSST_DZ_S2', u'LSST_DZ_S3', 
              u'LSST_DZ_S4', u'LSST_DZ_S5', 
-             u'LSST_A1_1', u'LSST_A1_2']
+             u'LSST_A1_1', u'LSST_A1_2', u'LSST_A2_1', u'LSST_A2_2']
 chaindir  = os.environ['ROOTDIR'] + "/projects/lsst_y1/chains/"
 
 analysissettings={'smooth_scale_1D':0.25, 
@@ -38,13 +42,27 @@ analysissettings={'smooth_scale_1D':0.25,
                   'range_confidence' : u'0.005',
                   'fine_bins_2D': 1024,
                   'fine_bins_1D': 1024}
-root_chains = (
-  'w0wa_takahashi_params_train_cs_10'
-)
+analysissettings2={'smooth_scale_1D':0.25, 
+                  'smooth_scale_2D':0.25,
+                  'ignore_rows': u'0.0',
+                  'range_confidence' : u'0.005',
+                  'fine_bins_2D': 1024,
+                  'fine_bins_1D': 1024}
+root_chains = [
+  "w0wa_takahashi_tatt_params_train_cs_256",
+]
+
+# --------------------------------------------------------------------------------
+samples=loadMCSamples(chaindir + root_chains[0],settings=analysissettings)
+p = samples.getParams()
+samples.addDerived(p.omegab*(p.H0/100.0)*(p.H0/100.0),name='ombh2', label='{\\Omega_{\\rm b}}')
+samples.addDerived(p.omegab*p.omegab*(p.H0/100.0)*(p.H0/100.0),name='omm2h2', label='{\\Gamma \\times \\Omega_{\\rm m}}')
+samples.saveAsText(chaindir + '/.VM_TMP1')
+
 #GET DIST PLOT SETUP
 g=gplot.getSubplotPlotter(chain_dir=chaindir,
-                          analysis_settings=analysissettings,
-                          width_inch=20.5)
+                          analysis_settings=analysissettings2,
+                          width_inch=22.5)
 g.settings.axis_tick_x_rotation=65
 g.settings.lw_contour=1.0
 g.settings.legend_rect_border = False
@@ -57,7 +75,7 @@ g.legend_labels=False
 
 g.triangle_plot(
   params=parameter,
-  roots=[chaindir + root_chains[0]],
+  roots=[chaindir + '/.VM_TMP1'],
   plot_3d_with_param=None,
   line_args=[ {'lw': 1.0,'ls': 'solid', 'color': 'cornflowerblue'},
               {'lw': 1.0,'ls': 'solid', 'color': 'lightcoral'},

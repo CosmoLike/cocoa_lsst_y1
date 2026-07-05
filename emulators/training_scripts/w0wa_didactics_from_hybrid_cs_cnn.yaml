@@ -272,11 +272,11 @@ theory:
 
 train_args:
   probe: 'cs'
-  ord: [['As_1e9','ns','H0','omegab', 'omegam', 'w', 'wa',
+  ord: [['As_1e9','ns','H0','omegab', 'omegam', 'w', 'w0pwa',
          'LSST_DZ_S1','LSST_DZ_S2','LSST_DZ_S3','LSST_DZ_S4',
          'LSST_DZ_S5', 'LSST_A1_1','LSST_A1_2',
          'LSST_A2_1', 'LSST_BTA_1', 'LSST_A2_2']]
-  params_covmat_file: 'EXAMPLE_EMUL_MCMC1.covmat'
+  params_covmat_file: 'EXAMPLE_EMUL2_MCMC4.covmat'
   fiducial:       
     As_1e9: 2.1
     ns: 0.96605
