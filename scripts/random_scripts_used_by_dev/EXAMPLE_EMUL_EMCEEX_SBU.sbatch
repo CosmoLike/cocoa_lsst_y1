@@ -33,10 +33,15 @@ fi
 
 export OMP_PROC_BIND=close
 export OMP_NUM_THREADS=1
+export OMP_DYNAMIC=FALSE
+export OPENBLAS_NUM_THREADS=1 
+export MKL_NUM_THREADS=1
 
-"${CONDA_PREFIX}"/bin/mpirun -n ${SLURM_NTASKS} --oversubscribe --mca pml ^ucx \
-  --mca btl vader,tcp,self --bind-to core:overload-allowed --rank-by slot \
-  --map-by slot:pe=${OMP_NUM_THREADS} python \
-  ./projects/lsst_y1/EXAMPLE_EMUL_EMCEE${SLURM_ARRAY_TASK_ID}.py \
+"${CONDA_PREFIX}"/bin/mpirun -n ${SLURM_NTASKS} --oversubscribe \
+  --mca pml ob1 --mca btl vader,tcp,self \
+  --bind-to core:overload-allowed --report-bindings \
+  --rank-by slot --map-by slot \
+  python ./projects/lsst_y1/EXAMPLE_EMUL_EMCEE${SLURM_ARRAY_TASK_ID}.py \
     --root ./projects/lsst_y1/ \
-    --outroot "EXAMPLE_EMUL_EMCEE${SLURM_ARRAY_TASK_ID}" --maxfeval 2000000
+    --outroot "EXAMPLE_EMUL_EMCEE${SLURM_ARRAY_TASK_ID}" \
+    --maxfeval 2000000

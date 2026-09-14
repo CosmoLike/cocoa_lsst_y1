@@ -33,15 +33,21 @@ fi
 
 export OMP_PROC_BIND=close
 export OMP_NUM_THREADS=1
+export OMP_DYNAMIC=FALSE
+export OPENBLAS_NUM_THREADS=1 
+export MKL_NUM_THREADS=1
+
 ulimit -u 2000000 # require line when nmpi is high
 
 for ((i=0; i<12; i++)); do
   declare -i nstw=$((100+50*$i))
 
-  "${CONDA_PREFIX}"/bin/mpirun -n ${SLURM_NTASKS} --oversubscribe --mca pml ^ucx \
-    --mca btl vader,tcp,self --bind-to core:overload-allowed --rank-by slot \
-    --map-by slot:pe=${OMP_NUM_THREADS} python \
-    ./projects/lsst_y1/EXAMPLE_EMUL_MINIMIZE${SLURM_ARRAY_TASK_ID}.py \
-      --nstw ${nstw} --root ./projects/lsst_y1/ \
+  "${CONDA_PREFIX}"/bin/mpirun -n ${SLURM_NTASKS} --oversubscribe \
+    --mca pml ob1 --mca btl vader,tcp,self \
+    --bind-to core:overload-allowed --report-bindings \
+    --rank-by slot --map-by slot \
+    python ./projects/lsst_y1/EXAMPLE_EMUL_MINIMIZE${SLURM_ARRAY_TASK_ID}.py \
+      --nstw ${nstw} \
+      --root ./projects/lsst_y1/ \
       --outroot "EXAMPLE_EMUL_MIN${SLURM_ARRAY_TASK_ID}_test_${i}"
 done
