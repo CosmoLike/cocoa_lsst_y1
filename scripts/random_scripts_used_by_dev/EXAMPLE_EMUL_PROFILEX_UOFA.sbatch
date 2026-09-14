@@ -36,6 +36,9 @@ fi
 
 export OMP_PROC_BIND=close
 export OMP_NUM_THREADS=1
+export OMP_DYNAMIC=FALSE
+export OPENBLAS_NUM_THREADS=1 
+export MKL_NUM_THREADS=1
 ulimit -u 2000000 # require line when nmpi is high
 
 # the parameters are 
@@ -63,11 +66,16 @@ declare nstw="${nstws[$i]}"
 (( j < ${#row[@]} )) || exit 0  # padding: skip unused slots
 declare factor="${row[$j]}"
 
-"${CONDA_PREFIX}"/bin/mpirun -n ${SLURM_NTASKS} --oversubscribe --mca pml ^ucx \
-  --mca btl vader,tcp,self --bind-to core:overload-allowed --rank-by slot \
-  --map-by slot:pe=${OMP_NUM_THREADS} python \
-  ./projects/lsst_y1/EXAMPLE_EMUL_PROFILE$((i+1)).py \
-    --root ./projects/lsst_y1/ --cov "chains/EXAMPLE_EMUL_MCMC$((i+1)).covmat" \
-    --outroot "EXAMPLE_EMUL_PROFILE$i" --factor "$factor" \
-    --nstw $nstw --numpts 15 --profile "${j}" \
+"${CONDA_PREFIX}"/bin/mpirun -n ${SLURM_NTASKS} --oversubscribe \
+  --mca pml ob1 --mca btl vader,tcp,self \
+  --bind-to core:overload-allowed --report-bindings \
+  --rank-by slot --map-by slot \
+  python ./projects/lsst_y1/EXAMPLE_EMUL_PROFILE$((i+1)).py \
+    --root ./projects/lsst_y1/ \
+    --cov "chains/EXAMPLE_EMUL_MCMC$((i+1)).covmat" \
+    --outroot "EXAMPLE_EMUL_PROFILE$i" \
+    --factor "$factor" \
+    --nstw $nstw \
+    --numpts 15 \
+    --profile "${j}" \
     --minfile="./projects/lsst_y1/chains/EXAMPLE_EMUL_MIN$((i+1)).txt"

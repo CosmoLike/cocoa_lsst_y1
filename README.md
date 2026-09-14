@@ -11,7 +11,7 @@ From `Cocoa/Readme` instructions:
 >     # ------------------------------------------------------------------------------
 >     # The keys below control which cosmolike projects will be installed and compiled
 >     # ------------------------------------------------------------------------------
->     export IGNORE_COSMOLIKE_LSSTY1_CODE=1
+>     export IGNORE_COSMOLIKE_LSST_Y1_CODE=1
 >     #export IGNORE_COSMOLIKE_DES_Y3_CODE=1
 >     #export IGNORE_COSMOLIKE_ROMAN_FOURIER_CODE=1
 >     #export IGNORE_COSMOLIKE_ROMAN_REAL_CODE=1
@@ -24,11 +24,11 @@ From `Cocoa/Readme` instructions:
 >     export LSST_Y1_URL="https://github.com/CosmoLike/cocoa_lsst_y1.git"
 >     export LSST_Y1_NAME="lsst_y1"
 >     #BRANCH: if unset, load the latest commit on the specified branch
->     #export LSST_Y1_BRANCH="dev"
+>     #export LSST_Y1_GIT_BRANCH="dev"
 >     #COMMIT: if unset, load the specified commit
->     export LSST_Y1_COMMIT="1abe548281296196dabee7b19e31c56f324eda38"
+>     export LSST_Y1_GIT_COMMIT="1abe548281296196dabee7b19e31c56f324eda38"
 >     #TAG: if unset, load the specified TAG
->     #export LSST_Y1_TAG="v4.0-beta17"
+>     #export LSST_Y1_GIT_TAG="v4.0-beta17"
 
 > [!NOTE]
 > In case users need to rerun `setup_cocoa.sh`, Cocoa will not download previously installed packages, cosmolike projects, or large datasets, unless the following keys are set on `set_installation_options.sh`
@@ -86,7 +86,7 @@ From `Cocoa/Readme` instructions:
 To run the example
 
  **Step :one:**: activate the Cocoa Conda environment,  and the private Python environment 
-    
+
       conda activate cocoa
 
 and
@@ -94,35 +94,44 @@ and
       source start_cocoa.sh
  
  **Step :two:**: Select the number of OpenMP cores (below, we set it to 8).
-    
+
     export OMP_PROC_BIND=close; export OMP_NUM_THREADS=8; export OMP_PLACES=cores; export OMP_DYNAMIC=FALSE
-      
+
  **Step :three:**: The folder `projects/lsst_y1` contains examples. So, run the `cobaya-run` on the first example following the commands below.
 
+> [!Warning] 
+> (Linux only) In some HPC nodes, `numa` can cause you problems. If that is the case,
+> replace `numa` with `slot`
 
 - **One model evaluation**:
 
   - Linux
 
-        mpirun -n 1 --oversubscribe --mca pml ^ucx --mca btl vader,tcp,self --report-bindings \
-           --bind-to core:overload-allowed --rank-by slot --map-by numa:pe=${OMP_NUM_THREADS} \
-           cobaya-run ./projects/lsst_y1/EXAMPLE_EVALUATE1.yaml -f
+        mpirun -n 1 --oversubscribe --mca pml ob1 --mca btl vader,tcp,self \
+          --mca btl_tcp_if_exclude lo,docker0,virbr0,ib0 \
+          --bind-to core:overload-allowed --report-bindings \
+          --rank-by slot --map-by numa:pe=${OMP_NUM_THREADS} \
+          cobaya-run ./projects/lsst_y1/EXAMPLE_EVALUATE1.yaml -f
 
-  -  macOS (arm)
+  - macOS (arm)
 
-         mpirun -n 1 --oversubscribe cobaya-run ./projects/lsst_y1/EXAMPLE_EVALUATE1.yaml -f
+        mpirun -n 1 --oversubscribe \
+          cobaya-run ./projects/lsst_y1/EXAMPLE_EVALUATE1.yaml -f
 
 - **MCMC (Metropolis-Hastings Algorithm)**:
 
   - Linux
 
-        mpirun -n 4 --oversubscribe --mca pml ^ucx --mca btl vader,tcp,self --report-bindings \
-           --bind-to core:overload-allowed --rank-by slot --map-by numa:pe=${OMP_NUM_THREADS} \
-           cobaya-run ./projects/lsst_y1/EXAMPLE_MCMC1.yaml -f
+        mpirun -n 4 --oversubscribe --mca pml ob1 --mca btl vader,tcp,self \
+          --mca btl_tcp_if_exclude lo,docker0,virbr0,ib0 \
+          --bind-to core:overload-allowed --report-bindings \
+          --rank-by slot --map-by numa:pe=${OMP_NUM_THREADS} \
+          cobaya-run ./projects/lsst_y1/EXAMPLE_MCMC1.yaml -f
 
-   -  macOS (arm)
+  - macOS (arm)
      
-          mpirun -n 4 --oversubscribe cobaya-run ./projects/lsst_y1/EXAMPLE_MCMC1.yaml -f
+        mpirun -n 4 --oversubscribe \
+          cobaya-run ./projects/lsst_y1/EXAMPLE_MCMC1.yaml -f
 
 
 # Running ML emulators <a name="cobaya_base_code_examples_emul"></a>
@@ -142,19 +151,6 @@ Cocoa contains a few transformer- and CNN-based neural network emulators capable
       #export IGNORE_GETDIST_CODE=1              # to run EXAMPLE_TENSION_METRICS.ipynb
       #export IGNORE_TENSIOMETER_CODE=1          # to run EXAMPLE_TENSION_METRICS.ipynb
 
-      [Adapted from Cocoa/set_installation_options.sh shell script] 
-      # insert the # symbol (i.e., unset these environmental keys  on `set_installation_options.sh`)
-      #export IGNORE_EMULTRF_CODE=1              #SaraivanovZhongZhu (SZZ) transformer/CNN-based emulators
-      #export IGNORE_EMULTRF_DATA=1            
-      #export IGNORE_LIPOP_LIKELIHOOD_CODE=1     # to run EXAMPLE_EMUL_(EVALUATE/MCMC/NAUTILUS/EMCEE1).yaml
-      #export IGNORE_LIPOP_CMB_DATA=1           
-      #export IGNORE_ACTDR6_CODE=1               # to run EXAMPLE_EMUL_(EVALUATE/MCMC/NAUTILUS/EMCEE1).yaml
-      #export IGNORE_ACTDR6_DATA=1         
-      #export IGNORE_NAUTILUS_SAMPLER_CODE=1     # to run PROJECTS/EXAMPLE/EXAMPLE_EMUL_NAUTILUS1.py
-      #export IGNORE_POLYCHORD_SAMPLER_CODE=1    # to run PROJECTS/EXAMPLE/EXAMPLE_EMUL_POLY1.yaml
-      #export IGNORE_GETDIST_CODE=1              # to run EXAMPLE_TENSION_METRICS.ipynb
-      #export IGNORE_TENSIOMETER_CODE=1          # to run EXAMPLE_TENSION_METRICS.ipynb
-    
 > [!TIP]
 > What if users have not configured ML-related keys before sourcing `setup_cocoa.sh`?
 > 
@@ -173,34 +169,40 @@ Now, users must follow all the steps below.
     source start_cocoa.sh
 
  **Step :two:**: Ensure OpenMP is **OFF**.
-    
+
     export OMP_NUM_THREADS=1
-    
+
  **Step :three:** Run `cobaya-run` on the first emulator example following the commands below.
 
 - **One model evaluation**:
 
   - Linux
-    
-        mpirun -n 1 --oversubscribe --mca pml ^ucx --mca btl vader,tcp,self \
-            --bind-to core:overload-allowed --rank-by slot --map-by slot:pe=${OMP_NUM_THREADS} \
-            cobaya-run ./projects/lsst_y1/EXAMPLE_EMUL_EVALUATE1.yaml -f
+
+        mpirun -n 1 --oversubscribe --mca pml ob1 --mca btl vader,tcp,self \
+          --mca btl_tcp_if_exclude lo,docker0,virbr0,ib0 \
+          --bind-to core:overload-allowed --report-bindings \
+          --rank-by slot --map-by slot \
+          cobaya-run ./projects/lsst_y1/EXAMPLE_EMUL_EVALUATE1.yaml -f
 
   - macOS (arm)
  
-         mpirun -n 1 --oversubscribe  cobaya-run ./projects/lsst_y1/EXAMPLE_EMUL_EVALUATE1.yaml -f
+        mpirun -n 1 --oversubscribe \
+          cobaya-run ./projects/lsst_y1/EXAMPLE_EMUL_EVALUATE1.yaml -f
     
 - **MCMC (Metropolis-Hastings Algorithm)**:
 
   - Linux
-    
-        mpirun -n 4 --oversubscribe --mca pml ^ucx --mca btl vader,tcp,self \
-            --bind-to core:overload-allowed --rank-by slot --map-by slot:pe=${OMP_NUM_THREADS} \
-            cobaya-run ./projects/lsst_y1/EXAMPLE_EMUL_MCMC1.yaml -r
+
+        mpirun -n 4 --oversubscribe --mca pml ob1 --mca btl vader,tcp,self \
+          --mca btl_tcp_if_exclude lo,docker0,virbr0,ib0 \
+          --bind-to core:overload-allowed --report-bindings \
+          --rank-by slot --map-by slot \
+          cobaya-run ./projects/lsst_y1/EXAMPLE_EMUL_MCMC1.yaml -r
 
   - macOS (arm)
 
-        mpirun -n 4 --oversubscribe cobaya-run ./projects/lsst_y1/EXAMPLE_EMUL_MCMC1.yaml -r
+        mpirun -n 4 --oversubscribe \
+          cobaya-run ./projects/lsst_y1/EXAMPLE_EMUL_MCMC1.yaml -r
 
 > [!Note]
 > Below is the cobaya timing of the average data vector computation time
@@ -211,14 +213,17 @@ Now, users must follow all the steps below.
   or (Example with `Planck CMB (l < 396) + SN + BAO + LSST-Y1` - $n_{\rm param} = 38$)
 
   - Linux
-    
-        mpirun -n 4 --oversubscribe --mca pml ^ucx --mca btl vader,tcp,self \
-            --bind-to core:overload-allowed --rank-by slot --map-by slot:pe=${OMP_NUM_THREADS} \
-            cobaya-run ./projects/lsst_y1/EXAMPLE_EMUL_MCMC2.yaml -r
+
+        mpirun -n 4 --oversubscribe --mca pml ob1 --mca btl vader,tcp,self \
+          --mca btl_tcp_if_exclude lo,docker0,virbr0,ib0 \
+          --bind-to core:overload-allowed --report-bindings \
+          --rank-by slot --map-by slot \
+          cobaya-run ./projects/lsst_y1/EXAMPLE_EMUL_MCMC2.yaml -r
 
   - macOS (arm)
 
-        mpirun -n 4 --oversubscribe cobaya-run ./projects/lsst_y1/EXAMPLE_EMUL_MCMC2.yaml -r
+        mpirun -n 4 --oversubscribe \
+          cobaya-run ./projects/lsst_y1/EXAMPLE_EMUL_MCMC2.yaml -r
       
 > [!Note]
 > The examples below may require a large number of MPI workers. Before running them, it may be necessary to increase 
@@ -228,49 +233,61 @@ Now, users must follow all the steps below.
 - **PolyChord**:
 
   - Linux
-    
-        mpirun -n 90 --oversubscribe --mca pml ^ucx --mca btl vader,tcp,self \
-            --bind-to core:overload-allowed --rank-by slot --map-by slot:pe=${OMP_NUM_THREADS} \
-            cobaya-run ./projects/lsst_y1/EXAMPLE_EMUL_POLY1.yaml -r
+
+        mpirun -n 90 --oversubscribe --mca pml ob1 --mca btl vader,tcp,self \
+          --mca btl_tcp_if_exclude lo,docker0,virbr0,ib0 \
+          --bind-to core:overload-allowed --report-bindings \
+          --rank-by slot --map-by slot \
+          cobaya-run ./projects/lsst_y1/EXAMPLE_EMUL_POLY1.yaml -r
 
   - macOS (arm)
 
-        mpirun -n 12 --oversubscribe cobaya-run ./projects/lsst_y1/EXAMPLE_EMUL_POLY1.yaml -r
+        mpirun -n 12 --oversubscribe \
+          cobaya-run ./projects/lsst_y1/EXAMPLE_EMUL_POLY1.yaml -r
     
   or (Example with `Planck CMB (l < 396) + SN + BAO + LSST-Y1` -  $n_{\rm param} = 38$)
 
   - Linux
     
-        mpirun -n 90 --oversubscribe --mca pml ^ucx --mca btl vader,tcp,self \
-            --bind-to core:overload-allowed --rank-by slot --map-by slot:pe=${OMP_NUM_THREADS} \
-            cobaya-run ./projects/lsst_y1/EXAMPLE_EMUL_POLY2.yaml -r
+        mpirun -n 90 --oversubscribe --mca pml ob1 --mca btl vader,tcp,self \
+          --mca btl_tcp_if_exclude lo,docker0,virbr0,ib0 \
+          --bind-to core:overload-allowed --report-bindings \
+          --rank-by slot --map-by slot \
+          cobaya-run ./projects/lsst_y1/EXAMPLE_EMUL_POLY2.yaml -r
 
   - macOS (arm)
  
-         mpirun -n 12 --oversubscribe cobaya-run ./projects/lsst_y1/EXAMPLE_EMUL_POLY2.yaml -r
+        mpirun -n 12 --oversubscribe \
+          cobaya-run ./projects/lsst_y1/EXAMPLE_EMUL_POLY2.yaml -r
 
 > [!Note]
-> When running `PolyChord` or any of our scripts in more than one node, replace `--mca btl vader,tcp,self` by `--mca btl tcp,self`.
- 
+> The flag `--mca btl vader,tcp,self` also works unchanged on multi-node runs: 
+> Open MPI uses `vader` (shared memory) within a node and `tcp` between nodes automatically.
 
-The `Nautilis`, `Minimizer`, `Profile`, and `Emcee` scripts below contain an internally defined `yaml_string` that specifies priors, 
+The `Nautilus`, `Minimizer`, `Profile`, and `Emcee` scripts below contain an internally defined `yaml_string` that specifies priors, 
 likelihoods, and the theory code, all following Cobaya Conventions.
 
 - **Nautilus**:
 
   - Linux
     
-        mpirun -n 90 --oversubscribe --mca pml ^ucx --mca btl vader,tcp,self \
-            --bind-to core:overload-allowed --rank-by slot --map-by slot:pe=${OMP_NUM_THREADS} \
-            python -m mpi4py.futures ./projects/lsst_y1/EXAMPLE_EMUL_NAUTILUS1.py \
-                --root ./projects/lsst_y1/ --outroot "EXAMPLE_EMUL_NAUTILUS1"  \
-                --maxfeval 750000 --nlive 2048 --neff 15000 --flive 0.01 --nnetworks 5
+        mpirun -n 90 --oversubscribe --mca pml ob1 --mca btl vader,tcp,self \
+          --mca btl_tcp_if_exclude lo,docker0,virbr0,ib0 \
+          --bind-to core:overload-allowed --report-bindings \
+          --rank-by slot --map-by slot \
+          python -m mpi4py.futures ./projects/lsst_y1/EXAMPLE_EMUL_NAUTILUS1.py \
+            --root ./projects/lsst_y1/ --outroot "EXAMPLE_EMUL_NAUTILUS1"  \
+            --maxfeval 750000 --nlive 2048 --neff 15000 \
+            --flive 0.01 --nnetworks 5
 
   - macOS (arm)
 
-        mpirun -n 12 --oversubscribe python -m mpi4py.futures ./projects/lsst_y1/EXAMPLE_EMUL_NAUTILUS1.py \
-                --root ./projects/lsst_y1/ --outroot "EXAMPLE_EMUL_NAUTILUS1"  \
-                --maxfeval 750000 --nlive 2048 --neff 15000 --flive 0.01 --nnetworks 5
+        mpirun -n 12 --oversubscribe \
+          python -m mpi4py.futures ./projects/lsst_y1/EXAMPLE_EMUL_NAUTILUS1.py \
+            --root ./projects/lsst_y1/ \
+            --outroot "EXAMPLE_EMUL_NAUTILUS1" \
+            --maxfeval 750000 --nlive 2048 --neff 15000 \
+            --flive 0.01 --nnetworks 5
 
   The Colab example [Test Nautilus](https://github.com/CosmoLike/CoCoAGoogleColabExamples/blob/main/Cocoa_Example_(LSSTY1)_Test_Nautilus.ipynb) illustrates how stable Nautilus results are as a function of `nlive` 
 
@@ -278,59 +295,80 @@ likelihoods, and the theory code, all following Cobaya Conventions.
 
   - Linux
     
-        mpirun -n 90 --oversubscribe --mca pml ^ucx --mca btl vader,tcp,self \
-            --bind-to core:overload-allowed --rank-by slot --map-by slot:pe=${OMP_NUM_THREADS} \
-            python -m mpi4py.futures ./projects/lsst_y1/EXAMPLE_EMUL_NAUTILUS2.py \
-                --root ./projects/lsst_y1/ --outroot "EXAMPLE_EMUL_NAUTILUS2"  \
-                --maxfeval 850000 --nlive 3072 --neff 15000 --flive 0.01 --nnetworks 5
+        mpirun -n 90 --oversubscribe --mca pml ob1 --mca btl vader,tcp,self \
+          --mca btl_tcp_if_exclude lo,docker0,virbr0,ib0 \
+          --bind-to core:overload-allowed --report-bindings \
+          --rank-by slot --map-by slot \
+          python -m mpi4py.futures ./projects/lsst_y1/EXAMPLE_EMUL_NAUTILUS2.py \
+            --root ./projects/lsst_y1/ \
+            --outroot "EXAMPLE_EMUL_NAUTILUS2"  \
+            --maxfeval 850000 --nlive 3072 --neff 15000 \
+            --flive 0.01 --nnetworks 5
 
   - macOS (arm)
 
-        mpirun -n 12 python -m mpi4py.futures ./projects/lsst_y1/EXAMPLE_EMUL_NAUTILUS2.py \
-                --root ./projects/lsst_y1/ --outroot "EXAMPLE_EMUL_NAUTILUS2"  \
-                --maxfeval 850000 --nlive 3072 --neff 15000 --flive 0.01 --nnetworks 5
+        mpirun -n 12 --oversubscribe \
+          python -m mpi4py.futures ./projects/lsst_y1/EXAMPLE_EMUL_NAUTILUS2.py \
+            --root ./projects/lsst_y1/ \
+            --outroot "EXAMPLE_EMUL_NAUTILUS2"  \
+            --maxfeval 850000 --nlive 3072 --neff 15000 \
+            --flive 0.01 --nnetworks 5
     
-  What if the user runs an `Nautilus` chain with `maxeval` insufficient for producing `neff` samples? `Nautilus` saves the chain checkpoint at `chains/outroot_checkpoint.hdf5`.
+  What if the user runs a `Nautilus` chain with `maxeval` insufficient for producing `neff` samples? `Nautilus` saves the chain checkpoint at `chains/outroot_checkpoint.hdf5`.
 
 - **Emcee**:
 
   - Linux
-    
-        mpirun -n 51 --oversubscribe --mca pml ^ucx --mca btl vader,tcp,self \
-            --bind-to core:overload-allowed --rank-by slot --map-by slot:pe=${OMP_NUM_THREADS} \
-            python ./projects/lsst_y1/EXAMPLE_EMUL_EMCEE1.py --root ./projects/lsst_y1/ \
-                --outroot "EXAMPLE_EMUL_EMCEE1" --maxfeval 1000000
+
+        mpirun -n 51 --oversubscribe --mca pml ob1 --mca btl vader,tcp,self \
+          --mca btl_tcp_if_exclude lo,docker0,virbr0,ib0 \
+          --bind-to core:overload-allowed --report-bindings \
+          --rank-by slot --map-by slot \
+          python ./projects/lsst_y1/EXAMPLE_EMUL_EMCEE1.py \
+            --root ./projects/lsst_y1/ \
+            --outroot "EXAMPLE_EMUL_EMCEE1" \
+            --maxfeval 1000000
 
   - macOS (arm)
 
-        mpirun -n 12 --oversubscribe python ./projects/lsst_y1/EXAMPLE_EMUL_EMCEE1.py --root ./projects/lsst_y1/ \
-            --outroot "EXAMPLE_EMUL_EMCEE1" --maxfeval 1000000
+        mpirun -n 12 --oversubscribe \
+          python ./projects/lsst_y1/EXAMPLE_EMUL_EMCEE1.py \
+            --root ./projects/lsst_y1/ \
+            --outroot "EXAMPLE_EMUL_EMCEE1" \
+            --maxfeval 1000000
     
   or (Example with `Planck CMB (l < 396) + SN + BAO + LSST-Y1` -  $n_{\rm param} = 38$)
 
   - Linux
-    
-        mpirun -n 114 --oversubscribe --mca pml ^ucx --mca btl vader,tcp,self \
-          --bind-to core:overload-allowed --rank-by slot --map-by slot:pe=${OMP_NUM_THREADS} \
-          python ./projects/lsst_y1/EXAMPLE_EMUL_EMCEE2.py --root ./projects/lsst_y1/ \
-              --outroot "EXAMPLE_EMUL_EMCEE2" --maxfeval 2000000
+
+        mpirun -n 114 --oversubscribe --mca pml ob1 --mca btl vader,tcp,self \
+          --mca btl_tcp_if_exclude lo,docker0,virbr0,ib0 \
+          --bind-to core:overload-allowed --report-bindings \
+          --rank-by slot --map-by slot \
+          python ./projects/lsst_y1/EXAMPLE_EMUL_EMCEE2.py \
+            --root ./projects/lsst_y1/ \
+            --outroot "EXAMPLE_EMUL_EMCEE2" \
+            --maxfeval 2000000
 
   - macOS (arm)
 
-        mpirun -n 12 --oversubscribe python ./projects/lsst_y1/EXAMPLE_EMUL_EMCEE2.py --root ./projects/lsst_y1/ \
-            --outroot "EXAMPLE_EMUL_EMCEE2" --maxfeval 2000000
+        mpirun -n 12 --oversubscribe \
+          python ./projects/lsst_y1/EXAMPLE_EMUL_EMCEE2.py \
+            --root ./projects/lsst_y1/ \
+            --outroot "EXAMPLE_EMUL_EMCEE2" \
+            --maxfeval 2000000
     
-  The number of steps per MPI worker is $n_{\\rm sw} =  {\\rm maxfeval}/n_{\\rm w}$,
-  with the number of walkers being $n_{\\rm w}={\\rm max}(3n_{\\rm params},n_{\\rm MPI})$.
+  The number of steps per MPI worker is $n_{\rm sw} =  {\rm maxfeval}/n_{\rm w}$,
+  with the number of walkers being $n_{\rm w}={\rm max}(3n_{\rm params},n_{\rm MPI})$.
   For proper convergence, each walker should traverse 50 times the autocorrelation length ($\tau$),
   which is provided in the header of the output chain file. A reasonable rule of thumb is to assume
-  $\tau > 200$ and therefore set ${\\rm maxfeval} > 10,000 \times n_{\\rm w}$.
+  $\tau > 200$ and therefore set ${\rm maxfeval} > 10,000 \times n_{\rm w}$.
   Finally, our code sets burn-in (per walker) at $5 \times \tau$.
 
   With these numbers, users may ask when `Emcee` is preferable to `Metropolis-Hastings`?
   Here are a few numbers based on our `Planck CMB (l < 396) + SN + BAO + LSST-Y1` test case.
-  1) `MH` achieves convergence with $n_{\\rm sw} \sim 150,000$ (number of steps per walker), but only requires four walkers.
-  2) `Emcee` has $\tau \sim 300$, so it requires $n_{\\rm sw} \sim 15,000$ when running with $n_{\\rm w}=114$.
+  1) `MH` achieves convergence with $n_{\rm sw} \sim 150,000$ (number of steps per walker), but only requires four walkers.
+  2) `Emcee` has $\tau \sim 300$, so it requires $n_{\rm sw} \sim 15,000$ when running with $n_{\rm w}=114$.
   
   Conclusion: `Emcee` requires $\sim 3$ more evaluations in this case, but the number of evaluations per MPI worker (assuming one MPI worker per walker) is reduced by $\sim 10$.
   Therefore, `Emcee` seems well-suited for chains where the evaluation of a single cosmology is time-consuming (and there is no slow/fast decomposition).
@@ -357,34 +395,48 @@ likelihoods, and the theory code, all following Cobaya Conventions.
   Our minimizer is a reimplementation of `Procoli`, developed by Karwal et al (arXiv:2401.14225) 
 
   - Linux
-    
-        mpirun -n 51 --oversubscribe --mca pml ^ucx --mca btl vader,tcp,self \
-            --bind-to core:overload-allowed --rank-by slot --map-by slot:pe=${OMP_NUM_THREADS} \
-            python ./projects/lsst_y1/EXAMPLE_EMUL_MINIMIZE1.py --root ./projects/lsst_y1/ \
-                --outroot "EXAMPLE_EMUL_MIN1" --nstw 350
+
+        mpirun -n 51 --oversubscribe --mca pml ob1 --mca btl vader,tcp,self \
+          --mca btl_tcp_if_exclude lo,docker0,virbr0,ib0 \
+          --bind-to core:overload-allowed --report-bindings \
+          --rank-by slot --map-by slot \
+          python ./projects/lsst_y1/EXAMPLE_EMUL_MINIMIZE1.py \
+            --root ./projects/lsst_y1/ \
+            --outroot "EXAMPLE_EMUL_MIN1" \
+            --nstw 350
 
   - macOS (arm)
 
-        mpirun -n 12 python ./projects/lsst_y1/EXAMPLE_EMUL_MINIMIZE1.py --root ./projects/lsst_y1/ \
-              --outroot "EXAMPLE_EMUL_MIN1" --nstw 350
+        mpirun -n 12 --oversubscribe \
+          python ./projects/lsst_y1/EXAMPLE_EMUL_MINIMIZE1.py \
+            --root ./projects/lsst_y1/ \
+            --outroot "EXAMPLE_EMUL_MIN1" \
+            --nstw 350
     
   or (Example with `Planck CMB (l < 396) + SN + BAO + LSST-Y1` -  $n_{\rm param} = 38$)
 
   - Linux
-    
-        mpirun -n 114 --oversubscribe --mca pml ^ucx --mca btl vader,tcp,self \
-            --bind-to core:overload-allowed --rank-by slot --map-by slot:pe=${OMP_NUM_THREADS} \
-           python ./projects/lsst_y1/EXAMPLE_EMUL_MINIMIZE2.py --root ./projects/lsst_y1/ \
-               --outroot "EXAMPLE_EMUL_MIN2" --nstw 750
+
+        mpirun -n 114 --oversubscribe --mca pml ob1 --mca btl vader,tcp,self \
+          --mca btl_tcp_if_exclude lo,docker0,virbr0,ib0 \
+          --bind-to core:overload-allowed --report-bindings \
+          --rank-by slot --map-by slot \
+          python ./projects/lsst_y1/EXAMPLE_EMUL_MINIMIZE2.py \
+            --root ./projects/lsst_y1/ \
+            --outroot "EXAMPLE_EMUL_MIN2" \
+            --nstw 750
 
   - macOS (arm)
 
-         mpirun -n 12 --oversubscribe python ./projects/lsst_y1/EXAMPLE_EMUL_MINIMIZE2.py --root ./projects/lsst_y1/ \
-               --outroot "EXAMPLE_EMUL_MIN2" --nstw 750
+        mpirun -n 12 \
+          --oversubscribe python ./projects/lsst_y1/EXAMPLE_EMUL_MINIMIZE2.py \
+          --root ./projects/lsst_y1/ \
+          --outroot "EXAMPLE_EMUL_MIN2" \
+          --nstw 750
     
-  The number of steps per Emcee walker per temperature is $n_{\\rm stw}$,
-  and the number of walkers is $n_{\\rm w}={\\rm max}(3n_{\\rm params},n_{\\rm MPI})$.
-  The minimum number of total evaluations is $3n_{\\rm params} \times n_{\rm T} \times n_{\\rm stw}$, which can be distributed among $n_{\\rm MPI} = 3n_{\\rm params}$ MPI processes for faster results.
+  The number of steps per Emcee walker per temperature is $n_{\rm stw}$,
+  and the number of walkers is $n_{\rm w}={\rm max}(3n_{\rm params},n_{\rm MPI})$.
+  The minimum number of total evaluations is $3n_{\rm params} \times n_{\rm T} \times n_{\rm stw}$, which can be distributed among $n_{\rm MPI} = 3n_{\rm params}$ MPI processes for faster results.
 
   The scripts that generated the plots below are provided at `scripts/EXAMPLE_PLOT_MIN_COMPARE_CONV_EMUL[2].py`
 
@@ -392,9 +444,9 @@ likelihoods, and the theory code, all following Cobaya Conventions.
   <img width="750" height="750" alt="Screenshot 2025-08-12 at 8 36 33 PM" src="https://github.com/user-attachments/assets/31c36592-2d6c-4232-b5b4-5f686f9f2b8e" />
   </p>
 
-  In our testing, $n_{\\rm stw} \sim 200$ worked reasonably well up to $n_{\rm param} \sim \mathcal{O}(10)$.
+  In our testing, $n_{\rm stw} \sim 200$ worked reasonably well up to $n_{\rm param} \sim \mathcal{O}(10)$.
   Below we show a case with $n_{\rm param} = 38$ that illustrates the need for performing convergence tests on a case-by-case basis.
-  In this example, the total number of evaluations for a reliable minimum is approximately $319,200$ ($n_{\\rm stw} \sim 700$), distributed among $n_{\\rm MPI} = 114$ processes for faster results.
+  In this example, the total number of evaluations for a reliable minimum is approximately $319,200$ ($n_{\rm stw} \sim 700$), distributed among $n_{\rm MPI} = 114$ processes for faster results.
   With the use of emulators, such minima can be computed with $\mathcal{O}(1)$ MPI workers.
 
   <p align="center">
@@ -404,47 +456,57 @@ likelihoods, and the theory code, all following Cobaya Conventions.
 - **Profile**: 
 
   - Linux
-    
-          mpirun -n 51 --oversubscribe --mca pml ^ucx --mca btl vader,tcp,self \
-            --bind-to core:overload-allowed --rank-by slot --map-by slot:pe=${OMP_NUM_THREADS} \
-            python ./projects/lsst_y1/EXAMPLE_EMUL_PROFILE1.py \
-              --root ./projects/lsst_y1/ --cov 'chains/EXAMPLE_EMUL_MCMC1.covmat' \
-              --outroot "EXAMPLE_EMUL_PROFILE1" --factor 3 --nstw 350 --numpts 10 \
-              --profile ${SLURM_ARRAY_TASK_ID} \
-              --minfile="./projects/lsst_y1/chains/EXAMPLE_EMUL_MIN1.txt"
 
-  -  macOS (arm)
+        mpirun -n 51 --oversubscribe --mca pml ob1 --mca btl vader,tcp,self \
+          --mca btl_tcp_if_exclude lo,docker0,virbr0,ib0 \
+          --bind-to core:overload-allowed --report-bindings \
+          --rank-by slot --map-by slot \
+          python ./projects/lsst_y1/EXAMPLE_EMUL_PROFILE1.py \
+            --root ./projects/lsst_y1/ --cov 'chains/EXAMPLE_EMUL_MCMC1.covmat' \
+            --outroot "EXAMPLE_EMUL_PROFILE1" \
+            --factor 3 --nstw 350 --numpts 10 \
+            --profile 1 \
+            --minfile="./projects/lsst_y1/chains/EXAMPLE_EMUL_MIN1.txt"
 
-          mpirun -n 51 --oversubscribe python ./projects/lsst_y1/EXAMPLE_EMUL_PROFILE1.py \
-              --root ./projects/lsst_y1/ --cov 'chains/EXAMPLE_EMUL_MCMC1.covmat' \
-              --outroot "EXAMPLE_EMUL_PROFILE1" --factor 3 --nstw 350 --numpts 10 \
-              --profile ${SLURM_ARRAY_TASK_ID} \
-              --minfile="./projects/lsst_y1/chains/EXAMPLE_EMUL_MIN1.txt"
-     
+  - macOS (arm)
+        
+        mpirun -n 51 --oversubscribe \
+          python ./projects/lsst_y1/EXAMPLE_EMUL_PROFILE1.py \
+            --root ./projects/lsst_y1/ \
+            --cov 'chains/EXAMPLE_EMUL_MCMC1.covmat' \
+            --outroot "EXAMPLE_EMUL_PROFILE1" \
+            --factor 3 --nstw 350 --numpts 10 --profile 1 \
+            --minfile="./projects/lsst_y1/chains/EXAMPLE_EMUL_MIN1.txt"
+       
   or (Example with `Planck CMB (l < 396) + SN + BAO + LSST-Y1` -  $n_{\rm param} = 38$)
 
   - Linux
-    
-        mpirun -n 114 --oversubscribe --mca pml ^ucx --mca btl vader,tcp,self \
-          --bind-to core:overload-allowed --rank-by slot --map-by slot:pe=${OMP_NUM_THREADS} \
+
+        mpirun -n 114 --oversubscribe --mca pml ob1 --mca btl vader,tcp,self \
+          --mca btl_tcp_if_exclude lo,docker0,virbr0,ib0 \
+          --bind-to core:overload-allowed --report-bindings \
+          --rank-by slot --map-by slot \
           python ./projects/lsst_y1/EXAMPLE_EMUL_PROFILE2.py \
-            --root ./projects/lsst_y1/ --cov 'chains/EXAMPLE_EMUL_MCMC2.covmat' \
-            --outroot "EXAMPLE_EMUL_PROFILE2" --factor 3 --nstw 750 --numpts 10 \
-            --profile ${SLURM_ARRAY_TASK_ID} \
+            --root ./projects/lsst_y1/ \
+            --cov 'chains/EXAMPLE_EMUL_MCMC2.covmat' \
+            --outroot "EXAMPLE_EMUL_PROFILE2" \
+            --factor 3 --nstw 750 --numpts 10 --profile 1 \
             --minfile="./projects/lsst_y1/chains/EXAMPLE_EMUL_MIN2.txt"
 
-  -  macOS (arm)
+  - macOS (arm)
 
-          mpirun -n 114 --oversubscribe python ./projects/lsst_y1/EXAMPLE_EMUL_PROFILE2.py \
-            --root ./projects/lsst_y1/ --cov 'chains/EXAMPLE_EMUL_MCMC2.covmat' \
-            --outroot "EXAMPLE_EMUL_PROFILE2" --factor 3 --nstw 750 --numpts 10 \
-            --profile ${SLURM_ARRAY_TASK_ID} \
+        mpirun -n 114 --oversubscribe \
+          python ./projects/lsst_y1/EXAMPLE_EMUL_PROFILE2.py \
+            --root ./projects/lsst_y1/ \
+            --cov 'chains/EXAMPLE_EMUL_MCMC2.covmat' \
+            --outroot "EXAMPLE_EMUL_PROFILE2" \
+            --factor 3 --nstw 750 --numpts 10 --profile 1 \
             --minfile="./projects/lsst_y1/chains/EXAMPLE_EMUL_MIN2.txt"
      
   The argument `factor` specifies the start and end of the parameter being profiled:
 
-      start value ~ mininum value - factor*np.sqrt(np.diag(cov))
-      end   value ~ mininum value + factor*np.sqrt(np.diag(cov))
+      start value ~ minimum value - factor*np.sqrt(np.diag(cov))
+      end   value ~ minimum value + factor*np.sqrt(np.diag(cov))
 
   We advise ${\rm factor} \sim 3$ for parameters that are well constrained by the data when a covariance matrix is provided.
   If `cov` is not supplied, the code estimates one internally from the prior.
@@ -486,12 +548,14 @@ Now, users must follow all the steps below.
  **Step :two:**: Select the number of OpenMP cores. Below, we set it to 4, the ideal setting for hybrid examples.
 
   - Linux
-    
-        export OMP_NUM_THREADS=4; export OMP_PROC_BIND=close; export OMP_PLACES=cores; export OMP_DYNAMIC=FALSE
+
+        export OMP_NUM_THREADS=4; export OMP_PROC_BIND=close; \
+        export OMP_PLACES=cores; export OMP_DYNAMIC=FALSE
 
   - macOS (arm)
     
-        export OMP_NUM_THREADS=4; export OMP_PROC_BIND=disabled; export OMP_PLACES=cores; export OMP_DYNAMIC=FALSE
+        export OMP_NUM_THREADS=4; export OMP_PROC_BIND=disabled; \
+        export OMP_PLACES=cores; export OMP_DYNAMIC=FALSE
     
  **Step :three:** Run `cobaya-run` on the first emulator example, following the commands below (here we only provide lsst-y1 examples).
 
@@ -499,9 +563,11 @@ Now, users must follow all the steps below.
 
   - Linux
     
-        mpirun -n 1 --oversubscribe --mca pml ^ucx --mca btl vader,tcp,self --report-bindings \
-           --bind-to core:overload-allowed --rank-by slot --map-by numa:pe=${OMP_NUM_THREADS} \
-           cobaya-run ./projects/lsst_y1/EXAMPLE_EMUL2_EVALUATE1.yaml -f
+        mpirun -n 1 --oversubscribe --mca pml ob1 --mca btl vader,tcp,self \
+          --mca btl_tcp_if_exclude lo,docker0,virbr0,ib0 \
+          --bind-to core:overload-allowed --report-bindings \
+          --rank-by slot --map-by numa:pe=${OMP_NUM_THREADS} \
+          cobaya-run ./projects/lsst_y1/EXAMPLE_EMUL2_EVALUATE1.yaml -f
 
   - macOS (arm)
     
@@ -511,13 +577,16 @@ Now, users must follow all the steps below.
 
   - Linux
     
-        mpirun -n 4 --oversubscribe --mca pml ^ucx --mca btl vader,tcp,self --report-bindings \
-            --bind-to core:overload-allowed --rank-by slot --map-by numa:pe=${OMP_NUM_THREADS} \
-            cobaya-run ./projects/lsst_y1/EXAMPLE_EMUL_EMUL2_MCMC1.yaml -r
+        mpirun -n 4 --oversubscribe --mca pml ob1 --mca btl vader,tcp,self \
+          --mca btl_tcp_if_exclude lo,docker0,virbr0,ib0 \
+          --bind-to core:overload-allowed --report-bindings \
+          --rank-by slot --map-by numa:pe=${OMP_NUM_THREADS} \
+          cobaya-run ./projects/lsst_y1/EXAMPLE_EMUL2_MCMC1.yaml -r
 
   - macOS (arm)
 
-        mpirun -n 4 --oversubscribe cobaya-run ./projects/lsst_y1/EXAMPLE_EMUL2_MCMC1.yaml -r
+        mpirun -n 4 --oversubscribe \
+          cobaya-run ./projects/lsst_y1/EXAMPLE_EMUL2_MCMC1.yaml -r
     
 Details on the matter power spectrum emulator designs will be presented in the [emulator_code](https://github.com/SBU-COSMOLIKE/emulators_code) repository. Basically, we apply standard neural network techniques to generalize the *syren-new* Eq. 6 of [arXiv:2410.14623](https://arxiv.org/abs/2410.14623) formula for the linear power spectrum (w0waCDM with a fixed neutrino mass of $0.06$ eV) to new models, extended ranges, or higher precision. Similarly, we use networks to generalize the *syren-Halofit* LCDM nonlinear boost fit (Eq. 11 of [arXiv:2402.17492](https://arxiv.org/abs/2402.17492)).
 
