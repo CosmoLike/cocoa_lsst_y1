@@ -41,5 +41,5 @@ fi
 "${CONDA_PREFIX}"/bin/mpirun -n ${SLURM_NTASKS} --oversubscribe \
   --mca pml ob1 --mca btl vader,tcp,self \
   --bind-to core:overload-allowed --report-bindings \
-  --rank-by slot --map-by numa:pe=${OMP_NUM_THREADS} \
+  --rank-by slot --map-by slot:pe=${OMP_NUM_THREADS} \
   cobaya-run ./projects/lsst_y1/EXAMPLE_MCMC${SLURM_ARRAY_TASK_ID}.yaml -r

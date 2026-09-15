@@ -32,6 +32,7 @@ if [ -z "${ROOTDIR}" ]; then
 fi
 
 export OMP_PROC_BIND=close
+export OMP_PLACES=cores
 export OMP_NUM_THREADS=1
 export OMP_DYNAMIC=FALSE
 export OPENBLAS_NUM_THREADS=1 
@@ -39,9 +40,12 @@ export MKL_NUM_THREADS=1
 ulimit -u 2000000 # require line when nmpi is high
 
 "${CONDA_PREFIX}"/bin/mpirun -n ${SLURM_NTASKS} --oversubscribe \
-  --mca pml ob1 --mca btl vader,tcp,self \
-  --bind-to core:overload-allowed --report-bindings \
-  --rank-by slot --map-by slot \
+  -x PATH -x LD_LIBRARY_PATH -x PYTHONPATH -x CONDA_PREFIX -x ROOTDIR -x OMP_NUM_THREADS \
+  -x OMP_PROC_BIND -x OMP_PLACES -x OMP_DYNAMIC -x CLIK_PLUGIN \
+  -x OPENBLAS_NUM_THREADS -x MKL_NUM_THREADS -x CLIK_PATH -x CLIK_DATA \
+  --mca mpi_yield_when_idle 1 --rank-by slot --map-by slot \
+  --mca pml ob1 --mca btl vader,tcp,self --bind-to core:overload-allowed \
+  --mca btl_tcp_if_exclude lo,docker0,virbr0,ib0 --report-bindings \
   python -m mpi4py.futures \
     ./projects/lsst_y1/EXAMPLE_EMUL_NAUTILUS${SLURM_ARRAY_TASK_ID}.py \
     --root ./projects/lsst_y1/ \
