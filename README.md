@@ -302,7 +302,7 @@ Now, users must follow all the steps below.
 >    scripts also work under ssh-based launchers. No other Cocoa installation flags are read at runtime.
 >
 > 3. **Slurm geometry.** Keep `ntasks-per-node` × `cpus-per-task` no larger than the cores per
->    node, and use `--map-by slot:pe=${OMP_NUM_THREADS}` so each rank reserves the cores its
+>    node, and use `--map-by numa:pe=${OMP_NUM_THREADS}` so each rank reserves the cores its
 >    OpenMP threads will use.
 
 > [!NOTE]
