@@ -32,6 +32,7 @@ if [ -z "${ROOTDIR}" ]; then
 fi
 
 export OMP_PROC_BIND=close
+export OMP_PLACES=cores
 export OMP_NUM_THREADS=1
 export OMP_DYNAMIC=FALSE
 export OPENBLAS_NUM_THREADS=1 

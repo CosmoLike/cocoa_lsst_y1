@@ -23,11 +23,11 @@ From `Cocoa/Readme` instructions:
 >     (...)
 >     export LSST_Y1_URL="https://github.com/CosmoLike/cocoa_lsst_y1.git"
 >     export LSST_Y1_NAME="lsst_y1"
->     #BRANCH: if unset, load the latest commit on the specified branch
+>     #Pin the project version with at most one of the keys below (COMMIT, BRANCH, or TAG).
+>     #If more than one is set, COMMIT wins over BRANCH, and BRANCH wins over TAG.
+>     #If none is set, Cocoa loads the latest commit on the repository default branch.
 >     #export LSST_Y1_GIT_BRANCH="dev"
->     #COMMIT: if unset, load the specified commit
 >     export LSST_Y1_GIT_COMMIT="1abe548281296196dabee7b19e31c56f324eda38"
->     #TAG: if unset, load the specified TAG
 >     #export LSST_Y1_GIT_TAG="v4.0-beta17"
 
 > [!NOTE]
@@ -117,7 +117,7 @@ and
 
   - Linux
 
-        mpirun -n 1 --oversubscribe --mca pml ob1 --mca btl vader,tcp,self \
+        "${CONDA_PREFIX}"/bin/mpirun -n 1 --oversubscribe --mca pml ob1 --mca btl vader,tcp,self \
           --mca btl_tcp_if_exclude lo,docker0,virbr0,ib0 \
           --bind-to core:overload-allowed --report-bindings \
           --rank-by slot --map-by numa:pe=${OMP_NUM_THREADS} \
@@ -132,7 +132,7 @@ and
 
   - Linux
 
-        mpirun -n 4 --oversubscribe --mca pml ob1 --mca btl vader,tcp,self \
+        "${CONDA_PREFIX}"/bin/mpirun -n 4 --oversubscribe --mca pml ob1 --mca btl vader,tcp,self \
           --mca btl_tcp_if_exclude lo,docker0,virbr0,ib0 \
           --bind-to core:overload-allowed --report-bindings \
           --rank-by slot --map-by numa:pe=${OMP_NUM_THREADS} \
@@ -188,10 +188,13 @@ Now, users must follow all the steps below.
 
   - Linux
 
-        mpirun -n 1 --oversubscribe --mca pml ob1 --mca btl vader,tcp,self \
-          --mca btl_tcp_if_exclude lo,docker0,virbr0,ib0 \
-          --bind-to core:overload-allowed --report-bindings \
-          --rank-by slot --map-by slot \
+        "${CONDA_PREFIX}"/bin/mpirun -n 1 --oversubscribe \
+          -x PATH -x LD_LIBRARY_PATH -x PYTHONPATH -x CONDA_PREFIX -x OMP_DYNAMIC \
+          -x ROOTDIR -x OMP_NUM_THREADS -x OMP_PROC_BIND -x OMP_PLACES \
+          -x CLIK_PLUGIN -x OPENBLAS_NUM_THREADS -x MKL_NUM_THREADS -x CLIK_PATH \
+          -x CLIK_DATA --mca mpi_yield_when_idle 1 --rank-by slot --map-by slot \
+          --mca pml ob1 --mca btl vader,tcp,self --bind-to core:overload-allowed \
+          --mca btl_tcp_if_exclude lo,docker0,virbr0,ib0 --report-bindings \
           cobaya-run ./projects/lsst_y1/EXAMPLE_EMUL_EVALUATE1.yaml -f
 
   - macOS (arm)
@@ -203,10 +206,13 @@ Now, users must follow all the steps below.
 
   - Linux
 
-        mpirun -n 4 --oversubscribe --mca pml ob1 --mca btl vader,tcp,self \
-          --mca btl_tcp_if_exclude lo,docker0,virbr0,ib0 \
-          --bind-to core:overload-allowed --report-bindings \
-          --rank-by slot --map-by slot \
+        "${CONDA_PREFIX}"/bin/mpirun -n 4 --oversubscribe \
+          -x PATH -x LD_LIBRARY_PATH -x PYTHONPATH -x CONDA_PREFIX -x OMP_DYNAMIC \
+          -x ROOTDIR -x OMP_NUM_THREADS -x OMP_PROC_BIND -x OMP_PLACES \
+          -x CLIK_PLUGIN -x OPENBLAS_NUM_THREADS -x MKL_NUM_THREADS -x CLIK_PATH \
+          -x CLIK_DATA --mca mpi_yield_when_idle 1 --rank-by slot --map-by slot \
+          --mca pml ob1 --mca btl vader,tcp,self --bind-to core:overload-allowed \
+          --mca btl_tcp_if_exclude lo,docker0,virbr0,ib0 --report-bindings \
           cobaya-run ./projects/lsst_y1/EXAMPLE_EMUL_MCMC1.yaml -r
 
   - macOS (arm)
@@ -224,10 +230,13 @@ Now, users must follow all the steps below.
 
   - Linux
 
-        mpirun -n 4 --oversubscribe --mca pml ob1 --mca btl vader,tcp,self \
-          --mca btl_tcp_if_exclude lo,docker0,virbr0,ib0 \
-          --bind-to core:overload-allowed --report-bindings \
-          --rank-by slot --map-by slot \
+        "${CONDA_PREFIX}"/bin/mpirun -n 4 --oversubscribe \
+          -x PATH -x LD_LIBRARY_PATH -x PYTHONPATH -x CONDA_PREFIX -x OMP_DYNAMIC \
+          -x ROOTDIR -x OMP_NUM_THREADS -x OMP_PROC_BIND -x OMP_PLACES \
+          -x CLIK_PLUGIN -x OPENBLAS_NUM_THREADS -x MKL_NUM_THREADS -x CLIK_PATH \
+          -x CLIK_DATA --mca mpi_yield_when_idle 1 --rank-by slot --map-by slot \
+          --mca pml ob1 --mca btl vader,tcp,self --bind-to core:overload-allowed \
+          --mca btl_tcp_if_exclude lo,docker0,virbr0,ib0 --report-bindings \
           cobaya-run ./projects/lsst_y1/EXAMPLE_EMUL_MCMC2.yaml -r
 
   - macOS (arm)
@@ -244,10 +253,13 @@ Now, users must follow all the steps below.
 
   - Linux
 
-        mpirun -n 90 --oversubscribe --mca pml ob1 --mca btl vader,tcp,self \
-          --mca btl_tcp_if_exclude lo,docker0,virbr0,ib0 \
-          --bind-to core:overload-allowed --report-bindings \
-          --rank-by slot --map-by slot \
+        "${CONDA_PREFIX}"/bin/mpirun -n 90 --oversubscribe \
+          -x PATH -x LD_LIBRARY_PATH -x PYTHONPATH -x CONDA_PREFIX -x OMP_DYNAMIC \
+          -x ROOTDIR -x OMP_NUM_THREADS -x OMP_PROC_BIND -x OMP_PLACES \
+          -x CLIK_PLUGIN -x OPENBLAS_NUM_THREADS -x MKL_NUM_THREADS -x CLIK_PATH \
+          -x CLIK_DATA --mca mpi_yield_when_idle 1 --rank-by slot --map-by slot \
+          --mca pml ob1 --mca btl vader,tcp,self --bind-to core:overload-allowed \
+          --mca btl_tcp_if_exclude lo,docker0,virbr0,ib0 --report-bindings \
           cobaya-run ./projects/lsst_y1/EXAMPLE_EMUL_POLY1.yaml -r
 
   - macOS (arm)
@@ -259,10 +271,13 @@ Now, users must follow all the steps below.
 
   - Linux
     
-        mpirun -n 90 --oversubscribe --mca pml ob1 --mca btl vader,tcp,self \
-          --mca btl_tcp_if_exclude lo,docker0,virbr0,ib0 \
-          --bind-to core:overload-allowed --report-bindings \
-          --rank-by slot --map-by slot \
+        "${CONDA_PREFIX}"/bin/mpirun -n 90 --oversubscribe \
+          -x PATH -x LD_LIBRARY_PATH -x PYTHONPATH -x CONDA_PREFIX -x OMP_DYNAMIC \
+          -x ROOTDIR -x OMP_NUM_THREADS -x OMP_PROC_BIND -x OMP_PLACES \
+          -x CLIK_PLUGIN -x OPENBLAS_NUM_THREADS -x MKL_NUM_THREADS -x CLIK_PATH \
+          -x CLIK_DATA --mca mpi_yield_when_idle 1 --rank-by slot --map-by slot \
+          --mca pml ob1 --mca btl vader,tcp,self --bind-to core:overload-allowed \
+          --mca btl_tcp_if_exclude lo,docker0,virbr0,ib0 --report-bindings \
           cobaya-run ./projects/lsst_y1/EXAMPLE_EMUL_POLY2.yaml -r
 
   - macOS (arm)
@@ -270,9 +285,32 @@ Now, users must follow all the steps below.
         mpirun -n 12 --oversubscribe \
           cobaya-run ./projects/lsst_y1/EXAMPLE_EMUL_POLY2.yaml -r
 
-> [!Note]
-> The flag `--mca btl vader,tcp,self` also works unchanged on multi-node runs: 
-> Open MPI uses `vader` (shared memory) within a node and `tcp` between nodes automatically.
+> [!NOTE]
+> **Running on more than one node.** The flag `--mca btl vader,tcp,self` works unchanged across
+> nodes: Open MPI picks the transport per pair of ranks, using shared memory (`vader`) within a
+> node and TCP between nodes. Three things deserve attention on multi-node runs:
+>
+> 1. **Network interface.** The TCP layer must not select an interface that is not routable
+>    between compute nodes. The flag `--mca btl_tcp_if_exclude lo,docker0,virbr0,ib0` excludes
+>    the common offenders. TCP bandwidth is not a limitation for our workloads, which exchange
+>    small, infrequent MPI messages.
+>
+> 2. **Environment.** Ranks on remote nodes must see Cocoa's environment (`ROOTDIR`, `PATH`,
+>    `LD_LIBRARY_PATH`, `PYTHONPATH`, `CONDA_PREFIX`, the OpenMP/BLAS thread settings, and
+>    `CLIK_PATH`/`CLIK_DATA`/`CLIK_PLUGIN`). Slurm forwards the submitting environment
+>    automatically; the explicit `-x` flags in our sbatch templates repeat this so the
+>    scripts also work under ssh-based launchers. No other Cocoa installation flags are read at runtime.
+>
+> 3. **Slurm geometry.** Keep `ntasks-per-node` × `cpus-per-task` no larger than the cores per
+>    node, and use `--map-by numa:pe=${OMP_NUM_THREADS}` so each rank reserves the cores its
+>    OpenMP threads will use.
+
+> [!NOTE]
+> **Note on core oversubscription**: an MPI process that is waiting still burns 100% of its
+> core, checking for messages in a loop. With more processes than cores, this stalls the
+> processes doing real work. Open MPI usually detects this and makes waiting processes give
+> up the CPU, but its detection can be fooled. Adding `--mca mpi_yield_when_idle 1` forces
+> that behavior; it is harmless otherwise.
 
 The `Nautilus`, `Minimizer`, `Profile`, and `Emcee` scripts below contain an internally defined `yaml_string` that specifies priors, 
 likelihoods, and the theory code, all following Cobaya Conventions.
@@ -281,10 +319,13 @@ likelihoods, and the theory code, all following Cobaya Conventions.
 
   - Linux
     
-        mpirun -n 90 --oversubscribe --mca pml ob1 --mca btl vader,tcp,self \
-          --mca btl_tcp_if_exclude lo,docker0,virbr0,ib0 \
-          --bind-to core:overload-allowed --report-bindings \
-          --rank-by slot --map-by slot \
+        "${CONDA_PREFIX}"/bin/mpirun -n 90 --oversubscribe \
+          -x PATH -x LD_LIBRARY_PATH -x PYTHONPATH -x CONDA_PREFIX -x OMP_DYNAMIC \
+          -x ROOTDIR -x OMP_NUM_THREADS -x OMP_PROC_BIND -x OMP_PLACES \
+          -x CLIK_PLUGIN -x OPENBLAS_NUM_THREADS -x MKL_NUM_THREADS -x CLIK_PATH \
+          -x CLIK_DATA --mca mpi_yield_when_idle 1 --rank-by slot --map-by slot \
+          --mca pml ob1 --mca btl vader,tcp,self --bind-to core:overload-allowed \
+          --mca btl_tcp_if_exclude lo,docker0,virbr0,ib0 --report-bindings \
           python -m mpi4py.futures ./projects/lsst_y1/EXAMPLE_EMUL_NAUTILUS1.py \
             --root ./projects/lsst_y1/ --outroot "EXAMPLE_EMUL_NAUTILUS1"  \
             --maxfeval 750000 --nlive 2048 --neff 15000 \
@@ -305,10 +346,13 @@ likelihoods, and the theory code, all following Cobaya Conventions.
 
   - Linux
     
-        mpirun -n 90 --oversubscribe --mca pml ob1 --mca btl vader,tcp,self \
-          --mca btl_tcp_if_exclude lo,docker0,virbr0,ib0 \
-          --bind-to core:overload-allowed --report-bindings \
-          --rank-by slot --map-by slot \
+        "${CONDA_PREFIX}"/bin/mpirun -n 90 --oversubscribe \
+          -x PATH -x LD_LIBRARY_PATH -x PYTHONPATH -x CONDA_PREFIX -x OMP_DYNAMIC \
+          -x ROOTDIR -x OMP_NUM_THREADS -x OMP_PROC_BIND -x OMP_PLACES \
+          -x CLIK_PLUGIN -x OPENBLAS_NUM_THREADS -x MKL_NUM_THREADS -x CLIK_PATH \
+          -x CLIK_DATA --mca mpi_yield_when_idle 1 --rank-by slot --map-by slot \
+          --mca pml ob1 --mca btl vader,tcp,self --bind-to core:overload-allowed \
+          --mca btl_tcp_if_exclude lo,docker0,virbr0,ib0 --report-bindings \
           python -m mpi4py.futures ./projects/lsst_y1/EXAMPLE_EMUL_NAUTILUS2.py \
             --root ./projects/lsst_y1/ \
             --outroot "EXAMPLE_EMUL_NAUTILUS2"  \
@@ -330,10 +374,13 @@ likelihoods, and the theory code, all following Cobaya Conventions.
 
   - Linux
 
-        mpirun -n 51 --oversubscribe --mca pml ob1 --mca btl vader,tcp,self \
-          --mca btl_tcp_if_exclude lo,docker0,virbr0,ib0 \
-          --bind-to core:overload-allowed --report-bindings \
-          --rank-by slot --map-by slot \
+        "${CONDA_PREFIX}"/bin/mpirun -n 51 --oversubscribe \
+          -x PATH -x LD_LIBRARY_PATH -x PYTHONPATH -x CONDA_PREFIX -x OMP_DYNAMIC \
+          -x ROOTDIR -x OMP_NUM_THREADS -x OMP_PROC_BIND -x OMP_PLACES \
+          -x CLIK_PLUGIN -x OPENBLAS_NUM_THREADS -x MKL_NUM_THREADS -x CLIK_PATH \
+          -x CLIK_DATA --mca mpi_yield_when_idle 1 --rank-by slot --map-by slot \
+          --mca pml ob1 --mca btl vader,tcp,self --bind-to core:overload-allowed \
+          --mca btl_tcp_if_exclude lo,docker0,virbr0,ib0 --report-bindings \
           python ./projects/lsst_y1/EXAMPLE_EMUL_EMCEE1.py \
             --root ./projects/lsst_y1/ \
             --outroot "EXAMPLE_EMUL_EMCEE1" \
@@ -351,10 +398,13 @@ likelihoods, and the theory code, all following Cobaya Conventions.
 
   - Linux
 
-        mpirun -n 114 --oversubscribe --mca pml ob1 --mca btl vader,tcp,self \
-          --mca btl_tcp_if_exclude lo,docker0,virbr0,ib0 \
-          --bind-to core:overload-allowed --report-bindings \
-          --rank-by slot --map-by slot \
+        "${CONDA_PREFIX}"/bin/mpirun -n 114 --oversubscribe \
+          -x PATH -x LD_LIBRARY_PATH -x PYTHONPATH -x CONDA_PREFIX -x OMP_DYNAMIC \
+          -x ROOTDIR -x OMP_NUM_THREADS -x OMP_PROC_BIND -x OMP_PLACES \
+          -x CLIK_PLUGIN -x OPENBLAS_NUM_THREADS -x MKL_NUM_THREADS -x CLIK_PATH \
+          -x CLIK_DATA --mca mpi_yield_when_idle 1 --rank-by slot --map-by slot \
+          --mca pml ob1 --mca btl vader,tcp,self --bind-to core:overload-allowed \
+          --mca btl_tcp_if_exclude lo,docker0,virbr0,ib0 --report-bindings \
           python ./projects/lsst_y1/EXAMPLE_EMUL_EMCEE2.py \
             --root ./projects/lsst_y1/ \
             --outroot "EXAMPLE_EMUL_EMCEE2" \
@@ -406,10 +456,13 @@ likelihoods, and the theory code, all following Cobaya Conventions.
 
   - Linux
 
-        mpirun -n 51 --oversubscribe --mca pml ob1 --mca btl vader,tcp,self \
-          --mca btl_tcp_if_exclude lo,docker0,virbr0,ib0 \
-          --bind-to core:overload-allowed --report-bindings \
-          --rank-by slot --map-by slot \
+        "${CONDA_PREFIX}"/bin/mpirun -n 51 --oversubscribe \
+          -x PATH -x LD_LIBRARY_PATH -x PYTHONPATH -x CONDA_PREFIX -x OMP_DYNAMIC \
+          -x ROOTDIR -x OMP_NUM_THREADS -x OMP_PROC_BIND -x OMP_PLACES \
+          -x CLIK_PLUGIN -x OPENBLAS_NUM_THREADS -x MKL_NUM_THREADS -x CLIK_PATH \
+          -x CLIK_DATA --mca mpi_yield_when_idle 1 --rank-by slot --map-by slot \
+          --mca pml ob1 --mca btl vader,tcp,self --bind-to core:overload-allowed \
+          --mca btl_tcp_if_exclude lo,docker0,virbr0,ib0 --report-bindings \
           python ./projects/lsst_y1/EXAMPLE_EMUL_MINIMIZE1.py \
             --root ./projects/lsst_y1/ \
             --outroot "EXAMPLE_EMUL_MIN1" \
@@ -427,10 +480,13 @@ likelihoods, and the theory code, all following Cobaya Conventions.
 
   - Linux
 
-        mpirun -n 114 --oversubscribe --mca pml ob1 --mca btl vader,tcp,self \
-          --mca btl_tcp_if_exclude lo,docker0,virbr0,ib0 \
-          --bind-to core:overload-allowed --report-bindings \
-          --rank-by slot --map-by slot \
+        "${CONDA_PREFIX}"/bin/mpirun -n 114 --oversubscribe \
+          -x PATH -x LD_LIBRARY_PATH -x PYTHONPATH -x CONDA_PREFIX -x OMP_DYNAMIC \
+          -x ROOTDIR -x OMP_NUM_THREADS -x OMP_PROC_BIND -x OMP_PLACES \
+          -x CLIK_PLUGIN -x OPENBLAS_NUM_THREADS -x MKL_NUM_THREADS -x CLIK_PATH \
+          -x CLIK_DATA --mca mpi_yield_when_idle 1 --rank-by slot --map-by slot \
+          --mca pml ob1 --mca btl vader,tcp,self --bind-to core:overload-allowed \
+          --mca btl_tcp_if_exclude lo,docker0,virbr0,ib0 --report-bindings \
           python ./projects/lsst_y1/EXAMPLE_EMUL_MINIMIZE2.py \
             --root ./projects/lsst_y1/ \
             --outroot "EXAMPLE_EMUL_MIN2" \
@@ -448,7 +504,7 @@ likelihoods, and the theory code, all following Cobaya Conventions.
   and the number of walkers is $n_{\rm w}={\rm max}(3n_{\rm params},n_{\rm MPI})$.
   The minimum number of total evaluations is $3n_{\rm params} \times n_{\rm T} \times n_{\rm stw}$, which can be distributed among $n_{\rm MPI} = 3n_{\rm params}$ MPI processes for faster results.
 
-  The scripts that generated the plots below are provided at `scripts/EXAMPLE_PLOT_MIN_COMPARE_CONV_EMUL[2].py`
+  The scripts that generated the plots below are provided at `scripts/EXAMPLE_PLOT_MIN_COMPARE_CONV[2].py`
 
   <p align="center">
   <img width="750" height="750" alt="Screenshot 2025-08-12 at 8 36 33 PM" src="https://github.com/user-attachments/assets/31c36592-2d6c-4232-b5b4-5f686f9f2b8e" />
@@ -467,10 +523,13 @@ likelihoods, and the theory code, all following Cobaya Conventions.
 
   - Linux
 
-        mpirun -n 51 --oversubscribe --mca pml ob1 --mca btl vader,tcp,self \
-          --mca btl_tcp_if_exclude lo,docker0,virbr0,ib0 \
-          --bind-to core:overload-allowed --report-bindings \
-          --rank-by slot --map-by slot \
+        "${CONDA_PREFIX}"/bin/mpirun -n 51 --oversubscribe \
+          -x PATH -x LD_LIBRARY_PATH -x PYTHONPATH -x CONDA_PREFIX -x OMP_DYNAMIC \
+          -x ROOTDIR -x OMP_NUM_THREADS -x OMP_PROC_BIND -x OMP_PLACES \
+          -x CLIK_PLUGIN -x OPENBLAS_NUM_THREADS -x MKL_NUM_THREADS -x CLIK_PATH \
+          -x CLIK_DATA --mca mpi_yield_when_idle 1 --rank-by slot --map-by slot \
+          --mca pml ob1 --mca btl vader,tcp,self --bind-to core:overload-allowed \
+          --mca btl_tcp_if_exclude lo,docker0,virbr0,ib0 --report-bindings \
           python ./projects/lsst_y1/EXAMPLE_EMUL_PROFILE1.py \
             --root ./projects/lsst_y1/ --cov 'chains/EXAMPLE_EMUL_MCMC1.covmat' \
             --outroot "EXAMPLE_EMUL_PROFILE1" \
@@ -492,10 +551,13 @@ likelihoods, and the theory code, all following Cobaya Conventions.
 
   - Linux
 
-        mpirun -n 114 --oversubscribe --mca pml ob1 --mca btl vader,tcp,self \
-          --mca btl_tcp_if_exclude lo,docker0,virbr0,ib0 \
-          --bind-to core:overload-allowed --report-bindings \
-          --rank-by slot --map-by slot \
+        "${CONDA_PREFIX}"/bin/mpirun -n 114 --oversubscribe \
+          -x PATH -x LD_LIBRARY_PATH -x PYTHONPATH -x CONDA_PREFIX -x OMP_DYNAMIC \
+          -x ROOTDIR -x OMP_NUM_THREADS -x OMP_PROC_BIND -x OMP_PLACES \
+          -x CLIK_PLUGIN -x OPENBLAS_NUM_THREADS -x MKL_NUM_THREADS -x CLIK_PATH \
+          -x CLIK_DATA --mca mpi_yield_when_idle 1 --rank-by slot --map-by slot \
+          --mca pml ob1 --mca btl vader,tcp,self --bind-to core:overload-allowed \
+          --mca btl_tcp_if_exclude lo,docker0,virbr0,ib0 --report-bindings \
           python ./projects/lsst_y1/EXAMPLE_EMUL_PROFILE2.py \
             --root ./projects/lsst_y1/ \
             --cov 'chains/EXAMPLE_EMUL_MCMC2.covmat' \
@@ -560,20 +622,22 @@ Now, users must follow all the steps below.
   - Linux
 
         export OMP_NUM_THREADS=4; export OMP_PROC_BIND=close; \
-        export OMP_PLACES=cores; export OMP_DYNAMIC=FALSE
+        export OMP_PLACES=cores; export OMP_DYNAMIC=FALSE; \
+        export OPENBLAS_NUM_THREADS=1; export MKL_NUM_THREADS=1
 
   - macOS (arm)
     
         export OMP_NUM_THREADS=4; export OMP_PROC_BIND=disabled; \
-        export OMP_PLACES=cores; export OMP_DYNAMIC=FALSE
-    
+        export OMP_PLACES=cores; export OMP_DYNAMIC=FALSE; \
+        export OPENBLAS_NUM_THREADS=1; export MKL_NUM_THREADS=1
+  
  **Step :three:** Run `cobaya-run` on the first emulator example, following the commands below (here we only provide lsst-y1 examples).
 
 - **One model evaluation**:
 
   - Linux
     
-        mpirun -n 1 --oversubscribe --mca pml ob1 --mca btl vader,tcp,self \
+        "${CONDA_PREFIX}"/bin/mpirun -n 1 --oversubscribe --mca pml ob1 --mca btl vader,tcp,self \
           --mca btl_tcp_if_exclude lo,docker0,virbr0,ib0 \
           --bind-to core:overload-allowed --report-bindings \
           --rank-by slot --map-by numa:pe=${OMP_NUM_THREADS} \
@@ -587,7 +651,7 @@ Now, users must follow all the steps below.
 
   - Linux
     
-        mpirun -n 4 --oversubscribe --mca pml ob1 --mca btl vader,tcp,self \
+        "${CONDA_PREFIX}"/bin/mpirun -n 4 --oversubscribe --mca pml ob1 --mca btl vader,tcp,self \
           --mca btl_tcp_if_exclude lo,docker0,virbr0,ib0 \
           --bind-to core:overload-allowed --report-bindings \
           --rank-by slot --map-by numa:pe=${OMP_NUM_THREADS} \
