@@ -118,7 +118,6 @@ and
   - Linux
 
         "${CONDA_PREFIX}"/bin/mpirun -n 1 --oversubscribe --mca pml ob1 --mca btl vader,tcp,self \
-          --mca btl_tcp_if_exclude lo,docker0,virbr0,ib0 \
           --bind-to core:overload-allowed --report-bindings \
           --rank-by slot --map-by numa:pe=${OMP_NUM_THREADS} \
           cobaya-run ./projects/lsst_y1/EXAMPLE_EVALUATE1.yaml -f
@@ -133,7 +132,6 @@ and
   - Linux
 
         "${CONDA_PREFIX}"/bin/mpirun -n 4 --oversubscribe --mca pml ob1 --mca btl vader,tcp,self \
-          --mca btl_tcp_if_exclude lo,docker0,virbr0,ib0 \
           --bind-to core:overload-allowed --report-bindings \
           --rank-by slot --map-by numa:pe=${OMP_NUM_THREADS} \
           cobaya-run ./projects/lsst_y1/EXAMPLE_MCMC1.yaml -f
@@ -189,12 +187,9 @@ Now, users must follow all the steps below.
   - Linux
 
         "${CONDA_PREFIX}"/bin/mpirun -n 1 --oversubscribe \
-          -x PATH -x LD_LIBRARY_PATH -x PYTHONPATH -x CONDA_PREFIX -x OMP_DYNAMIC \
-          -x ROOTDIR -x OMP_NUM_THREADS -x OMP_PROC_BIND -x OMP_PLACES \
-          -x CLIK_PLUGIN -x OPENBLAS_NUM_THREADS -x MKL_NUM_THREADS -x CLIK_PATH \
-          -x CLIK_DATA --mca mpi_yield_when_idle 1 --rank-by slot --map-by slot \
-          --mca pml ob1 --mca btl vader,tcp,self --bind-to core:overload-allowed \
-          --mca btl_tcp_if_exclude lo,docker0,virbr0,ib0 --report-bindings \
+          --mca pml ob1 --mca btl vader,tcp,self \
+          --bind-to core:overload-allowed --report-bindings \
+          --rank-by slot --map-by slot \
           cobaya-run ./projects/lsst_y1/EXAMPLE_EMUL_EVALUATE1.yaml -f
 
   - macOS (arm)
@@ -207,12 +202,9 @@ Now, users must follow all the steps below.
   - Linux
 
         "${CONDA_PREFIX}"/bin/mpirun -n 4 --oversubscribe \
-          -x PATH -x LD_LIBRARY_PATH -x PYTHONPATH -x CONDA_PREFIX -x OMP_DYNAMIC \
-          -x ROOTDIR -x OMP_NUM_THREADS -x OMP_PROC_BIND -x OMP_PLACES \
-          -x CLIK_PLUGIN -x OPENBLAS_NUM_THREADS -x MKL_NUM_THREADS -x CLIK_PATH \
-          -x CLIK_DATA --mca mpi_yield_when_idle 1 --rank-by slot --map-by slot \
-          --mca pml ob1 --mca btl vader,tcp,self --bind-to core:overload-allowed \
-          --mca btl_tcp_if_exclude lo,docker0,virbr0,ib0 --report-bindings \
+          --mca pml ob1 --mca btl vader,tcp,self \
+          --bind-to core:overload-allowed --report-bindings \
+          --rank-by slot --map-by slot \
           cobaya-run ./projects/lsst_y1/EXAMPLE_EMUL_MCMC1.yaml -r
 
   - macOS (arm)
@@ -231,12 +223,9 @@ Now, users must follow all the steps below.
   - Linux
 
         "${CONDA_PREFIX}"/bin/mpirun -n 4 --oversubscribe \
-          -x PATH -x LD_LIBRARY_PATH -x PYTHONPATH -x CONDA_PREFIX -x OMP_DYNAMIC \
-          -x ROOTDIR -x OMP_NUM_THREADS -x OMP_PROC_BIND -x OMP_PLACES \
-          -x CLIK_PLUGIN -x OPENBLAS_NUM_THREADS -x MKL_NUM_THREADS -x CLIK_PATH \
-          -x CLIK_DATA --mca mpi_yield_when_idle 1 --rank-by slot --map-by slot \
-          --mca pml ob1 --mca btl vader,tcp,self --bind-to core:overload-allowed \
-          --mca btl_tcp_if_exclude lo,docker0,virbr0,ib0 --report-bindings \
+          --mca pml ob1 --mca btl vader,tcp,self \
+          --bind-to core:overload-allowed --report-bindings \
+          --rank-by slot --map-by slot \
           cobaya-run ./projects/lsst_y1/EXAMPLE_EMUL_MCMC2.yaml -r
 
   - macOS (arm)
@@ -638,21 +627,20 @@ Now, users must follow all the steps below.
   - Linux
     
         "${CONDA_PREFIX}"/bin/mpirun -n 1 --oversubscribe --mca pml ob1 --mca btl vader,tcp,self \
-          --mca btl_tcp_if_exclude lo,docker0,virbr0,ib0 \
           --bind-to core:overload-allowed --report-bindings \
           --rank-by slot --map-by numa:pe=${OMP_NUM_THREADS} \
           cobaya-run ./projects/lsst_y1/EXAMPLE_EMUL2_EVALUATE1.yaml -f
 
   - macOS (arm)
     
-        mpirun -n 1 --oversubscribe  cobaya-run ./projects/lsst_y1/EXAMPLE_EMUL2_EVALUATE1.yaml -f
+        mpirun -n 1 --oversubscribe \
+          cobaya-run ./projects/lsst_y1/EXAMPLE_EMUL2_EVALUATE1.yaml -f
     
 - **MCMC (Metropolis-Hastings Algorithm)**:
 
   - Linux
     
         "${CONDA_PREFIX}"/bin/mpirun -n 4 --oversubscribe --mca pml ob1 --mca btl vader,tcp,self \
-          --mca btl_tcp_if_exclude lo,docker0,virbr0,ib0 \
           --bind-to core:overload-allowed --report-bindings \
           --rank-by slot --map-by numa:pe=${OMP_NUM_THREADS} \
           cobaya-run ./projects/lsst_y1/EXAMPLE_EMUL2_MCMC1.yaml -r
