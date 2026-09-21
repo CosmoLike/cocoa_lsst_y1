@@ -94,6 +94,35 @@ TATT_POINT = {
     "LSST_A2_2": -1.51541,
 }
 
+# The TATT variants evaluate against a data vector GENERATED WITH TATT
+# at the fiducial point (written by the generator into
+# frozen/data/tatt_lsst_y1.modelvector and referenced by this dataset
+# descriptor). Reason: with the shipped NLA-based data vector the TATT
+# chi2 at the fiducial is well above zero, and away from a minimum the
+# chi2 responds linearly (not quadratically) to tiny numerical
+# changes, making the drift bound needlessly twitchy. Against its own
+# data vector the TATT chi2 sits at the minimum, where it is stable.
+TATT_DATASET = "tatt_lsst_y1.dataset"
+
+# High-accuracy settings for the accuracy advisory checks
+# (test_accuracy.py): the same physics evaluated with the numerical
+# knobs pushed far beyond the defaults. The difference to the default
+# reference chi2 measures the numerical error of the DEFAULT settings.
+HIGH_ACCURACY_LIKELIHOOD = {
+    "accuracyboost": 5.0,       # default 1.0
+    "integration_accuracy": 10,  # default 0
+    "lmax": 200000,             # default 50000-65000
+    "kmax_boltzmann": 40.0,     # default 5.0
+}
+HIGH_ACCURACY_CAMB_EXTRA_ARGS = {
+    "halofit_version": "takahashi",
+    "AccuracyBoost": 2.0,       # default 1.05
+    "dark_energy_model": "ppf",
+    "accurate_massive_neutrino_transfers": False,
+    "k_per_logint": 50,         # default 10
+    "kmax": 50.0,               # default 5.0
+}
+
 # The frozen configurations. Field meanings:
 #   "likelihood"        = the cobaya component name, needed to reach that
 #                         block inside the loaded info dictionary;
@@ -469,6 +498,34 @@ EMUL2 ADVISORY: {label}
     return delta_exact
 
 
+def report_accuracy(label, chi2_high, default_ref):
+    """Print one default-vs-high-accuracy check. Advisory only.
+
+    The default-settings chi2 is the frozen reference (recorded at
+    freeze time); the high-accuracy chi2 is computed in this run. The
+    difference is the numerical error of the default settings at this
+    point: there is no pass/fail because how much numerical error an
+    analysis tolerates is a judgment call, not a fixed bound.
+
+    Arguments:
+      label       = one line naming the probe and IA model.
+      chi2_high   = chi2 with HIGH_ACCURACY settings, this run.
+      default_ref = the frozen default-settings reference chi2.
+
+    Returns:
+      chi2_high - default_ref, the printed difference.
+    """
+    delta = chi2_high - default_ref
+    print(f"""
+{'-' * 66}
+ACCURACY: {label}
+  chi2 (high accuracy)      = {chi2_high:.6f}
+  chi2 (default, frozen)    = {default_ref:.6f}
+  delta chi2 (high-default) = {delta:+.6f}
+{'-' * 66}""", flush=True)
+    return delta
+
+
 def report_emul2_race(label, fresh, tenth):
     """Print one EMUL2 race check, advisory only.
 
@@ -529,7 +586,7 @@ def _frozen_module(example):
     return module
 
 
-def load_frozen_info(example, tatt, fastpt=False):
+def load_frozen_info(example, tatt, fastpt=False, high_accuracy=False):
     """Build the cobaya input dictionary for one frozen configuration.
 
     Starts from the frozen module's yaml string and applies the only
@@ -557,6 +614,11 @@ def load_frozen_info(example, tatt, fastpt=False):
       tatt    = True selects the TATT IA model, False keeps NLA.
       fastpt  = True computes the TATT terms with python FAST-PT
                 (IA_code: 1) instead of cfastpt (IA_code: 0).
+      high_accuracy = True applies HIGH_ACCURACY_LIKELIHOOD and
+                HIGH_ACCURACY_CAMB_EXTRA_ARGS on top of the frozen
+                configuration (accuracy advisory checks only; not
+                available for the emulator configurations, which have
+                no camb block).
 
     Returns:
       the input dictionary ready for cobaya's get_model.
@@ -582,6 +644,19 @@ def load_frozen_info(example, tatt, fastpt=False):
     likelihood_block["path"] = os.path.join(FROZEN_DIR, "data")
     # intrinsic-alignment model selection: 0 = NLA, 1 = TATT
     likelihood_block["IA_model"] = 1 if tatt else 0
+    if tatt and not cfg.get("emulator"):
+        # TATT evaluates against its own generated data vector so the
+        # chi2 sits at a minimum (see the TATT_DATASET comment)
+        likelihood_block["data_file"] = TATT_DATASET
+    if high_accuracy:
+        if cfg.get("emulator"):
+            raise ValueError(
+                "high_accuracy applies to the exact-physics "
+                "configurations only (the emulators have no accuracy "
+                "knobs to push)")
+        likelihood_block.update(HIGH_ACCURACY_LIKELIHOOD)
+        info["theory"]["camb"]["extra_args"].update(
+            HIGH_ACCURACY_CAMB_EXTRA_ARGS)
     if fastpt:
         likelihood_block["IA_code"] = 1
         # the frozen configurations carry no fastpt block (the live
@@ -702,7 +777,7 @@ def evaluate_chi2(model, point):
     return float(chi2)
 
 
-def single_model_chi2(example, tatt, fastpt=False):
+def single_model_chi2(example, tatt, fastpt=False, high_accuracy=False):
     """chi2 of the frozen fiducial point on a freshly built model.
 
     This is the quantity tests 1, 3, 5, and 7 compare against the
@@ -714,6 +789,9 @@ def single_model_chi2(example, tatt, fastpt=False):
       tatt    = True evaluates the TATT variant, False the NLA one.
       fastpt  = True computes the TATT terms with python FAST-PT
                 (see load_frozen_info).
+      high_accuracy = True evaluates with the pushed numerical
+                settings (see load_frozen_info); expect the
+                evaluation to take minutes instead of seconds.
 
     Returns:
       the chi2 as a float.
@@ -721,11 +799,14 @@ def single_model_chi2(example, tatt, fastpt=False):
     ia_label = "TATT" if tatt else "NLA"
     if fastpt:
         ia_label += "+FASTPT"
+    if high_accuracy:
+        ia_label += ", high accuracy"
     print(f"  building model ({example}, {ia_label}) ...", flush=True)
     # load_frozen_info returns the frozen configuration dictionary with
     # the run-time adjustments applied; make_model turns it into an
     # evaluable cobaya Model (loads CAMB or the emulators + cosmolike)
-    info = load_frozen_info(example, tatt, fastpt=fastpt)
+    info = load_frozen_info(example, tatt, fastpt=fastpt,
+                            high_accuracy=high_accuracy)
     model = make_model(info)
     # build_point returns the frozen evaluation point, cross-checked
     # against the model's sampled-parameter set (drift fails loudly)

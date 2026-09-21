@@ -63,6 +63,23 @@ external_modules/data/emultrf, not from the frozen state; the network
 device is frozen to `cpu` so the numbers do not depend on GPU
 availability.
 
+Accuracy checks (`test_accuracy.py`, A1-A6): the three probes with
+both IA models re-evaluated with the numerical settings pushed far
+beyond the defaults (cosmolike accuracyboost 5, integration_accuracy
+10, lmax 200000, kmax_boltzmann 40; CAMB AccuracyBoost 2, k_per_logint
+50, kmax 50). Each check reports delta chi2 = chi2(high accuracy) -
+chi2(default, frozen): the numerical error of the default settings.
+No pass/fail. A high-accuracy evaluation takes minutes; run this file
+on its own, or skip it with
+`--ignore ./projects/lsst_y1/tests/test_accuracy.py`.
+
+All TATT variants evaluate against `frozen/data/tatt_lsst_y1.dataset`,
+a data vector GENERATED WITH TATT at the fiducial point during the
+freeze. Reason: against the shipped NLA-based vector the TATT chi2
+sits away from its minimum, where it responds linearly to tiny
+numerical changes; at its own minimum the response is quadratic and
+the drift bounds stay meaningful.
+
 ## Why the tests keep their own copy of everything
 
 The tests read nothing from the live project: not `../data`, not the

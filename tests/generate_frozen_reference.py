@@ -25,6 +25,13 @@ the tests consume each piece):
     trained network files themselves are NOT copied: they live in
     external_modules/data/emultrf and are pinned by the EMULTRF keys
     in set_installation_options.sh).
+  - frozen/data/tatt_lsst_y1.{modelvector,dataset}: a data vector
+    GENERATED WITH TATT at the fiducial point, plus a dataset
+    descriptor pointing at it. Every TATT reference and test evaluates
+    against this vector so its chi2 sits at a minimum, where it is
+    stable; against the shipped NLA-based vector the TATT chi2 would
+    sit on the side of a hill, responding linearly to tiny numerical
+    changes.
   - frozen/reference_chi2.json: the reference chi2 values, one per
     configuration and variant (NLA for all; TATT for the exact
     configurations; TATT with python FAST-PT for example1/2, plus the
@@ -172,6 +179,89 @@ def freeze_example(example, stamp):
           f"({len(live['params'])} in the live example yaml)", flush=True)
 
 
+def generate_tatt_datavector():
+    """Write the TATT-generated data vector and its dataset descriptor.
+
+    The vector comes from the frozen 3x2pt (example2) configuration
+    with the TATT point and datavector printing enabled: cosmolike
+    writes the full-length theory vector, which the cosmic-shear and
+    2x2pt masks select from, so ONE generated vector serves every
+    exact-physics configuration. It must be generated against the
+    ORIGINAL frozen dataset (the TATT dataset descriptor written here
+    does not exist yet; the printed theory vector does not depend on
+    which data vector it is compared against).
+
+    Returns:
+      nothing; frozen/data/ gains the .modelvector and .dataset files.
+
+    Raises:
+      RuntimeError when the generated vector's length differs from
+      the original data vector (a masking or probe mismatch), or when
+      the dataset descriptor does not contain exactly one data_file
+      line to replace.
+    """
+    from cobaya.yaml import yaml_load
+
+    example = "example2"
+    cfg = u.EXAMPLES[example]
+    # the original dataset name comes from the frozen configuration
+    # itself (load_frozen_info would already point at the TATT dataset)
+    frozen_info = yaml_load(u._frozen_module(example).yaml_string)
+    original_dataset = frozen_info["likelihood"][cfg["likelihood"]]["data_file"]
+
+    vector_name = u.TATT_DATASET.replace(".dataset", ".modelvector")
+    info = u.load_frozen_info(example, tatt=True)
+    likelihood_block = info["likelihood"][cfg["likelihood"]]
+    likelihood_block["data_file"] = original_dataset
+    likelihood_block["print_datavector"] = True
+    likelihood_block["print_datavector_file"] = (
+        FROZEN_DATA_RELPATH + "/" + vector_name)
+
+    print("generating the TATT data vector (example2, TATT point) ...",
+          flush=True)
+    model = u.make_model(info)
+    point = u.build_point(model, example, tatt=True)
+    u.evaluate_chi2(model, point)
+
+    # sanity: the generated vector must have the same length as the
+    # original one, or the masks would select the wrong entries
+    data_dir = os.path.join(u.FROZEN_DIR, "data")
+    with open(os.path.join(data_dir, vector_name)) as f:
+        generated_lines = sum(1 for _ in f)
+    descriptor_path = os.path.join(data_dir, original_dataset)
+    with open(descriptor_path) as f:
+        descriptor = f.read()
+    original_vector = None
+    for line in descriptor.splitlines():
+        if line.strip().startswith("data_file"):
+            original_vector = line.split("=", 1)[1].strip()
+    with open(os.path.join(data_dir, original_vector)) as f:
+        original_lines = sum(1 for _ in f)
+    if generated_lines != original_lines:
+        raise RuntimeError(
+            f"TATT data vector has {generated_lines} lines; the "
+            f"original {original_vector} has {original_lines}")
+
+    # the TATT dataset descriptor: the original with only the
+    # data_file line replaced
+    replaced = 0
+    out_lines = []
+    for line in descriptor.splitlines(keepends=True):
+        if line.strip().startswith("data_file"):
+            out_lines.append(f"data_file = {vector_name}\n")
+            replaced += 1
+        else:
+            out_lines.append(line)
+    if replaced != 1:
+        raise RuntimeError(
+            f"{original_dataset}: expected exactly one data_file "
+            f"line, found {replaced}")
+    with open(os.path.join(data_dir, u.TATT_DATASET), "w") as f:
+        f.write("".join(out_lines))
+    print(f"TATT data vector: {vector_name} ({generated_lines} lines); "
+          f"descriptor: {u.TATT_DATASET}", flush=True)
+
+
 def main():
     """Rebuild tests/frozen/ and the manifest from the current project.
 
@@ -212,6 +302,10 @@ def main():
 
     for example in u.EXAMPLES:
         freeze_example(example, stamp)
+
+    # the TATT-generated data vector must exist before the reference
+    # loop below: every TATT reference evaluates against it
+    generate_tatt_datavector()
 
     reference = {
         "_meta": {

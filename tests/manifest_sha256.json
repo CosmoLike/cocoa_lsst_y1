@@ -29,11 +29,13 @@
     "frozen/data/old_lsst_y1_theory.modelvector": "4f163bc6b0154d66beea49bd7ca8741f8cff78ee105ce1893887bd98201d3831",
     "frozen/data/ones.mask": "929a72103ca195fe60e42ddaafe2557b56ad614a15781c1277b3e9cfdf9f86fd",
     "frozen/data/pca.txt": "52b50538e307c1ee8787266fc022dc9366c75b3a92045ddd01c455a4d0d75de5",
-    "frozen/frozen_config_emul2_example1.py": "65d034c2f77d111f0959471b397ca79a6799d1842fb97c77d808e5b3e4ca9d42",
-    "frozen/frozen_config_emul2_example2.py": "db5892450b87e194d03df1e22c96c920fdfdfb752a5228519db3b155a8907158",
-    "frozen/frozen_config_example1.py": "8d0f16ad825ec4f268b8acdb08cbb0fe2a07cb5f54c0f9f5ee01ae8bb7252922",
-    "frozen/frozen_config_example2.py": "0dc8f20a426fe26d09dcad6d8612c8cb7fbe63c40d58b4346a3291a5eb86b140",
-    "frozen/frozen_config_example2_2x2pt.py": "31ab1f73c8543e450c01082f3fd43977a5a425fad58a39d03991ce0bbc2c1718",
-    "frozen/reference_chi2.json": "cb305558c8d7ec2c1fe6f5afe4387c635e438b1eab90d8116354915d4aab31db"
+    "frozen/data/tatt_lsst_y1.dataset": "3254348c79c78c86ed36bcf0e68f0cfcd7afa755f38995b908ec5888e040f5c7",
+    "frozen/data/tatt_lsst_y1.modelvector": "0262fe1a9f63c0e63191b37d00f45caf05982ff12e4a56295ddb0007c64cf512",
+    "frozen/frozen_config_emul2_example1.py": "f948e818f687b9c9168859c4a7f10c22d82cff118a398bc13e5d2b53f385f512",
+    "frozen/frozen_config_emul2_example2.py": "8dfbcd6385e114020cfd83ce9b400cb9fcc832d02ec27c5f7061d8c0068bd982",
+    "frozen/frozen_config_example1.py": "17d1c7d271fa90dca591209b9fe0f6b6b854d8d913e02e9e893fe3afba362865",
+    "frozen/frozen_config_example2.py": "3b3d52520234de7bc8ce7a5ef4b87354aab4efd1b3a04ddb3dcba92a62ec1eed",
+    "frozen/frozen_config_example2_2x2pt.py": "2d5768663307d01f0d369bcfa399ef0a82ece6051c682179eff191b4e8bd5d1f",
+    "frozen/reference_chi2.json": "2f3caa0b1e6e9b3cb925561677b6fca08f8344e4be5be5052ed0eed346ba0194"
   }
 }
