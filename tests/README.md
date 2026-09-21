@@ -1,60 +1,77 @@
 # Unit tests for the lsst_y1 likelihoods
 
-These tests evaluate the cosmic-shear (example1) and 3x2pt (example2)
-likelihoods in Python and compare the chi2 at the frozen fiducial point
-against stored references. They are completely independent of the live
-project configuration: each test loads
-`frozen/frozen_config_example{1,2}.py`, an auto-generated module holding the
-FULLY EXPANDED cobaya configuration as a yaml string (the
-`EXAMPLE_EMUL_NAUTILUS1.py` idiom) plus the exact evaluated point. Every
-option and every parameter — including the ones that normally come from the
-likelihood default yaml files — is written out explicitly, and the data is
-the tests' own copy in `frozen/data/`. `EXAMPLE_EVALUATE1/2.yaml`, the
-likelihood defaults (`cosmic_shear.yaml`, `combo_3x2pt.yaml`,
-`params_source.yaml`, `params_lens.yaml`), and `../data` can therefore all
-change without affecting these tests. Everything under `frozen/` is pinned
-by SHA-256 in `manifest_sha256.json`; if a frozen file is edited, every test
-fails before evaluating anything. The `frozen/EXAMPLE_EVALUATE{1,2}.yaml`
-copies are provenance snapshots for humans to diff — the tests never load
-them.
+These tests catch two kinds of silent breakage: a chi2 that drifted
+because code or data changed by accident, and a race condition (a bug
+where evaluating several points in a row corrupts a later result
+through leftover internal state or colliding OpenMP threads).
 
-The eight tests:
+## Running the tests
 
-1. `test_1` chi2 of example1 within 0.2 of the frozen reference.
-2. `test_2` no race condition (`OMP_NUM_THREADS=2`): the fiducial evaluated
-   as the 10th of 10 cosmologies in a row on one model instance matches a
-   fresh single evaluation (tolerance 1e-4).
-3. `test_3` same as 1 with the TATT IA model (`IA_model: 1`) and
-   `LSST_A2_1=0.05`, `LSST_BTA_1=0.05`, `LSST_A2_2=-1.51541`.
-4. `test_4` same as 2 with the TATT IA model.
-5. -8. the same four tests for example2 (3x2pt).
-
-## Running
-
-From the `Cocoa/` folder, with the cocoa environment active and
+From the `Cocoa/` folder, with the cocoa conda environment active and
 `start_cocoa.sh` sourced:
 
     python -m pytest ./projects/lsst_y1/tests
 
-or, without pytest:
+Without pytest:
 
     python -m unittest discover -s ./projects/lsst_y1/tests -v
 
-Each test streams a report to the terminal with the computed chi2, the
-frozen reference, the |delta chi2|, and the limit (the bundled `pytest.ini`
-passes `-v -s` so the reports are not swallowed by pytest's capture), plus
-progress lines while models build and the race rows evaluate. The full
-suite takes a few minutes (each race test performs 11 likelihood
-evaluations). `OMP_NUM_THREADS=2` is forced inside the test modules.
+The suite changes no project files. Each test streams a progress line
+per model build and per evaluation, then a report block with the
+computed chi2, the stored reference, the difference, and the pass
+limit. A full run performs about 50 likelihood evaluations and takes a
+few minutes. The test modules force `OMP_NUM_THREADS=4` internally.
+The suite never waits for a keypress: a space/enter prompt between
+tests means the output is being piped through a pager such as `less`,
+so run the command with nothing piped after it.
 
-The suite is fully non-interactive and never waits for a keypress. If the
-terminal stops between tests asking for space/enter, the output is going
-through a pager: run the command exactly as above, with no `| less`,
-`| more`, or pager alias after it.
+## The eight tests
+
+1. `test_1`: chi2 of the cosmic-shear likelihood at a fixed reference
+   point must stay within 0.2 of the value stored in
+   `frozen/reference_chi2.json`.
+2. `test_2`: on one model, that point is evaluated fresh and then
+   again as the 10th of 10 cosmologies in a row; the two chi2 values
+   must agree to 1e-4. Leftover state or an OpenMP race breaks the
+   agreement.
+3. `test_3`: same as test 1 with the TATT intrinsic-alignment model
+   (`IA_model: 1`) and `LSST_A2_1=0.05`, `LSST_BTA_1=0.05`,
+   `LSST_A2_2=-1.51541`.
+4. `test_4`: same as test 2 with the TATT model.
+5. -8. the same four tests for the 3x2pt likelihood.
+
+## Why the tests keep their own copy of everything
+
+The tests read nothing from the live project: not `../data`, not the
+`EXAMPLE_EVALUATE` yaml files, and not the likelihood default yaml
+files. Instead, `frozen/` holds:
+
+- `frozen_config_example{1,2}.py`: the complete cobaya configuration
+  as a yaml string plus the exact evaluation point. Every option and
+  every parameter is written out, including the ones that normally
+  come from `params_source.yaml` and the other default files, so
+  editing those files cannot change what the tests evaluate.
+- `data/`: the tests' own copy of the data vectors, covariance, n(z),
+  and masks.
+- `EXAMPLE_EVALUATE{1,2}.yaml`: snapshots kept only so a human can
+  diff how the live examples drifted since the freeze.
+
+`manifest_sha256.json` stores a SHA-256 hash (a fingerprint that
+changes when any byte changes) of every frozen file. Each test
+verifies the manifest first and refuses to run when a frozen file was
+edited, naming the file. The result: users may change the live data
+and examples freely, and nobody can quietly edit the frozen state
+either.
 
 ## Refreshing the frozen state (maintainers only)
 
-Changing the data vectors, n(z), covariance, or the examples on purpose
-requires re-freezing; review the printed chi2 values before committing:
+A deliberate change to the data vectors, n(z), covariance, examples,
+or likelihood defaults requires a re-freeze:
 
     python ./projects/lsst_y1/tests/generate_frozen_reference.py --overwrite
+
+Run it from the `Cocoa/` folder with the environment set up as above.
+It rebuilds `frozen/` from the current project, prints the four new
+reference chi2 values, and rewrites the manifest. Review the printed
+chi2 values against the old references before committing: they define
+what every later test run compares against.
