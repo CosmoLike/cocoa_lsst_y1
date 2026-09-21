@@ -134,12 +134,18 @@ Instead of the one frozen fiducial point, this check repeats the
 accuracy measurement at N reproducible random points drawn across the prior
 of the 3x2pt NLA configuration. Per point:
 
-1. draw the point (seeded, so every run draws the same points);
+1. draw the point;
 2. generate a synthetic data vector at it with the DEFAULT settings,
    so the default $\chi^2$ against that vector is zero by
    construction;
 3. evaluate the high-accuracy $\chi^2$ against the same vector: that
    number is the $\Delta\chi^2$ directly.
+
+> [!NOTE]
+> The draws are reproducible: the check specifies the seed (the
+> starting state) of the random number generator, so every run draws
+> exactly the same points and the numbers can be compared across
+> reruns and machines.
 
 The report streams one block per model and ends with the
 min/median/max $\Delta\chi^2$. Advisory: the deltas only have to be
