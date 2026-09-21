@@ -63,14 +63,18 @@ external_modules/data/emultrf, not from the frozen state; the network
 device is frozen to `cpu` so the numbers do not depend on GPU
 availability.
 
-Accuracy checks (`test_accuracy.py`, A1-A6): the three probes with
-both IA models re-evaluated with the numerical settings pushed far
-beyond the defaults (cosmolike accuracyboost 5, integration_accuracy
-10, lmax 200000, kmax_boltzmann 40; CAMB AccuracyBoost 2, k_per_logint
-50, kmax 50). Each check reports delta chi2 = chi2(high accuracy) -
-chi2(default, frozen): the numerical error of the default settings.
-No pass/fail. A high-accuracy evaluation takes minutes; run this file
-on its own, or skip it with
+Accuracy checks (`test_accuracy.py`): first a one-knob-at-a-time
+scan on the 3x2pt NLA configuration (so a large delta can be
+attributed to the knob causing it; the scan includes accuracyboost 5
+as a stress knob, which in other projects exposed interface
+breakdowns), then the all-knobs checks A1-A6: the three probes with
+both IA models re-evaluated with the numerical settings pushed
+beyond the defaults (cosmolike accuracyboost 2, integration_accuracy
+10, lmax 200000, kmax_boltzmann 40 paired with CAMB kmax 50; CAMB
+AccuracyBoost 2, k_per_logint 50). Each check reports delta chi2 =
+chi2(high accuracy) - chi2(default, frozen): the numerical error of
+the default settings. No pass/fail. A high-accuracy evaluation takes
+minutes; run this file on its own, or skip it with
 `--ignore ./projects/lsst_y1/tests/test_accuracy.py`.
 
 All TATT variants evaluate against `frozen/data/tatt_lsst_y1.dataset`,

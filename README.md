@@ -708,3 +708,42 @@ Details on the matter power spectrum emulator designs will be presented in the [
   </p>
 
 
+
+## Unit tests
+
+The `tests/` folder holds 18 pass/fail tests and advisory checks.
+The pass/fail tests compare the chi2 of cosmic shear, 3x2pt, and
+2x2pt (each in NLA and TATT) against frozen references within 0.2,
+re-evaluate each fiducial as the 10th of 10 cosmologies in a row
+under `OMP_NUM_THREADS=4` to catch state leaks and OpenMP races, and
+check the python FAST-PT implementation of the TATT terms against
+its own frozen reference (printing the FASTPT-minus-cfastpt
+difference). Advisory files measure the EMUL2 emulated pipelines
+against the exact physics and the numerical error of the default
+accuracy settings. Everything evaluated is frozen and pinned by a
+SHA-256 manifest. From the `Cocoa/` folder, with the cocoa
+environment active and `start_cocoa.sh` sourced:
+
+    python -m pytest ./projects/lsst_y1/tests
+
+`tests/README.md` describes every test and how to refresh the frozen
+state.
+
+## Minimum accuracy parameters
+
+The accuracy checks (`tests/test_accuracy.py`) measured, at the chi2
+minimum on the 3x2pt configuration, one knob at a time: cosmolike
+`accuracyboost` to 2 shifts the chi2 by -0.007 (and the stress value
+5 by -0.021), `integration_accuracy` to 10 by -0.001, `lmax` to
+200000 by +0.0002, `kmax_boltzmann` 40 paired with CAMB `kmax` 50 by
+-0.0003, CAMB `AccuracyBoost` to 2 by +0.012, and CAMB
+`k_per_logint` to 50 by +0.0001. The all-knobs checks stay within
+-0.034 to +0.003 across every probe and IA model. All of this sits
+far below the 0.2 comfort level: the default accuracy settings of
+this project are adequate, and no default was changed.
+
+When several knobs move the chi2 in any project, raise cosmolike
+`accuracyboost` first (cheap), then camb `k_per_logint`, and only
+then camb `AccuracyBoost` (expensive at run time, and able to
+masquerade for the cheap knobs). `kmax_boltzmann` and camb `kmax`
+are one physical cutoff seen from two sides and move together.

@@ -4,7 +4,7 @@ Every reference in this suite is computed with the examples' default
 numerical settings. These checks answer: how much numerical error do
 those defaults carry? Each one re-evaluates a frozen configuration at
 its frozen point with the numerical knobs pushed far beyond the
-defaults (cosmolike: accuracyboost 5, integration_accuracy 10,
+defaults (cosmolike: accuracyboost 2, integration_accuracy 10,
 lmax 200000, kmax_boltzmann 40; CAMB: AccuracyBoost 2.0,
 k_per_logint 50, kmax 50; the exact values live in
 cocoa_test_utils.HIGH_ACCURACY_*) and reports
@@ -23,6 +23,13 @@ The TATT checks evaluate against the TATT-generated data vector
 (frozen/data/tatt_lsst_y1.dataset, written at freeze time), so the
 chi2 sits at a minimum and the delta is a stable, quadratic response
 instead of a linear one.
+
+Before the all-knobs checks, one scan (K) evaluates each accuracy
+knob ALONE on the example2 NLA configuration, so a large all-knobs
+delta can be attributed to the knob causing it. The scan includes
+accuracyboost 5 as a stress knob: past experience (desy1xplanck) is
+that extreme boosts can break an interface rather than refine it,
+and the one-at-a-time delta is what tells those cases apart.
 
 A high-accuracy evaluation takes minutes, not seconds: the whole file
 is far slower than the rest of the suite. To run only this file (from
@@ -81,6 +88,21 @@ class TestAccuracyAdvisory(unittest.TestCase):
         suffix = "tatt" if tatt else "nla"
         default_ref = self.reference[f"{example}_{suffix}"]
         u.report_accuracy(f"{name}: {label}", chi2_high, default_ref)
+
+    def test_a0_one_knob_at_a_time(self):
+        """K scan: each accuracy knob alone on example2, NLA.
+
+        Advisory: each knob's chi2 and its difference to the frozen
+        default reference print as the scan runs. A knob whose delta
+        rivals the all-knobs delta is the driver; a knob whose delta
+        explodes (orders of magnitude beyond the others) signals an
+        interface breakdown, not a numerics improvement.
+        """
+        default_ref = self.reference["example2_nla"]
+        print("", flush=True)
+        for label, _, _ in u.ACCURACY_KNOBS:
+            chi2 = u.single_model_chi2("example2", False, knob=label)
+            u.report_knob(label, chi2, default_ref)
 
     def test_a1_cosmic_shear_nla(self):
         """A1: cosmic shear, NLA, default vs high accuracy."""

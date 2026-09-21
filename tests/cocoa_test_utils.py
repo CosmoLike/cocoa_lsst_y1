@@ -109,7 +109,11 @@ TATT_DATASET = "tatt_lsst_y1.dataset"
 # knobs pushed far beyond the defaults. The difference to the default
 # reference chi2 measures the numerical error of the DEFAULT settings.
 HIGH_ACCURACY_LIKELIHOOD = {
-    "accuracyboost": 5.0,       # default 1.0
+    # boost 2 is converged in every project scanned; 5 triggers a
+    # breakdown inside some cosmolike interfaces (desy1xplanck: +27 in
+    # chi2 from this knob alone), so the all-knobs check uses 2 and
+    # the one-at-a-time scan keeps 5 as a deliberate stress knob
+    "accuracyboost": 2.0,       # default 1.0
     "integration_accuracy": 10,  # default 0
     "lmax": 200000,             # default 50000-65000
     "kmax_boltzmann": 40.0,     # default 5.0
@@ -122,6 +126,31 @@ HIGH_ACCURACY_CAMB_EXTRA_ARGS = {
     "k_per_logint": 50,         # default 10
     "kmax": 50.0,               # default 5.0
 }
+
+# The one-at-a-time scan of test_accuracy.py: each entry is (label,
+# likelihood overrides, camb extra_args overrides), evaluated alone on
+# the example2 NLA configuration before the all-knobs checks, so a
+# large all-knobs delta can be attributed to the knob causing it. The
+# accuracyboost=5 entry is a stress knob: it exceeds what measuring
+# the default numerics needs, and it is kept because it exposed an
+# interface breakdown (a suspected fixed-size table) in desy1xplanck.
+# Investigation order when several knobs move the chi2: raise the
+# cosmolike accuracyboost first (cheap), then camb k_per_logint, and
+# only then camb AccuracyBoost (expensive at run time): an apparent
+# CAMB sensitivity can masquerade as unresolved cosmolike-side
+# resolution, so the cheap knobs must be settled before the expensive
+# one is blamed. kmax_boltzmann and camb kmax are one physical cutoff
+# seen from the two sides, so the scan moves them together.
+ACCURACY_KNOBS = [
+    ("accuracyboost 1->2", {"accuracyboost": 2.0}, {}),
+    ("accuracyboost 1->5 (stress)", {"accuracyboost": 5.0}, {}),
+    ("integration_accuracy 0->10", {"integration_accuracy": 10}, {}),
+    ("lmax 50000->200000", {"lmax": 200000}, {}),
+    ("kmax_boltzmann -> 40 + camb kmax -> 50",
+     {"kmax_boltzmann": 40.0}, {"kmax": 50.0}),
+    ("camb AccuracyBoost 1.05->2", {}, {"AccuracyBoost": 2.0}),
+    ("camb k_per_logint 10->50", {}, {"k_per_logint": 50}),
+]
 
 # The frozen configurations. Field meanings:
 #   "likelihood"        = the cobaya component name, needed to reach that
@@ -526,6 +555,23 @@ ACCURACY: {label}
     return delta
 
 
+def report_knob(label, chi2, default_ref):
+    """Print one entry of the one-knob-at-a-time scan. Advisory only.
+
+    Arguments:
+      label       = the ACCURACY_KNOBS entry evaluated.
+      chi2        = chi2 with only that knob changed, this run.
+      default_ref = the frozen default-settings reference chi2.
+
+    Returns:
+      chi2 - default_ref, the printed difference.
+    """
+    delta = chi2 - default_ref
+    print(f"  KNOB {label:30s} chi2 = {chi2:12.6f}  "
+          f"delta = {delta:+12.6f}", flush=True)
+    return delta
+
+
 def report_emul2_race(label, fresh, tenth):
     """Print one EMUL2 race check, advisory only.
 
@@ -586,7 +632,8 @@ def _frozen_module(example):
     return module
 
 
-def load_frozen_info(example, tatt, fastpt=False, high_accuracy=False):
+def load_frozen_info(example, tatt, fastpt=False, high_accuracy=False,
+                     overrides=None):
     """Build the cobaya input dictionary for one frozen configuration.
 
     Starts from the frozen module's yaml string and applies the only
@@ -657,6 +704,12 @@ def load_frozen_info(example, tatt, fastpt=False, high_accuracy=False):
         likelihood_block.update(HIGH_ACCURACY_LIKELIHOOD)
         info["theory"]["camb"]["extra_args"].update(
             HIGH_ACCURACY_CAMB_EXTRA_ARGS)
+    if overrides is not None:
+        # one knob at a time (an ACCURACY_KNOBS entry): the same
+        # mechanism as high_accuracy, restricted to a single setting
+        like_over, camb_over = overrides
+        likelihood_block.update(like_over)
+        info["theory"]["camb"]["extra_args"].update(camb_over)
     if fastpt:
         likelihood_block["IA_code"] = 1
         # the frozen configurations carry no fastpt block (the live
@@ -777,7 +830,8 @@ def evaluate_chi2(model, point):
     return float(chi2)
 
 
-def single_model_chi2(example, tatt, fastpt=False, high_accuracy=False):
+def single_model_chi2(example, tatt, fastpt=False, high_accuracy=False,
+                      knob=None):
     """chi2 of the frozen fiducial point on a freshly built model.
 
     This is the quantity tests 1, 3, 5, and 7 compare against the
@@ -801,12 +855,21 @@ def single_model_chi2(example, tatt, fastpt=False, high_accuracy=False):
         ia_label += "+FASTPT"
     if high_accuracy:
         ia_label += ", high accuracy"
+    overrides = None
+    if knob is not None:
+        # knob = a label from ACCURACY_KNOBS; look up its overrides
+        matches = [k for k in ACCURACY_KNOBS if k[0] == knob]
+        if len(matches) != 1:
+            raise ValueError(f"unknown accuracy knob {knob!r}")
+        overrides = (matches[0][1], matches[0][2])
+        ia_label += f", knob: {knob}"
     print(f"  building model ({example}, {ia_label}) ...", flush=True)
     # load_frozen_info returns the frozen configuration dictionary with
     # the run-time adjustments applied; make_model turns it into an
     # evaluable cobaya Model (loads CAMB or the emulators + cosmolike)
     info = load_frozen_info(example, tatt, fastpt=fastpt,
-                            high_accuracy=high_accuracy)
+                            high_accuracy=high_accuracy,
+                            overrides=overrides)
     model = make_model(info)
     # build_point returns the frozen evaluation point, cross-checked
     # against the model's sampled-parameter set (drift fails loudly)
