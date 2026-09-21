@@ -12,6 +12,16 @@ The tests answer two questions about the lsst_y1 likelihoods:
      fresh evaluation of the same point. That class of bug is called a
      race condition or a state leak.
 
+Beyond the eight pass/fail tests, the suite carries: two FASTPT
+comparison tests (the TATT terms computed by the python FAST-PT
+package instead of the C implementation cfastpt, with the difference
+between the two printed and saved), a quartet of tests on the 2x2pt
+likelihood (example2 with the probe selection reduced to clustering
+plus galaxy-galaxy lensing), and ADVISORY checks of the EMUL2
+examples (machine-learning emulators in place of the Boltzmann code;
+see test_emul2.py: no pass/fail, only the measured accuracy and a
+recommendation).
+
 Everything a test evaluates is FROZEN: stored under tests/frozen/ and
 pinned by a SHA-256 hash (a 64-character fingerprint that changes when
 any byte of the file changes) in tests/manifest_sha256.json. The live
@@ -19,20 +29,24 @@ project configuration is never read, so a user can edit the examples,
 the likelihood default yaml files, or ../data without touching these
 tests. The frozen state has three parts:
 
-  - frozen/frozen_config_example{1,2}.py: one auto-generated module per
-    example holding (a) the complete cobaya configuration as a yaml
-    string, with every likelihood option and every parameter written
-    out, including the ones that normally come from the likelihood
-    default files (cosmic_shear.yaml, combo_3x2pt.yaml,
-    params_source.yaml, params_lens.yaml), and (b) the exact
-    sampled-parameter point the reference chi2 was evaluated at.
-    Because every default is materialized in the frozen copy, a later
-    edit to a live default file is shadowed and cannot reach the test.
+  - frozen/frozen_config_*.py: one auto-generated module per
+    configuration in EXAMPLES, holding (a) the complete cobaya
+    configuration as a yaml string, with every likelihood option and
+    every parameter written out, including the ones that normally come
+    from the likelihood default files (cosmic_shear.yaml,
+    combo_3x2pt.yaml, params_source.yaml, params_lens.yaml), and
+    (b) the exact sampled-parameter point the reference chi2 was
+    evaluated at. Because every default is materialized in the frozen
+    copy, a later edit to a live default file is shadowed and cannot
+    reach the test.
   - frozen/data/: the tests' own copy of the data vectors, covariance,
-    n(z), and masks.
-  - frozen/EXAMPLE_EVALUATE{1,2}.yaml: snapshots of the example yaml
-    files at freeze time, kept only so a human can diff how the live
-    examples drifted; no test reads them.
+    n(z), and masks. (The EMUL2 trained-network files are NOT copied:
+    they live in external_modules/data/emultrf, pinned by the EMULTRF
+    keys in set_installation_options.sh, and their drift is part of
+    what the advisory checks measure.)
+  - frozen/EXAMPLE_*.yaml: snapshots of the example yaml files at
+    freeze time, kept only so a human can diff how the live examples
+    drifted; no test reads them.
 
 Every test first verifies the manifest and refuses to run when any
 frozen file changed. Refreshing the frozen state is a deliberate
@@ -80,19 +94,54 @@ TATT_POINT = {
     "LSST_A2_2": -1.51541,
 }
 
-# The two frozen configurations. "likelihood" is the cobaya component
-# name, needed to reach that block inside the loaded info dictionary;
-# "provenance" names the human-readable snapshot (never loaded).
+# The frozen configurations. Field meanings:
+#   "likelihood"        = the cobaya component name, needed to reach that
+#                         block inside the loaded info dictionary;
+#   "provenance"        = the human-readable snapshot (never loaded);
+#   "source_likelihood" = when the frozen configuration is derived from an
+#                         example that ships a DIFFERENT likelihood (the
+#                         2x2pt entry reuses example2 with the likelihood
+#                         swapped), the generator renames this block;
+#   "fastpt_reference"  = also freeze a TATT reference computed with the
+#                         python FAST-PT theory block (IA_code: 1) so the
+#                         FASTPT tests have their own baseline;
+#   "emulator"          = an EMUL2 configuration: machine-learning
+#                         emulators replace the Boltzmann code. These are
+#                         ADVISORY (no pass/fail; see test_emul2.py), and
+#                         "exact_reference" names the exact-physics
+#                         reference chi2 their accuracy is judged against.
 EXAMPLES = {
     "example1": {
         "frozen_module": "frozen_config_example1.py",
         "provenance": "EXAMPLE_EVALUATE1.yaml",
         "likelihood": "lsst_y1.cosmic_shear",
+        "fastpt_reference": True,
     },
     "example2": {
         "frozen_module": "frozen_config_example2.py",
         "provenance": "EXAMPLE_EVALUATE2.yaml",
         "likelihood": "lsst_y1.combo_3x2pt",
+        "fastpt_reference": True,
+    },
+    "example2_2x2pt": {
+        "frozen_module": "frozen_config_example2_2x2pt.py",
+        "provenance": "EXAMPLE_EVALUATE2.yaml",
+        "source_likelihood": "lsst_y1.combo_3x2pt",
+        "likelihood": "lsst_y1.combo_2x2pt",
+    },
+    "emul2_example1": {
+        "frozen_module": "frozen_config_emul2_example1.py",
+        "provenance": "EXAMPLE_EMUL2_EVALUATE1.yaml",
+        "likelihood": "lsst_y1.cosmic_shear",
+        "emulator": True,
+        "exact_reference": "example1_nla",
+    },
+    "emul2_example2": {
+        "frozen_module": "frozen_config_emul2_example2.py",
+        "provenance": "EXAMPLE_EMUL2_EVALUATE2.yaml",
+        "likelihood": "lsst_y1.combo_3x2pt",
+        "emulator": True,
+        "exact_reference": "example2_nla",
     },
 }
 
@@ -239,15 +288,25 @@ def verify_frozen():
             "generate_frozen_reference.py --overwrite to create the frozen "
             "test state."
         )
+    # expected = the {relative path: sha256 digest} table written at
+    # freeze time; it is the definition of "untouched"
     with open(MANIFEST_FILE) as f:
         expected = json.load(f)["files"]
+    # actual = the same table computed from the files on disk right now
+    # (compute_manifest walks frozen/ and fingerprints each file)
     actual = compute_manifest()
+    # collect every discrepancy before raising: a report naming all
+    # problem files at once beats failing on the first one
     problems = []
     for rel, digest in expected.items():
         if rel not in actual:
+            # the manifest lists it but the file is gone from disk
             problems.append(f"MISSING  {rel}")
         elif actual[rel] != digest:
+            # the file exists but at least one byte differs
             problems.append(f"CHANGED  {rel}")
+    # both directions matter: a file ADDED to frozen/ is as suspicious
+    # as an edited one, so the reverse scan runs too
     for rel in actual:
         if rel not in expected:
             problems.append(f"EXTRA    {rel}")
@@ -335,6 +394,107 @@ TEST {number}: {label}
     return delta
 
 
+def report_fastpt_test(number, label, chi2, ref, cfastpt_ref, tol):
+    """Print one FASTPT comparison test as a readable block.
+
+    Two numbers matter here: the drift of the FASTPT chi2 against its
+    own frozen reference (the pass/fail criterion, same rule as every
+    other reference test), and the physical difference between the
+    FASTPT and cfastpt implementations of the TATT terms at the same
+    point (informational; it was measured and saved at freeze time).
+
+    Arguments:
+      number      = the test number shown in the header.
+      label       = one line naming the example and IA model.
+      chi2        = the FASTPT chi2 computed in this run.
+      ref         = the frozen FASTPT reference chi2.
+      cfastpt_ref = the frozen cfastpt (IA_code: 0) reference chi2.
+      tol         = the pass limit on |chi2 - ref| (CHI2_TOLERANCE).
+
+    Returns:
+      |chi2 - ref|, the printed pass/fail difference.
+    """
+    delta = abs(chi2 - ref)
+    print(f"""
+{'-' * 66}
+TEST {number}: {label}
+  chi2 (this run, FASTPT)  = {chi2:.6f}
+  frozen FASTPT reference  = {ref:.6f}
+  |delta chi2|             = {delta:.6f}   (limit: < {tol})
+  frozen CFASTPT reference = {cfastpt_ref:.6f}
+  FASTPT - CFASTPT         = {chi2 - cfastpt_ref:+.6f}   (informational)
+  -> {'OK' if delta < tol else 'EXCEEDS LIMIT'}
+{'-' * 66}""", flush=True)
+    return delta
+
+
+def report_emul2_advisory(label, chi2, frozen_ref, exact_ref, limit):
+    """Print one EMUL2 accuracy check: measurements and a recommendation.
+
+    There is no pass/fail here. An emulator is an approximation, so
+    the useful outputs are the numbers themselves: the drift against
+    the frozen emulator reference (did the installed emulator change),
+    the difference against the exact-physics chi2 at the same
+    cosmology (how accurate the emulator is), and the recommendation
+    derived from that accuracy.
+
+    Arguments:
+      label      = one line naming the emulated configuration.
+      chi2       = the emulator chi2 computed in this run.
+      frozen_ref = the frozen emulator reference chi2.
+      exact_ref  = the exact-physics reference chi2 (from the matching
+                   example's frozen reference).
+      limit      = the recommendation threshold on |chi2 - exact_ref|.
+
+    Returns:
+      |chi2 - exact_ref|, the accuracy difference the recommendation
+      is based on.
+    """
+    drift = chi2 - frozen_ref
+    delta_exact = abs(chi2 - exact_ref)
+    if delta_exact < limit:
+        verdict = "RECOMMENDED for actual data analysis"
+    else:
+        verdict = ("NOT recommended for actual data analysis "
+                   f"(|delta chi2| >= {limit})")
+    print(f"""
+{'-' * 66}
+EMUL2 ADVISORY: {label}
+  chi2 (this run, emulator)   = {chi2:.6f}
+  frozen emulator reference   = {frozen_ref:.6f}  (drift {drift:+.6f})
+  exact-physics reference     = {exact_ref:.6f}
+  |emulator - exact| chi2     = {delta_exact:.6f}   (threshold: {limit})
+  -> {verdict}
+{'-' * 66}""", flush=True)
+    return delta_exact
+
+
+def report_emul2_race(label, fresh, tenth):
+    """Print one EMUL2 race check, advisory only.
+
+    Arguments:
+      label = one line naming the emulated configuration.
+      fresh = chi2 of the point evaluated first on the model.
+      tenth = chi2 of the same point as the 10th of a row.
+
+    Returns:
+      |tenth - fresh|, the printed difference. A value above
+      RACE_TOLERANCE is flagged as a possible race or state leak, but
+      nothing fails: this file only alerts.
+    """
+    delta = abs(tenth - fresh)
+    note = "consistent" if delta < RACE_TOLERANCE else         "WARNING: possible race condition or state leak"
+    print(f"""
+{'-' * 66}
+EMUL2 ADVISORY: {label}
+  fresh-model chi2    = {fresh:.8f}
+  10th of 10 in a row = {tenth:.8f}
+  |delta chi2|        = {delta:.8f}   ({note})
+  OMP_NUM_THREADS     = {os.environ.get('OMP_NUM_THREADS')}
+{'-' * 66}""", flush=True)
+    return delta
+
+
 # -----------------------------------------------------------------------------
 # Model construction and evaluation
 # -----------------------------------------------------------------------------
@@ -369,7 +529,7 @@ def _frozen_module(example):
     return module
 
 
-def load_frozen_info(example, tatt):
+def load_frozen_info(example, tatt, fastpt=False):
     """Build the cobaya input dictionary for one frozen configuration.
 
     Starts from the frozen module's yaml string and applies the only
@@ -384,9 +544,19 @@ def load_frozen_info(example, tatt):
       - cobaya's log level is raised to WARNING (debug: 30) so the
         component-loading chatter does not bury the test reports.
 
+    A fourth adjustment exists for the FASTPT comparison tests:
+    `fastpt=True` sets `IA_code: 1` (the likelihood then asks the
+    python FAST-PT package for the TATT perturbation-theory terms
+    instead of the C implementation cfastpt built into cosmolike) and
+    adds the fastpt theory block that computation requires. IA_code
+    only matters under TATT, so fastpt=True is combined with
+    tatt=True.
+
     Arguments:
-      example = "example1" or "example2" (a key of EXAMPLES).
+      example = a key of EXAMPLES.
       tatt    = True selects the TATT IA model, False keeps NLA.
+      fastpt  = True computes the TATT terms with python FAST-PT
+                (IA_code: 1) instead of cfastpt (IA_code: 0).
 
     Returns:
       the input dictionary ready for cobaya's get_model.
@@ -394,14 +564,32 @@ def load_frozen_info(example, tatt):
     from cobaya.yaml import yaml_load
 
     cfg = EXAMPLES[example]
+    # _frozen_module loads frozen/<frozen_module>.py by path and hands
+    # back its yaml_string attribute: the complete configuration with
+    # every option and parameter written out at freeze time
     info = yaml_load(_frozen_module(example).yaml_string)
+    # the tests drive the model directly, so a sampler or output block
+    # left in the info would only confuse cobaya
     info.pop("sampler", None)
     info.pop("output", None)
+    # log level WARNING (30): component-loading chatter would bury the
+    # test reports
     info["debug"] = 30
     info["timing"] = False
     likelihood_block = info["likelihood"][cfg["likelihood"]]
+    # the frozen string stores the ROOTDIR-relative data path; the
+    # absolute path is independent of the working directory
     likelihood_block["path"] = os.path.join(FROZEN_DIR, "data")
+    # intrinsic-alignment model selection: 0 = NLA, 1 = TATT
     likelihood_block["IA_model"] = 1 if tatt else 0
+    if fastpt:
+        likelihood_block["IA_code"] = 1
+        # the frozen configurations carry no fastpt block (the live
+        # examples ship it commented out), so it is added here with the
+        # same path the examples use
+        info.setdefault("theory", {})["fastpt"] = {
+            "path": "./external_modules/code/FAST-PT",
+        }
     return info
 
 
@@ -458,7 +646,11 @@ def build_point(model, example, tatt):
       when the model's sampled set differs from the frozen point;
       ValueError when a TATT parameter is not sampled by the model.
     """
+    # load_frozen_point returns a copy of the frozen module's point:
+    # the exact {parameter: value} table the references were computed at
     point = load_frozen_point(example)
+    # sampled = the parameters THIS model, built from today's code,
+    # expects to receive; the frozen point must cover them exactly
     sampled = set(model.parameterization.sampled_params())
     if sampled != set(point):
         raise AssertionError(
@@ -497,7 +689,10 @@ def evaluate_chi2(model, point):
     """
     import numpy as np
 
+    # logposterior runs the full pipeline (theory + likelihood) at the
+    # point; cached=False forces recomputation (see docstring)
     posterior = model.logposterior(point, cached=False)
+    # loglikes = one ln L per likelihood component, in model order
     if len(posterior.loglikes) != 1:
         raise RuntimeError(
             f"expected exactly one likelihood: {posterior.loglikes}")
@@ -507,7 +702,7 @@ def evaluate_chi2(model, point):
     return float(chi2)
 
 
-def single_model_chi2(example, tatt):
+def single_model_chi2(example, tatt, fastpt=False):
     """chi2 of the frozen fiducial point on a freshly built model.
 
     This is the quantity tests 1, 3, 5, and 7 compare against the
@@ -515,16 +710,25 @@ def single_model_chi2(example, tatt):
     reference.
 
     Arguments:
-      example = "example1" or "example2" (a key of EXAMPLES).
+      example = a key of EXAMPLES.
       tatt    = True evaluates the TATT variant, False the NLA one.
+      fastpt  = True computes the TATT terms with python FAST-PT
+                (see load_frozen_info).
 
     Returns:
       the chi2 as a float.
     """
     ia_label = "TATT" if tatt else "NLA"
+    if fastpt:
+        ia_label += "+FASTPT"
     print(f"  building model ({example}, {ia_label}) ...", flush=True)
-    info = load_frozen_info(example, tatt)
+    # load_frozen_info returns the frozen configuration dictionary with
+    # the run-time adjustments applied; make_model turns it into an
+    # evaluable cobaya Model (loads CAMB or the emulators + cosmolike)
+    info = load_frozen_info(example, tatt, fastpt=fastpt)
     model = make_model(info)
+    # build_point returns the frozen evaluation point, cross-checked
+    # against the model's sampled-parameter set (drift fails loudly)
     point = build_point(model, example, tatt)
     print("  evaluating the fiducial point ...", flush=True)
     return evaluate_chi2(model, point)
@@ -551,14 +755,23 @@ def ten_in_a_row_chi2(example, tatt):
     """
     ia_label = "TATT" if tatt else "NLA"
     print(f"  building model ({example}, {ia_label}) ...", flush=True)
+    # one model instance for the whole sequence: sharing the instance
+    # is the point, since leaked state lives inside it
     info = load_frozen_info(example, tatt)
     model = make_model(info)
     point = build_point(model, example, tatt)
+    # the fresh value: the fiducial evaluated before anything else
+    # touched this model instance
     fresh = evaluate_chi2(model, point)
     print(f"  fresh model, fiducial point:  chi2 = {fresh:.8f}", flush=True)
     for i, perturbation in enumerate(RACE_PERTURBATIONS, start=1):
-        chi2 = evaluate_chi2(model, {**point, **perturbation})
-        changed = ", ".join(f"{k}={v}" for k, v in perturbation.items())
+        # the EMUL2 configurations sample fewer parameters than the
+        # exact ones (mnu is fixed inside the emulator training), so a
+        # perturbation key the model does not sample is dropped rather
+        # than kept in a separate perturbation table per configuration
+        applied = {k: v for k, v in perturbation.items() if k in point}
+        chi2 = evaluate_chi2(model, {**point, **applied})
+        changed = ", ".join(f"{k}={v}" for k, v in applied.items())
         print(f"  row {i:2d}/10 ({changed}):  chi2 = {chi2:.4f}", flush=True)
     tenth = evaluate_chi2(model, point)
     print(f"  row 10/10 (fiducial again):  chi2 = {tenth:.8f}", flush=True)

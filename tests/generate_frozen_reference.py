@@ -12,15 +12,23 @@ the tests consume each piece):
   - frozen/data/: a copy of the CURRENT ../data folder.
   - frozen/EXAMPLE_EVALUATE{1,2}.yaml: snapshots of the current
     examples, kept for humans to diff (the tests never load them).
-  - frozen/frozen_config_example{1,2}.py: for each example, the model
-    is built from the CURRENT example yaml, cobaya resolves it against
-    the CURRENT likelihood defaults, and the complete resolved
-    configuration is written back out as a yaml string, together with
-    the exact evaluation point. Writing out every resolved option and
-    parameter is what makes the tests independent of later edits to
-    the live files.
-  - frozen/reference_chi2.json: the four reference chi2 values
-    (example1/2, each with NLA and TATT), computed FROM the frozen
+  - frozen/frozen_config_*.py: for each configuration listed in
+    cocoa_test_utils.EXAMPLES, the model is built from the CURRENT
+    example yaml, cobaya resolves it against the CURRENT likelihood
+    defaults, and the complete resolved configuration is written back
+    out as a yaml string, together with the exact evaluation point.
+    Writing out every resolved option and parameter is what makes the
+    tests independent of later edits to the live files. The 2x2pt
+    entry starts from example2 with the likelihood block renamed; the
+    EMUL2 entries carry the emulator theory stack with the network
+    device forced to "cpu" (deterministic and machine-independent; the
+    trained network files themselves are NOT copied: they live in
+    external_modules/data/emultrf and are pinned by the EMULTRF keys
+    in set_installation_options.sh).
+  - frozen/reference_chi2.json: the reference chi2 values, one per
+    configuration and variant (NLA for all; TATT for the exact
+    configurations; TATT with python FAST-PT for example1/2, plus the
+    saved FASTPT-minus-CFASTPT difference), computed FROM the frozen
     modules just written, exactly the way the tests will compute them.
   - manifest_sha256.json: the SHA-256 pin of every frozen file.
 
@@ -106,10 +114,24 @@ def freeze_example(example, stamp):
     live.pop("output", None)
     live["debug"] = 30
     live["timing"] = False
-    likelihood_block = live["likelihood"][cfg["likelihood"]]
+    # the 2x2pt configuration reuses example2's yaml with the
+    # likelihood renamed (combo_3x2pt -> combo_2x2pt: same options,
+    # same data, different probe selection inside cosmolike)
+    source_name = cfg.get("source_likelihood", cfg["likelihood"])
+    likelihood_block = live["likelihood"].pop(source_name)
+    live["likelihood"][cfg["likelihood"]] = likelihood_block
     likelihood_block["path"] = FROZEN_DATA_RELPATH
     likelihood_block["IA_model"] = 0
+    if cfg.get("emulator"):
+        # the emulated BAO/SN network declares device "cuda" in the
+        # example; freezing "cpu" keeps the reference reproducible on
+        # machines without a CUDA GPU (and torch on cpu is
+        # deterministic)
+        live["theory"]["emulbaosn"]["extra_args"]["device"] = "cpu"
 
+    # make_model builds the evaluable cobaya Model; building it is
+    # what forces cobaya to merge the live likelihood defaults into
+    # the configuration
     model = u.make_model(live)
     # model.info() returns the configuration with every default
     # resolved: the complete likelihood option set and the complete
@@ -178,6 +200,9 @@ def main():
     os.makedirs(u.FROZEN_DIR)
 
     print("freezing ../data ...", flush=True)
+    # the data copy is what lets users change ../data later without
+    # touching the tests; .DS_Store (macOS Finder metadata) would only
+    # pollute the manifest
     shutil.copytree(os.path.join(PROJECT_DIR, "data"),
                     os.path.join(u.FROZEN_DIR, "data"),
                     ignore=shutil.ignore_patterns(".DS_Store"))
@@ -195,19 +220,39 @@ def main():
             "chi2_tolerance": u.CHI2_TOLERANCE,
         }
     }
-    for example in u.EXAMPLES:
-        for tatt in (False, True):
-            key = f"{example}_{'tatt' if tatt else 'nla'}"
+    for example, cfg in u.EXAMPLES.items():
+        # every configuration gets an NLA reference; TATT only makes
+        # sense for the exact-physics ones (the emulator entries are
+        # advisory and compared at their shipped IA settings); the
+        # FASTPT variant exists where the tests need its baseline
+        variants = [("nla", {"tatt": False})]
+        if not cfg.get("emulator"):
+            variants.append(("tatt", {"tatt": True}))
+        if cfg.get("fastpt_reference"):
+            variants.append(("tatt_fastpt", {"tatt": True, "fastpt": True}))
+        for suffix, kwargs in variants:
+            key = f"{example}_{suffix}"
             t0 = time.time()
-            chi2 = u.single_model_chi2(example, tatt)
+            chi2 = u.single_model_chi2(example, **kwargs)
             print(f"{key}: chi2 = {chi2:.6f}  ({time.time() - t0:.1f}s)",
                   flush=True)
             reference[key] = chi2
+    for example, cfg in u.EXAMPLES.items():
+        # the saved FASTPT-minus-CFASTPT difference: how much the two
+        # implementations of the TATT perturbation-theory terms differ
+        # at the reference point (the FASTPT tests print it)
+        if cfg.get("fastpt_reference"):
+            reference[f"{example}_fastpt_minus_cfastpt"] = (
+                reference[f"{example}_tatt_fastpt"]
+                - reference[f"{example}_tatt"])
 
     with open(u.REFERENCE_FILE, "w") as f:
         json.dump(reference, f, indent=2, sort_keys=True)
         f.write("\n")
 
+    # compute_manifest returns {relative path: sha256} for every file
+    # now under frozen/; writing it LAST means it covers every file
+    # the steps above produced
     manifest = {
         "_comment": "SHA-256 of every file under tests/frozen/; verified by "
                     "every test before evaluating anything.",

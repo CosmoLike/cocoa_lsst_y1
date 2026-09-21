@@ -1,6 +1,8 @@
 {
   "_comment": "SHA-256 of every file under tests/frozen/; verified by every test before evaluating anything.",
   "files": {
+    "frozen/EXAMPLE_EMUL2_EVALUATE1.yaml": "d776901f4302c88700db8e35ac574dfbe126f43d8f8fcc684f3e0b3c592cbaa5",
+    "frozen/EXAMPLE_EMUL2_EVALUATE2.yaml": "f3d6293e73b799e304fb67712244ca91fc0516e55bc3ed2ac2cbacdf447e364f",
     "frozen/EXAMPLE_EVALUATE1.yaml": "dbaef99158022021d95ab587e6a66457e584c2dbc7f773a53de353c95af6ff0b",
     "frozen/EXAMPLE_EVALUATE2.yaml": "04b7b94f51687e063766e1e5261f025213aa977fe0040d77c3fdd8503fc17ad6",
     "frozen/data/baryons_logPkR.h5": "1ab5cc0604925089787dd775740b368db2a83a0d10c88af54f3b3f4bfa33570d",
@@ -27,8 +29,11 @@
     "frozen/data/old_lsst_y1_theory.modelvector": "4f163bc6b0154d66beea49bd7ca8741f8cff78ee105ce1893887bd98201d3831",
     "frozen/data/ones.mask": "929a72103ca195fe60e42ddaafe2557b56ad614a15781c1277b3e9cfdf9f86fd",
     "frozen/data/pca.txt": "52b50538e307c1ee8787266fc022dc9366c75b3a92045ddd01c455a4d0d75de5",
-    "frozen/frozen_config_example1.py": "3a3a90296a33ad9ff8c893ed5f1b282e61bf88a64dad94094bfa281ad442300e",
-    "frozen/frozen_config_example2.py": "e75f38bd4d7ce9252b90939506b3da47b9df53fa6c783a397fc6760b5bde259b",
-    "frozen/reference_chi2.json": "23ca3e920d1a3fac8ae8c655992af2a2b8ad8b40b36a80b651c8207c9897230d"
+    "frozen/frozen_config_emul2_example1.py": "65d034c2f77d111f0959471b397ca79a6799d1842fb97c77d808e5b3e4ca9d42",
+    "frozen/frozen_config_emul2_example2.py": "db5892450b87e194d03df1e22c96c920fdfdfb752a5228519db3b155a8907158",
+    "frozen/frozen_config_example1.py": "8d0f16ad825ec4f268b8acdb08cbb0fe2a07cb5f54c0f9f5ee01ae8bb7252922",
+    "frozen/frozen_config_example2.py": "0dc8f20a426fe26d09dcad6d8612c8cb7fbe63c40d58b4346a3291a5eb86b140",
+    "frozen/frozen_config_example2_2x2pt.py": "31ab1f73c8543e450c01082f3fd43977a5a425fad58a39d03991ce0bbc2c1718",
+    "frozen/reference_chi2.json": "cb305558c8d7ec2c1fe6f5afe4387c635e438b1eab90d8116354915d4aab31db"
   }
 }

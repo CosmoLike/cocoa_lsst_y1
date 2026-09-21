@@ -3,7 +3,10 @@
 These tests catch two kinds of silent breakage: a chi2 that drifted
 because code or data changed by accident, and a race condition (a bug
 where evaluating several points in a row corrupts a later result
-through leftover internal state or colliding OpenMP threads).
+through leftover internal state or colliding OpenMP threads). The
+suite also measures the accuracy of the EMUL2 emulated pipelines and
+reports whether they are accurate enough for data analysis (advisory:
+no pass/fail).
 
 ## Running the tests
 
@@ -39,6 +42,26 @@ so run the command with nothing piped after it.
    `LSST_A2_2=-1.51541`.
 4. `test_4`: same as test 2 with the TATT model.
 5. -8. the same four tests for the 3x2pt likelihood.
+9. -10. `test_fastpt.py`: the TATT chi2 computed with the python
+   FAST-PT package (`IA_code: 1` plus the fastpt theory block) instead
+   of the C implementation cfastpt. Pass/fail against its own frozen
+   FASTPT reference (0.2); the FASTPT-minus-CFASTPT difference is
+   saved in `frozen/reference_chi2.json` and printed by the test.
+11. -14. `test_example2_2x2pt.py`: the four standard tests on
+   `lsst_y1.combo_2x2pt` (example2 with the probe selection reduced to
+   galaxy clustering plus galaxy-galaxy lensing).
+
+Advisory checks (`test_emul2.py`, E1-E4): the EXAMPLE_EMUL2 examples,
+where trained machine-learning emulators replace the Boltzmann code.
+No pass/fail: each check prints the emulator chi2, its drift against
+the frozen emulator reference, the difference against the
+exact-physics chi2 at the same cosmology, and the recommendation
+(RECOMMENDED for actual data analysis when |emulator - exact| chi2
+< 0.2, NOT recommended otherwise), plus a race check that warns
+instead of failing. The trained-network files are read from
+external_modules/data/emultrf, not from the frozen state; the network
+device is frozen to `cpu` so the numbers do not depend on GPU
+availability.
 
 ## Why the tests keep their own copy of everything
 
