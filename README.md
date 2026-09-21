@@ -713,28 +713,28 @@ Details on the matter power spectrum emulator designs will be presented in the [
 
 The `tests/` folder holds 18 pass/fail tests and advisory checks.
 The pass/fail tests compare the $\chi^2$ of cosmic shear, 3x2pt, and
-2x2pt (each in NLA and TATT) against frozen references within 0.2,
+2x2pt (each in NLA and TATT) against stored references within 0.2,
 re-evaluate each fiducial as the 10th of 10 cosmologies in a row
 under `OMP_NUM_THREADS=4` to catch state leaks and OpenMP races, and
 check the python FAST-PT implementation of the TATT terms against
-its own frozen reference (printing the FASTPT-minus-cfastpt
-difference). Advisory files measure the EMUL2 emulated pipelines
+its own stored reference (printing the FASTPT-minus-cfastpt
+difference). Advisory files measure the hybrid emulated pipelines
 against the exact physics and the numerical error of the default
-accuracy settings. Everything evaluated is frozen and pinned by a
-SHA-256 manifest. From the `Cocoa/` folder, with the cocoa
+accuracy settings. Everything evaluated comes from the tests' own snapshot under
+`tests/frozen/`, pinned by a SHA-256 manifest. From the `Cocoa/` folder, with the cocoa
 environment active and `start_cocoa.sh` sourced:
 
     python -m pytest ./projects/lsst_y1/tests
 
-`tests/README.md` describes every test and how to refresh the frozen
-state.
+`tests/README.md` describes every test and how to refresh the snapshot.
 
 # Minimum accuracy parameters
 
 The accuracy checks (`tests/test_accuracy.py`) measured, at the $\chi^2$
-minimum on the 3x2pt configuration, one knob at a time:
+minimum on the 3x2pt configuration, changing one accuracy
+parameter at a time:
 
-| knob                               | raised to | $\Delta\chi^2$ |
+| setting                            | raised to | $\Delta\chi^2$ |
 |------------------------------------|-----------|-----------:|
 | cosmolike `accuracyboost`          | 3         |    +0.0002 |
 | cosmolike `accuracyboost` (stress) | 5         |    +0.0016 |
@@ -748,14 +748,15 @@ minimum on the 3x2pt configuration, one knob at a time:
 every coarser grid's nodes are a subset of every finer grid's, so a
 higher boost tightens the same interpolation instead of moving the
 nodes (the construction is commented in
-`likelihood/_cosmolike_prototype_base.py`). The all-knobs checks
-(comparing the default `accuracyboost: 1` against 3) stay within -0.015
-to +0.009 across every probe and IA model. All of this sits far below
+`likelihood/_cosmolike_prototype_base.py`). The raised-at-once checks
+(comparing the default `accuracyboost: 1` against 3) stay within
+-0.015 to +0.009 across cosmic shear, 3x2pt, and 2x2pt, in NLA and
+TATT. All of this sits far below
 the 0.2 comfort level: the default accuracy settings of this project
 are adequate, and no default was changed.
 
-When several knobs move the $\chi^2$ in any project, raise cosmolike
+When several settings move the $\chi^2$ in any project, raise cosmolike
 `accuracyboost` first (cheap), then camb `k_per_logint`, and only
 then camb `AccuracyBoost` (expensive at run time, and able to
-masquerade for the cheap knobs). `kmax_boltzmann` and camb `kmax`
+masquerade for the cheap settings). `kmax_boltzmann` and camb `kmax`
 are one physical cutoff seen from two sides and move together.
