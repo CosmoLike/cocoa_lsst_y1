@@ -1,0 +1,32 @@
+{
+  "_comment": "SHA-256 of every file under tests/frozen/; verified by every test before evaluating anything.",
+  "files": {
+    "frozen/EXAMPLE_EVALUATE1.yaml": "dbaef99158022021d95ab587e6a66457e584c2dbc7f773a53de353c95af6ff0b",
+    "frozen/EXAMPLE_EVALUATE2.yaml": "04b7b94f51687e063766e1e5261f025213aa977fe0040d77c3fdd8503fc17ad6",
+    "frozen/data/baryons_logPkR.h5": "1ab5cc0604925089787dd775740b368db2a83a0d10c88af54f3b3f4bfa33570d",
+    "frozen/data/calculate_mask.py": "daaa60b7b9b3bff859131d662f9669a98d294dbb25eca6d6a344e8773d950f90",
+    "frozen/data/example1_lsst_y1_theory_emul.modelvector": "258a9a7ab2acf0a52426059bbc4887e8aced62c3d26e8b4b6b56ae36c263708a",
+    "frozen/data/lsst_y1_M1_GGL0.05.dataset": "f8d441a1251b962a201758f49958fd741f0fda329493120eb066ad75a951edca",
+    "frozen/data/lsst_y1_M1_GGLOLAP0.05.mask": "9d28394a2ae9174c53227e5ac1da74c22bdada7344db252efe12684ec93ff481",
+    "frozen/data/lsst_y1_M2_GGL0.05.dataset": "35a33a8499082962cba83f91680724165befc38024be7fe904cb588c5c1266db",
+    "frozen/data/lsst_y1_M2_GGLOLAP0.05.mask": "cdd8defb1d5e01951871a180c3e91598bd6656cc019ad815a5799cd084f7d415",
+    "frozen/data/lsst_y1_M3_GGL0.05.dataset": "7e4e65213731359d166648e6e5e3a14ab5ac7f0ac0e0dddce675514b5b8d895c",
+    "frozen/data/lsst_y1_M3_GGLOLAP0.05.mask": "5bb53abe8b5f359f45cfc08068d7f5e02784e613c146b154f18e3b09b6777925",
+    "frozen/data/lsst_y1_M4_GGL0.05.dataset": "038e985f8a7fd17b21146cc230f300c9ed4fc4d803e1543c6fa86cbb2f3681c8",
+    "frozen/data/lsst_y1_M4_GGLOLAP0.05.mask": "3c5a3b29d26cc838d80a9abf91c3b24b5d879cc6bc848f3f6b15d154664a6a99",
+    "frozen/data/lsst_y1_M5_GGL0.05.dataset": "ff7f1e2e89f017e509f85881f0d0169bcbb1ef0a770e3f2a59ec0f0ce81c548d",
+    "frozen/data/lsst_y1_M5_GGLOLAP0.05.mask": "69d3931d9dac04e9ae42d0e4926b41948770cd289424f0c43278df547ca91bef",
+    "frozen/data/lsst_y1_M6_GGL0.05.dataset": "a3ae7f10b6af561723136f15277fe1239016f052445bfa991aafa010165ec3e3",
+    "frozen/data/lsst_y1_M6_GGLOLAP0.05.mask": "c02849eb2cd2d6c6ccd4a3508013ae79695e24a0550c9b58b257f1954d8d4d9a",
+    "frozen/data/lsst_y1_cov": "49469cec16a97b8860b59d95e2736207ad659d27c79c2a755d53276936fb0e2e",
+    "frozen/data/lsst_y1_lens.nz": "dcdd1b15476287ffdd7091d605a684ac2c7807728ad2147155b2632f1280b256",
+    "frozen/data/lsst_y1_ones.dataset": "7a142e0dd424a5fe71e0da313d839fb6acd8d5e76d404c9fd429ceb4bc84a007",
+    "frozen/data/lsst_y1_source.nz": "de0bd0ee395ade11ca08af7fbee3b414528ff4c628fda8c56a1da76befe995f8",
+    "frozen/data/lsst_y1_theory.modelvector": "4f163bc6b0154d66beea49bd7ca8741f8cff78ee105ce1893887bd98201d3831",
+    "frozen/data/lsst_y1_theory_TATT.modelvector": "3f37c4500a2c616b93978ef7a461d73e9fe074c8be6ecbbd2626b4fa8d64e3f4",
+    "frozen/data/old_lsst_y1_theory.modelvector": "4f163bc6b0154d66beea49bd7ca8741f8cff78ee105ce1893887bd98201d3831",
+    "frozen/data/ones.mask": "929a72103ca195fe60e42ddaafe2557b56ad614a15781c1277b3e9cfdf9f86fd",
+    "frozen/data/pca.txt": "52b50538e307c1ee8787266fc022dc9366c75b3a92045ddd01c455a4d0d75de5",
+    "frozen/reference_chi2.json": "c8c48a7eb6819e82d3db6253aa42c2368653251f9499c91330530a033d87f169"
+  }
+}
