@@ -42,9 +42,15 @@ or, without pytest:
 
 Each test streams a report to the terminal with the computed chi2, the
 frozen reference, the |delta chi2|, and the limit (the bundled `pytest.ini`
-passes `-v -s` so the reports are not swallowed by pytest's capture). The
-full suite takes a few minutes (each race test performs 11 likelihood
+passes `-v -s` so the reports are not swallowed by pytest's capture), plus
+progress lines while models build and the race rows evaluate. The full
+suite takes a few minutes (each race test performs 11 likelihood
 evaluations). `OMP_NUM_THREADS=2` is forced inside the test modules.
+
+The suite is fully non-interactive and never waits for a keypress. If the
+terminal stops between tests asking for space/enter, the output is going
+through a pager: run the command exactly as above, with no `| less`,
+`| more`, or pager alias after it.
 
 ## Refreshing the frozen state (maintainers only)
 

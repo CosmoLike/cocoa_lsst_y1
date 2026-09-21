@@ -263,9 +263,12 @@ def evaluate_chi2(model, point):
 
 def single_model_chi2(example, tatt):
     """chi2 of the frozen fiducial point on a freshly built model."""
+    ia = "TATT" if tatt else "NLA"
+    print(f"  building model ({example}, {ia}) ...", flush=True)
     info = load_frozen_info(example, tatt)
     model = make_model(info)
     point = build_point(model, example, tatt)
+    print("  evaluating the fiducial point ...", flush=True)
     return evaluate_chi2(model, point)
 
 
@@ -277,11 +280,17 @@ def ten_in_a_row_chi2(example, tatt):
     row. Any state leaked between evaluations (or an OpenMP race with
     OMP_NUM_THREADS=2) shifts the second fiducial chi2.
     """
+    ia = "TATT" if tatt else "NLA"
+    print(f"  building model ({example}, {ia}) ...", flush=True)
     info = load_frozen_info(example, tatt)
     model = make_model(info)
     point = build_point(model, example, tatt)
     fresh = evaluate_chi2(model, point)
-    for pert in RACE_PERTURBATIONS:
-        evaluate_chi2(model, {**point, **pert})
+    print(f"  fresh model, fiducial point:  chi2 = {fresh:.8f}", flush=True)
+    for i, pert in enumerate(RACE_PERTURBATIONS, start=1):
+        chi2 = evaluate_chi2(model, {**point, **pert})
+        what = ", ".join(f"{k}={v}" for k, v in pert.items())
+        print(f"  row {i:2d}/10 ({what}):  chi2 = {chi2:.4f}", flush=True)
     tenth = evaluate_chi2(model, point)
+    print(f"  row 10/10 (fiducial again):  chi2 = {tenth:.8f}", flush=True)
     return fresh, tenth
