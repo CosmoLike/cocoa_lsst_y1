@@ -1,6 +1,6 @@
 # Unit tests for the lsst_y1 likelihoods
 
-These tests catch two kinds of silent breakage: a chi2 that drifted
+These tests catch two kinds of silent breakage: a $\chi^2$ that drifted
 because code or data changed by accident, and a race condition (a bug
 where evaluating several points in a row corrupts a later result
 through leftover internal state or colliding OpenMP threads). The
@@ -21,7 +21,7 @@ Without pytest:
 
 The suite changes no project files. Each test streams a progress line
 per model build and per evaluation, then a report block with the
-computed chi2, the stored reference, the difference, and the pass
+computed $\chi^2$, the stored reference, the difference, and the pass
 limit. A full run performs about 50 likelihood evaluations and takes a
 few minutes. The test modules force `OMP_NUM_THREADS=4` internally.
 The suite never waits for a keypress: a space/enter prompt between
@@ -30,30 +30,30 @@ so run the command with nothing piped after it.
 
 ## The tests
 
-The standard configurations get four tests each: a chi2 drift check
+The standard configurations get four tests each: a $\chi^2$ drift check
 and a race check, both in the NLA and in the TATT intrinsic-alignment
 model (TATT: `IA_model: 1` with `LSST_A2_1=0.05`, `LSST_BTA_1=0.05`,
 `LSST_A2_2=-1.51541`).
 
 | check | pass limit                                        | a failure means                    |
 |-------|---------------------------------------------------|------------------------------------|
-| chi2  | within 0.2 of `frozen/reference_chi2.json`        | code or data changed the numbers   |
-| race  | fresh vs 10th of 10 cosmologies in a row, to 1e-4 | leftover state or an OpenMP race   |
+| $\chi^2$  | within 0.2 of `frozen/reference_chi2.json`        | code or data changed the numbers   |
+| race  | fresh vs 10th of 10 cosmologies in a row, to $10^{-4}$ | leftover state or an OpenMP race   |
 
 | tests | file | configuration | checks |
 |-------|------|---------------|--------|
-| 1-4   | `test_example1.py` | cosmic shear (example1) | chi2 + race, NLA and TATT |
-| 5-8   | `test_example2.py` | 3x2pt (example2) | chi2 + race, NLA and TATT |
-| 9-10  | `test_fastpt.py` | 3x2pt TATT with python FAST-PT (`IA_code: 1` plus the fastpt theory block) instead of the C cfastpt | chi2 vs its own frozen FASTPT reference (0.2); the FASTPT-minus-CFASTPT difference is stored in `frozen/reference_chi2.json` and printed |
-| 11-14 | `test_example2_2x2pt.py` | 2x2pt (`lsst_y1.combo_2x2pt`: example2 reduced to galaxy clustering plus galaxy-galaxy lensing) | chi2 + race, NLA and TATT |
+| 1-4   | `test_example1.py` | cosmic shear (example1) | $\chi^2$ + race, NLA and TATT |
+| 5-8   | `test_example2.py` | 3x2pt (example2) | $\chi^2$ + race, NLA and TATT |
+| 9-10  | `test_fastpt.py` | 3x2pt TATT with python FAST-PT (`IA_code: 1` plus the fastpt theory block) instead of the C cfastpt | $\chi^2$ vs its own frozen FASTPT reference (0.2); the FASTPT-minus-CFASTPT difference is stored in `frozen/reference_chi2.json` and printed |
+| 11-14 | `test_example2_2x2pt.py` | 2x2pt (`lsst_y1.combo_2x2pt`: example2 reduced to galaxy clustering plus galaxy-galaxy lensing) | $\chi^2$ + race, NLA and TATT |
 
 Advisory checks (`test_emul2.py`, E1-E4): the EXAMPLE_EMUL2 examples,
 where trained machine-learning emulators replace the Boltzmann code.
-No pass/fail: each check prints the emulator chi2, its drift against
+No pass/fail: each check prints the emulator $\chi^2$, its drift against
 the frozen emulator reference, the difference against the
-exact-physics chi2 at the same cosmology, and the recommendation
-(RECOMMENDED for actual data analysis when |emulator - exact| chi2
-< 0.2, NOT recommended otherwise), plus a race check that warns
+exact-physics $\chi^2$ at the same cosmology, and the recommendation
+(RECOMMENDED for actual data analysis when
+$\lvert\chi^2_\text{emulator} - \chi^2_\text{exact}\rvert < 0.2$, NOT recommended otherwise), plus a race check that warns
 instead of failing. The trained-network files are read from
 external_modules/data/emultrf, not from the frozen state; the network
 device is frozen to `cpu` so the numbers do not depend on GPU
@@ -61,14 +61,14 @@ availability.
 
 Accuracy checks (`test_accuracy.py`): first a one-knob-at-a-time
 scan on the 3x2pt NLA configuration (so a large delta can be
-attributed to the knob causing it; the scan includes accuracyboost 5
+attributed to the knob causing it; the scan includes `accuracyboost: 5`
 as a stress knob, which in other projects exposed interface
 breakdowns), then the all-knobs checks A1-A6: the three probes with
 both IA models re-evaluated with the numerical settings pushed
-beyond the defaults (cosmolike accuracyboost 2, integration_accuracy
-10, lmax 200000, kmax_boltzmann 40 paired with CAMB kmax 50; CAMB
-AccuracyBoost 2, k_per_logint 50). Each check reports delta chi2 =
-chi2(high accuracy) - chi2(default, frozen): the numerical error of
+beyond the defaults (cosmolike `accuracyboost: 2`, integration_accuracy
+10, `lmax: 200000`, `kmax_boltzmann: 40` paired with CAMB `kmax: 50`; CAMB
+`AccuracyBoost: 2`, `k_per_logint: 50`). Each check reports $\Delta\chi^2$ =
+$\chi^2$(high accuracy) - $\chi^2$(default, frozen): the numerical error of
 the default settings. No pass/fail. A high-accuracy evaluation takes
 minutes; run this file on its own, or skip it with
 `--ignore ./projects/lsst_y1/tests/test_accuracy.py`.
@@ -77,8 +77,8 @@ The accuracy file also carries an opt-in N-random-models check
 (`test_ax99_nmodels`): instead of the one frozen fiducial, N
 reproducible random points are drawn across the prior of the 3x2pt
 NLA configuration, a synthetic data vector is generated at each point
-with the default settings (so the default chi2 against it is zero by
-construction), and the high-accuracy chi2 against that vector is the
+with the default settings (so the default $\chi^2$ against it is zero by
+construction), and the high-accuracy $\chi^2$ against that vector is the
 delta directly. The report streams one block per model and ends with
 the min/median/max delta. Each model costs a default build+evaluation
 plus a high-accuracy build+evaluation (minutes per model), so the
@@ -93,7 +93,7 @@ environment variable. Advisory: the deltas only have to be finite.
 
 All TATT variants evaluate against `frozen/data/tatt_lsst_y1.dataset`,
 a data vector GENERATED WITH TATT at the fiducial point during the
-freeze. Reason: against the shipped NLA-based vector the TATT chi2
+freeze. Reason: against the shipped NLA-based vector the TATT $\chi^2$
 sits away from its minimum, where it responds linearly to tiny
 numerical changes; at its own minimum the response is quadratic and
 the drift bounds stay meaningful.
@@ -132,6 +132,6 @@ or likelihood defaults requires a re-freeze:
 
 Run it from the `Cocoa/` folder with the environment set up as above.
 It rebuilds `frozen/` from the current project, prints the four new
-reference chi2 values, and rewrites the manifest. Review the printed
-chi2 values against the old references before committing: they define
+reference $\chi^2$ values, and rewrites the manifest. Review the printed
+$\chi^2$ values against the old references before committing: they define
 what every later test run compares against.

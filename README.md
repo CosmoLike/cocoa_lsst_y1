@@ -712,7 +712,7 @@ Details on the matter power spectrum emulator designs will be presented in the [
 # Unit tests
 
 The `tests/` folder holds 18 pass/fail tests and advisory checks.
-The pass/fail tests compare the chi2 of cosmic shear, 3x2pt, and
+The pass/fail tests compare the $\chi^2$ of cosmic shear, 3x2pt, and
 2x2pt (each in NLA and TATT) against frozen references within 0.2,
 re-evaluate each fiducial as the 10th of 10 cosmologies in a row
 under `OMP_NUM_THREADS=4` to catch state leaks and OpenMP races, and
@@ -731,10 +731,10 @@ state.
 
 # Minimum accuracy parameters
 
-The accuracy checks (`tests/test_accuracy.py`) measured, at the chi2
+The accuracy checks (`tests/test_accuracy.py`) measured, at the $\chi^2$
 minimum on the 3x2pt configuration, one knob at a time:
 
-| knob                               | raised to | delta chi2 |
+| knob                               | raised to | $\Delta\chi^2$ |
 |------------------------------------|-----------|-----------:|
 | cosmolike `accuracyboost`          | 3         |    +0.0002 |
 | cosmolike `accuracyboost` (stress) | 5         |    +0.0016 |
@@ -749,12 +749,12 @@ every coarser grid's nodes are a subset of every finer grid's, so a
 higher boost tightens the same interpolation instead of moving the
 nodes (the construction is commented in
 `likelihood/_cosmolike_prototype_base.py`). The all-knobs checks
-(comparing the default accuracyboost 1 against 3) stay within -0.015
+(comparing the default `accuracyboost: 1` against 3) stay within -0.015
 to +0.009 across every probe and IA model. All of this sits far below
 the 0.2 comfort level: the default accuracy settings of this project
 are adequate, and no default was changed.
 
-When several knobs move the chi2 in any project, raise cosmolike
+When several knobs move the $\chi^2$ in any project, raise cosmolike
 `accuracyboost` first (cheap), then camb `k_per_logint`, and only
 then camb `AccuracyBoost` (expensive at run time, and able to
 masquerade for the cheap knobs). `kmax_boltzmann` and camb `kmax`
