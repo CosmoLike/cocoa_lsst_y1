@@ -27,6 +27,8 @@
     "frozen/data/old_lsst_y1_theory.modelvector": "4f163bc6b0154d66beea49bd7ca8741f8cff78ee105ce1893887bd98201d3831",
     "frozen/data/ones.mask": "929a72103ca195fe60e42ddaafe2557b56ad614a15781c1277b3e9cfdf9f86fd",
     "frozen/data/pca.txt": "52b50538e307c1ee8787266fc022dc9366c75b3a92045ddd01c455a4d0d75de5",
-    "frozen/reference_chi2.json": "c8c48a7eb6819e82d3db6253aa42c2368653251f9499c91330530a033d87f169"
+    "frozen/frozen_config_example1.py": "78ebf4f37c4c34ad94330790b1f73da371daf9fdea405ad7d7bfc30daff151b4",
+    "frozen/frozen_config_example2.py": "2f6888271fdca26ee2c3c0fcff1d2f461f9043e4b4dbe239c70ae8d1a5fb1437",
+    "frozen/reference_chi2.json": "9d077f18961c5110cbb4f98f84e3b7d08dea5fb88f443b10c768a40c75502043"
   }
 }

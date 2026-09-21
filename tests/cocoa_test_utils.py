@@ -1,10 +1,26 @@
 """Shared harness for the lsst_y1 unit tests.
 
-The tests never read ./data or the live EXAMPLE_EVALUATE yaml files: they run
-on the byte-frozen copies stored in tests/frozen/, whose SHA-256 hashes are
-pinned in tests/manifest_sha256.json. If any frozen file changes, every test
-fails before evaluating anything. To refresh the frozen state deliberately,
-run generate_frozen_reference.py --overwrite (maintainers only).
+The tests are completely independent of the live project configuration: they
+load only the files under tests/frozen/, whose SHA-256 hashes are pinned in
+tests/manifest_sha256.json.
+
+- frozen/frozen_config_example{1,2}.py: the FULLY EXPANDED cobaya
+  configuration as a yaml string inside a python module (the
+  EXAMPLE_EMUL_NAUTILUS1.py idiom), dumped from a resolved model at freeze
+  time, plus the exact sampled-parameter point. Every likelihood option and
+  every parameter — including the ones that came from the likelihood default
+  yaml files (cosmic_shear.yaml, combo_3x2pt.yaml, params_source.yaml,
+  params_lens.yaml) — is written out explicitly, so the frozen values shadow
+  the live defaults. Changing EXAMPLE_EVALUATE1/2.yaml or the likelihood
+  default yaml files does NOT affect these tests.
+- frozen/data/: the tests' own copy of the data vectors, covariance, n(z),
+  masks.
+- frozen/EXAMPLE_EVALUATE{1,2}.yaml: provenance snapshots of the examples at
+  freeze time; kept for humans to diff, never loaded by the tests.
+
+If any frozen file changes, every test fails before evaluating anything. To
+refresh the frozen state deliberately, run
+generate_frozen_reference.py --overwrite (maintainers only).
 
 Requirements to run: the cocoa conda environment active and
 `source start_cocoa.sh` done (ROOTDIR must be exported).
@@ -26,7 +42,7 @@ CHI2_TOLERANCE = 0.2
 # Tests 2, 4, 6, 8: |chi2(10th of a 10-in-a-row run) - chi2(fresh model)|
 RACE_TOLERANCE = 1.0e-4
 
-# TATT point requested for tests 3, 4, 7, 8 (on top of the example override)
+# TATT point requested for tests 3, 4, 7, 8 (applied on the frozen point)
 TATT_POINT = {
     "LSST_A2_1": 0.05,
     "LSST_BTA_1": 0.05,
@@ -35,17 +51,19 @@ TATT_POINT = {
 
 EXAMPLES = {
     "example1": {
-        "yaml": "EXAMPLE_EVALUATE1.yaml",
+        "frozen_module": "frozen_config_example1.py",
+        "provenance": "EXAMPLE_EVALUATE1.yaml",  # snapshot only, never loaded
         "likelihood": "lsst_y1.cosmic_shear",
     },
     "example2": {
-        "yaml": "EXAMPLE_EVALUATE2.yaml",
+        "frozen_module": "frozen_config_example2.py",
+        "provenance": "EXAMPLE_EVALUATE2.yaml",  # snapshot only, never loaded
         "likelihood": "lsst_y1.combo_3x2pt",
     },
 }
 
 # Nine deterministic cosmologies evaluated before the fiducial point in the
-# race tests (all inside the priors of the example yaml files)
+# race tests (all inside the priors of the frozen configurations)
 RACE_PERTURBATIONS = [
     {"As_1e9": 1.95},
     {"As_1e9": 2.25},
@@ -69,7 +87,8 @@ def require_cocoa_environment():
             "`source start_cocoa.sh` from the Cocoa/ folder before running "
             "these tests."
         )
-    # cobaya component paths in the yaml files (e.g. CAMB) are ROOTDIR-relative
+    # cobaya component paths in the frozen configs (e.g. CAMB) are
+    # ROOTDIR-relative
     os.chdir(os.environ["ROOTDIR"])
 
 
@@ -96,9 +115,10 @@ def sha256_of(path):
 
 def compute_manifest():
     files = {}
-    for base, _, names in os.walk(FROZEN_DIR):
+    for base, dirs, names in os.walk(FROZEN_DIR):
+        dirs[:] = [d for d in dirs if d != "__pycache__"]
         for name in sorted(names):
-            if name == ".DS_Store":
+            if name == ".DS_Store" or name.endswith(".pyc"):
                 continue
             full = os.path.join(base, name)
             rel = os.path.relpath(full, TESTS_DIR).replace(os.sep, "/")
@@ -174,21 +194,31 @@ TEST {number}: {label}
 # Model construction and evaluation (imports cobaya lazily so that
 # OMP_NUM_THREADS can be set by the caller first)
 # -----------------------------------------------------------------------------
+def _frozen_module(example):
+    import importlib.util
+
+    path = os.path.join(FROZEN_DIR, EXAMPLES[example]["frozen_module"])
+    spec = importlib.util.spec_from_file_location(f"frozen_{example}", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
 def load_frozen_info(example, tatt):
-    from cobaya.yaml import yaml_load_file
+    from cobaya.yaml import yaml_load
 
     cfg = EXAMPLES[example]
-    info = yaml_load_file(os.path.join(FROZEN_DIR, cfg["yaml"]))
-    override = dict(info["sampler"]["evaluate"]["override"])
+    info = yaml_load(_frozen_module(example).yaml_string)
     info.pop("sampler", None)
     info.pop("output", None)
     info["debug"] = 30  # WARNING level: keep the test reports readable
     info["timing"] = False
     like = info["likelihood"][cfg["likelihood"]]
-    # point the likelihood at the frozen data copy, not the live ./data
+    # absolute path to the frozen data copy (belt and suspenders: the frozen
+    # config already stores the ROOTDIR-relative frozen path)
     like["path"] = os.path.join(FROZEN_DIR, "data")
     like["IA_model"] = 1 if tatt else 0  # NLA (0) or TATT (1)
-    return info, override
+    return info
 
 
 def make_model(info):
@@ -197,16 +227,20 @@ def make_model(info):
     return get_model(info)
 
 
-def build_point(model, info, override, tatt):
-    point = {}
-    for p in model.parameterization.sampled_params():
-        if p in override:
-            point[p] = override[p]
-        else:  # fall back on the ref center declared in the yaml
-            ref = info["params"][p].get("ref")
-            point[p] = ref["loc"] if isinstance(ref, dict) else ref
-            if point[p] is None:
-                raise ValueError(f"parameter {p}: not in override and no ref")
+def load_frozen_point(example):
+    return dict(_frozen_module(example).point)
+
+
+def build_point(model, example, tatt):
+    point = load_frozen_point(example)
+    sampled = set(model.parameterization.sampled_params())
+    if sampled != set(point):
+        raise AssertionError(
+            "sampled-parameter set differs from the frozen point (the "
+            "likelihood/theory code changed its parameters):\n"
+            f"  new since freeze: {sorted(sampled - set(point))}\n"
+            f"  gone since freeze: {sorted(set(point) - sampled)}"
+        )
     if tatt:
         for p, v in TATT_POINT.items():
             if p not in point:
@@ -228,10 +262,10 @@ def evaluate_chi2(model, point):
 
 
 def single_model_chi2(example, tatt):
-    """chi2 of the example's fiducial point on a freshly built model."""
-    info, override = load_frozen_info(example, tatt)
+    """chi2 of the frozen fiducial point on a freshly built model."""
+    info = load_frozen_info(example, tatt)
     model = make_model(info)
-    point = build_point(model, info, override, tatt)
+    point = build_point(model, example, tatt)
     return evaluate_chi2(model, point)
 
 
@@ -243,9 +277,9 @@ def ten_in_a_row_chi2(example, tatt):
     row. Any state leaked between evaluations (or an OpenMP race with
     OMP_NUM_THREADS=2) shifts the second fiducial chi2.
     """
-    info, override = load_frozen_info(example, tatt)
+    info = load_frozen_info(example, tatt)
     model = make_model(info)
-    point = build_point(model, info, override, tatt)
+    point = build_point(model, example, tatt)
     fresh = evaluate_chi2(model, point)
     for pert in RACE_PERTURBATIONS:
         evaluate_chi2(model, {**point, **pert})

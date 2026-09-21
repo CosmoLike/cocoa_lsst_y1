@@ -1,12 +1,22 @@
 # Unit tests for the lsst_y1 likelihoods
 
-These tests evaluate `EXAMPLE_EVALUATE1.yaml` (cosmic shear) and
-`EXAMPLE_EVALUATE2.yaml` (3x2pt) in Python and compare the chi2 at the
-example fiducial point against stored references. They do NOT read `../data`
-or the live example yaml files: they run on the byte-frozen copies in
-`frozen/`, pinned by SHA-256 in `manifest_sha256.json`. The live `../data`
-and examples can therefore change without affecting these tests — and if a
-frozen copy itself is edited, every test fails before evaluating anything.
+These tests evaluate the cosmic-shear (example1) and 3x2pt (example2)
+likelihoods in Python and compare the chi2 at the frozen fiducial point
+against stored references. They are completely independent of the live
+project configuration: each test loads
+`frozen/frozen_config_example{1,2}.py`, an auto-generated module holding the
+FULLY EXPANDED cobaya configuration as a yaml string (the
+`EXAMPLE_EMUL_NAUTILUS1.py` idiom) plus the exact evaluated point. Every
+option and every parameter — including the ones that normally come from the
+likelihood default yaml files — is written out explicitly, and the data is
+the tests' own copy in `frozen/data/`. `EXAMPLE_EVALUATE1/2.yaml`, the
+likelihood defaults (`cosmic_shear.yaml`, `combo_3x2pt.yaml`,
+`params_source.yaml`, `params_lens.yaml`), and `../data` can therefore all
+change without affecting these tests. Everything under `frozen/` is pinned
+by SHA-256 in `manifest_sha256.json`; if a frozen file is edited, every test
+fails before evaluating anything. The `frozen/EXAMPLE_EVALUATE{1,2}.yaml`
+copies are provenance snapshots for humans to diff — the tests never load
+them.
 
 The eight tests:
 
