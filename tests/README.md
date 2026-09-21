@@ -32,8 +32,12 @@ so run the command with nothing piped after it.
 
 The standard configurations get four tests each: a $\chi^2$ drift check
 and a race check, both in the NLA and in the TATT intrinsic-alignment
-model (TATT: `IA_model: 1` with `LSST_A2_1=0.05`, `LSST_BTA_1=0.05`,
-`LSST_A2_2=-1.51541`).
+model. The TATT variants set
+
+    IA_model: 1
+    LSST_A2_1: 0.05
+    LSST_BTA_1: 0.05
+    LSST_A2_2: -1.51541
 
 | check | pass limit                                        | a failure means                    |
 |-------|---------------------------------------------------|------------------------------------|
@@ -60,36 +64,56 @@ device is frozen to `cpu` so the numbers do not depend on GPU
 availability.
 
 Accuracy checks (`test_accuracy.py`): first a one-knob-at-a-time
-scan on the 3x2pt NLA configuration (so a large delta can be
-attributed to the knob causing it; the scan includes `accuracyboost: 5`
-as a stress knob, which in other projects exposed interface
-breakdowns), then the all-knobs checks A1-A6: the three probes with
-both IA models re-evaluated with the numerical settings pushed
-beyond the defaults (cosmolike `accuracyboost: 2`, integration_accuracy
-10, `lmax: 200000`, `kmax_boltzmann: 40` paired with CAMB `kmax: 50`; CAMB
-`AccuracyBoost: 2`, `k_per_logint: 50`). Each check reports $\Delta\chi^2$ =
-$\chi^2$(high accuracy) - $\chi^2$(default, frozen): the numerical error of
-the default settings. No pass/fail. A high-accuracy evaluation takes
-minutes; run this file on its own, or skip it with
-`--ignore ./projects/lsst_y1/tests/test_accuracy.py`.
+scan on the 3x2pt NLA configuration, so a large delta can be
+attributed to the knob causing it (the scan includes
+`accuracyboost: 5` as a stress knob, which in other projects exposed
+interface breakdowns). Then the all-knobs checks A1-A6 re-evaluate
+the three probes with both IA models with every setting pushed
+beyond the defaults at once:
+
+    # cosmolike likelihood settings
+    accuracyboost: 2
+    integration_accuracy: 10
+    lmax: 200000
+    kmax_boltzmann: 40
+    # CAMB extra_args (kmax moves with kmax_boltzmann: one physical cutoff)
+    AccuracyBoost: 2
+    k_per_logint: 50
+    kmax: 50
+
+Each check reports $\Delta\chi^2 = \chi^2(\text{high accuracy}) -
+\chi^2(\text{default})$: the numerical error of the default
+settings. No pass/fail. High-accuracy evaluations take minutes; run
+the file on its own, or skip it with
+
+    python -m pytest ./projects/lsst_y1/tests --ignore ./projects/lsst_y1/tests/test_accuracy.py
 
 The accuracy file also carries an opt-in N-random-models check
-(`test_ax99_nmodels`): instead of the one frozen fiducial, N
-reproducible random points are drawn across the prior of the 3x2pt
-NLA configuration, a synthetic data vector is generated at each point
-with the default settings (so the default $\chi^2$ against it is zero by
-construction), and the high-accuracy $\chi^2$ against that vector is the
-delta directly. The report streams one block per model and ends with
-the min/median/max delta. Each model costs a default build+evaluation
-plus a high-accuracy build+evaluation (minutes per model), so the
-check is off by default: with `COCOA_ACCURACY_NMODELS` unset (or 0)
-it prints how to enable it and passes. To run it:
+(`test_ax99_nmodels`). Instead of the one frozen fiducial point, it
+repeats the accuracy measurement at N reproducible random points
+drawn across the prior of the 3x2pt NLA configuration. Per point:
+
+1. draw the point (seeded, so every run draws the same points);
+2. generate a synthetic data vector at it with the DEFAULT settings,
+   so the default $\chi^2$ against that vector is zero by
+   construction;
+3. evaluate the high-accuracy $\chi^2$ against the same vector: that
+   number is the $\Delta\chi^2$ directly.
+
+The report streams one block per model and ends with the
+min/median/max $\Delta\chi^2$. Advisory: the deltas only have to be
+finite.
+
+Each model costs a default build+evaluation plus a high-accuracy
+build+evaluation, minutes per model, so the check is off by default:
+with `COCOA_ACCURACY_NMODELS` unset (or 0) it prints how to enable
+it and passes. To run it:
 
     COCOA_ACCURACY_NMODELS=10 python -m pytest \
         ./projects/lsst_y1/tests/test_accuracy.py -k nmodels
 
 Running the file as a script accepts `--nmodels N` in place of the
-environment variable. Advisory: the deltas only have to be finite.
+environment variable.
 
 All TATT variants evaluate against `frozen/data/tatt_lsst_y1.dataset`,
 a data vector GENERATED WITH TATT at the fiducial point during the
