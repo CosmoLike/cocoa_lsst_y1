@@ -135,11 +135,13 @@ accuracy measurement at N reproducible random points drawn across the prior
 of the 3x2pt NLA configuration. Per point:
 
 1. draw the point;
-2. generate a synthetic data vector at it with the DEFAULT settings,
-   so the default $\chi^2$ against that vector is zero by
-   construction;
-3. evaluate the high-accuracy $\chi^2$ against the same vector: that
-   number is the $\Delta\chi^2$ directly.
+2. generate a synthetic data vector at that point with the DEFAULT
+   settings;
+3. evaluate the high-accuracy $\chi^2$ against that vector.
+
+The default settings produced the vector of step 2, so the default
+$\chi^2$ against it is zero by construction, and the number step 3
+computes is the $\Delta\chi^2$ directly.
 
 > [!NOTE]
 > The draws are reproducible: the check specifies the seed (the
