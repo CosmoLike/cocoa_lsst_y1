@@ -8,7 +8,7 @@
 8. Same as 6 with the TATT IA model.
 
 Run from the Cocoa/ folder with the cocoa environment active and
-start_cocoa.sh sourced:  python -m pytest ./projects/lsst_y1/tests -v
+start_cocoa.sh sourced:  python -m pytest ./projects/lsst_y1/tests
 """
 
 import os
@@ -36,6 +36,9 @@ class TestExample2ThreeXTwo(unittest.TestCase):
     def test_5_chi2_matches_frozen_reference(self):
         chi2 = u.single_model_chi2(EXAMPLE, tatt=False)
         ref = self.reference[f"{EXAMPLE}_nla"]
+        u.report_chi2_test(
+            5, "example2 (3x2pt, NLA) chi2 vs frozen reference",
+            chi2, ref, u.CHI2_TOLERANCE)
         self.assertLess(
             abs(chi2 - ref), u.CHI2_TOLERANCE,
             msg=f"chi2 = {chi2:.6f} vs frozen reference {ref:.6f} "
@@ -44,6 +47,9 @@ class TestExample2ThreeXTwo(unittest.TestCase):
     def test_6_no_race_condition_ten_in_a_row(self):
         u.assert_omp_threads()
         fresh, tenth = u.ten_in_a_row_chi2(EXAMPLE, tatt=False)
+        u.report_race_test(
+            6, "example2 (3x2pt, NLA) race check: 10 cosmologies in a row",
+            fresh, tenth, u.RACE_TOLERANCE)
         self.assertLess(
             abs(tenth - fresh), u.RACE_TOLERANCE,
             msg=f"10th-in-a-row chi2 = {tenth:.8f} vs fresh {fresh:.8f}")
@@ -51,6 +57,9 @@ class TestExample2ThreeXTwo(unittest.TestCase):
     def test_7_chi2_matches_frozen_reference_tatt(self):
         chi2 = u.single_model_chi2(EXAMPLE, tatt=True)
         ref = self.reference[f"{EXAMPLE}_tatt"]
+        u.report_chi2_test(
+            7, "example2 (3x2pt, TATT) chi2 vs frozen reference",
+            chi2, ref, u.CHI2_TOLERANCE)
         self.assertLess(
             abs(chi2 - ref), u.CHI2_TOLERANCE,
             msg=f"TATT chi2 = {chi2:.6f} vs frozen reference {ref:.6f} "
@@ -59,6 +68,9 @@ class TestExample2ThreeXTwo(unittest.TestCase):
     def test_8_no_race_condition_ten_in_a_row_tatt(self):
         u.assert_omp_threads()
         fresh, tenth = u.ten_in_a_row_chi2(EXAMPLE, tatt=True)
+        u.report_race_test(
+            8, "example2 (3x2pt, TATT) race check: 10 cosmologies in a row",
+            fresh, tenth, u.RACE_TOLERANCE)
         self.assertLess(
             abs(tenth - fresh), u.RACE_TOLERANCE,
             msg=f"TATT 10th-in-a-row chi2 = {tenth:.8f} vs fresh {fresh:.8f}")

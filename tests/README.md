@@ -24,13 +24,16 @@ The eight tests:
 From the `Cocoa/` folder, with the cocoa environment active and
 `start_cocoa.sh` sourced:
 
-    python -m pytest ./projects/lsst_y1/tests -v
+    python -m pytest ./projects/lsst_y1/tests
 
 or, without pytest:
 
     python -m unittest discover -s ./projects/lsst_y1/tests -v
 
-The full suite takes a few minutes (each race test performs 11 likelihood
+Each test streams a report to the terminal with the computed chi2, the
+frozen reference, the |delta chi2|, and the limit (the bundled `pytest.ini`
+passes `-v -s` so the reports are not swallowed by pytest's capture). The
+full suite takes a few minutes (each race test performs 11 likelihood
 evaluations). `OMP_NUM_THREADS=2` is forced inside the test modules.
 
 ## Refreshing the frozen state (maintainers only)

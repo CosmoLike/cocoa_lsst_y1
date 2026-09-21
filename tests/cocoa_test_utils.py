@@ -141,6 +141,36 @@ def load_reference():
 
 
 # -----------------------------------------------------------------------------
+# Terminal reports (so a run explains itself instead of a bare PASSED)
+# -----------------------------------------------------------------------------
+def report_chi2_test(number, label, chi2, ref, tol):
+    delta = abs(chi2 - ref)
+    print(f"""
+{'-' * 66}
+TEST {number}: {label}
+  chi2 (this run)     = {chi2:.6f}
+  frozen reference    = {ref:.6f}
+  |delta chi2|        = {delta:.6f}   (limit: < {tol})
+  -> {'OK' if delta < tol else 'EXCEEDS LIMIT'}
+{'-' * 66}""", flush=True)
+    return delta
+
+
+def report_race_test(number, label, fresh, tenth, tol):
+    delta = abs(tenth - fresh)
+    print(f"""
+{'-' * 66}
+TEST {number}: {label}
+  fresh-model chi2    = {fresh:.8f}
+  10th of 10 in a row = {tenth:.8f}
+  |delta chi2|        = {delta:.8f}   (limit: < {tol})
+  OMP_NUM_THREADS     = {os.environ.get('OMP_NUM_THREADS')}
+  -> {'OK' if delta < tol else 'EXCEEDS LIMIT'}
+{'-' * 66}""", flush=True)
+    return delta
+
+
+# -----------------------------------------------------------------------------
 # Model construction and evaluation (imports cobaya lazily so that
 # OMP_NUM_THREADS can be set by the caller first)
 # -----------------------------------------------------------------------------
@@ -152,7 +182,7 @@ def load_frozen_info(example, tatt):
     override = dict(info["sampler"]["evaluate"]["override"])
     info.pop("sampler", None)
     info.pop("output", None)
-    info["debug"] = False
+    info["debug"] = 30  # WARNING level: keep the test reports readable
     info["timing"] = False
     like = info["likelihood"][cfg["likelihood"]]
     # point the likelihood at the frozen data copy, not the live ./data
