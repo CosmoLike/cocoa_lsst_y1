@@ -11,7 +11,8 @@ so their chi2 values at the same point differ by a small amount.
 Each test evaluates the frozen TATT point with FASTPT and:
 
   - compares the chi2 against its own frozen FASTPT reference within
-    CHI2_TOLERANCE (0.2), the same drift criterion as tests 1-8;
+    CHI2_TOLERANCE (0.2) of its own frozen reference, the same
+    pass rule as tests 1-8;
   - prints the FASTPT-minus-CFASTPT difference next to the frozen
     value of that difference, so a numerics change in either
     implementation is visible at a glance.
@@ -57,7 +58,7 @@ class TestFastptTatt(unittest.TestCase):
         cls.reference = u.load_reference()
 
     def _run_fastpt_case(self, number, example, label):
-        """Evaluate one FASTPT TATT case and assert its drift bound.
+        """Evaluate one FASTPT TATT case against its frozen reference.
 
         Shared by both tests: the only differences between them are
         the example evaluated and the report header.

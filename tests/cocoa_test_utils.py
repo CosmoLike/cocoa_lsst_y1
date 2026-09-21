@@ -42,11 +42,12 @@ tests. The frozen state has three parts:
   - frozen/data/: the tests' own copy of the data vectors, covariance,
     n(z), and masks. (The EMUL2 trained-network files are NOT copied:
     they live in external_modules/data/emultrf, pinned by the EMULTRF
-    keys in set_installation_options.sh, and their drift is part of
-    what the advisory checks measure.)
+    keys in set_installation_options.sh. When a retrained network
+    replaces them the emulator chi2 changes, and measuring that
+    change is part of the advisory checks' job.)
   - frozen/EXAMPLE_*.yaml: snapshots of the example yaml files at
-    freeze time, kept only so a human can diff how the live examples
-    drifted; no test reads them.
+    freeze time, kept only so a human can diff what changed in the live examples
+    since the freeze; no test reads them.
 
 Every test first verifies the manifest and refuses to run when any
 frozen file changed. Refreshing the frozen state is a deliberate
@@ -65,7 +66,7 @@ where each definition lives):
       +-> single_model_chi2(example, tatt, ...)      tests 1, 3, 5, 7
       |     +-> load_frozen_info(...)  frozen yaml -> cobaya input dict
       |     +-> make_model(info)       input dict -> evaluable Model
-      |     +-> build_point(...)       frozen point, drift-checked
+      |     +-> build_point(...)       frozen point, names checked
       |     +-> evaluate_chi2(...)     one point -> chi2 (-2 ln L)
       |
       +-> ten_in_a_row_chi2(example, tatt)           tests 2, 4, 6, 8
@@ -208,12 +209,13 @@ TATT_POINT = {
 
 # The TATT variants evaluate against a data vector GENERATED WITH TATT
 # at the fiducial point (written by the generator into
-# frozen/data/tatt_lsst_y1.modelvector and referenced by this dataset
-# descriptor). Reason: with the shipped NLA-based data vector the TATT
+# frozen/data/tatt_lsst_y1.modelvector and named on the data_file
+# line of this ".dataset" file). Reason: with the shipped NLA-based data vector the TATT
 # chi2 at the fiducial is well above zero, and away from a minimum the
 # chi2 responds linearly (not quadratically) to tiny numerical
-# changes, making the drift bound needlessly twitchy. Against its own
-# data vector the TATT chi2 sits at the minimum, where it is stable.
+# changes: harmless rounding-level shifts would eat much of the 0.2
+# chi2 band the reference tests allow. Against its own data vector
+# the TATT chi2 sits at the minimum, where it is stable.
 TATT_DATASET = "tatt_lsst_y1.dataset"
 
 # ---- configurations ---------------------------------------------------------
@@ -678,7 +680,7 @@ def load_frozen_point(example):
 
 
 def build_point(model, example, tatt):
-    """Assemble the exact point a test evaluates, with a drift check.
+    """Assemble the exact point a test evaluates, with a safety check.
 
     The frozen point must cover the model's sampled parameters one to
     one. When likelihood or theory code changes its parameter set (a
@@ -821,13 +823,17 @@ def random_model_accuracy(example, n_models, seed=RANDOM_MODEL_SEED):
          would fail every later test). Because the default model
          itself produced the vector, the default-settings chi2
          against it is zero by construction;
-      3. write a dataset descriptor for that vector into the same
-         temporary directory: the frozen descriptor text with only
-         its data_file line replaced. The other files the descriptor
-         names (covariance, n(z), masks, baryon files) are plain
-         filenames the likelihood joins onto its `path` option, so
-         the temporary directory must look like a complete data
-         folder: every file of frozen/data is symlinked in;
+      3. write a ".dataset" file for that vector into the same
+         temporary directory. A ".dataset" file is the small text
+         file a likelihood reads first: one "key = filename" line
+         per ingredient (data_file = the data vector to fit, plus
+         the covariance, n(z) tables, masks, baryon files). The one
+         written here is the frozen ".dataset" text with a single
+         change: its data_file line now names the new vector. The
+         filenames in it are joined onto the likelihood's `path`
+         option, so the temporary directory must look like a
+         complete data folder: every file of frozen/data is
+         symlinked in;
       4. evaluate a HIGH_ACCURACY model at the same point against the
          new descriptor. Since the vector is exact for the default
          settings, that chi2 IS
@@ -864,9 +870,11 @@ def random_model_accuracy(example, n_models, seed=RANDOM_MODEL_SEED):
       vector's (a masking or probe mismatch: the covariance and the
       masks would select the wrong entries), or when the frozen
       descriptor does not contain exactly one data_file line;
-      AssertionError when the drawn point does not cover the model's
-      sampled parameters (the same drift condition build_point
-      reports), or when a chi2 comes out non-finite (evaluate_chi2).
+      AssertionError when the drawn point and the model disagree on
+      which parameters are sampled, meaning the likelihood or theory
+      code gained or lost a sampled parameter since the freeze (the
+      same mismatch build_point reports for the frozen point), or
+      when a chi2 comes out non-finite (evaluate_chi2).
     """
     import numpy as np
 
@@ -905,8 +913,15 @@ def random_model_accuracy(example, n_models, seed=RANDOM_MODEL_SEED):
             print(f"  model {m + 1}/{n_models}: building the "
                   "default-settings model ...", flush=True)
             model = make_model(info)
-            # same drift condition build_point checks for the frozen
-            # point: the drawn point must cover the sampled set
+            # Before evaluating, confirm the drawn point and the
+            # model agree on WHICH parameters are sampled. The point's
+            # names come from the frozen configuration; the model was
+            # just built from today's code. If the code gained or lost
+            # a sampled parameter since the freeze, evaluating would
+            # either fail with a cryptic cobaya error or silently fill
+            # the new parameter with a default value, so the mismatch
+            # is reported by name instead (build_point makes this same
+            # check for the frozen-point tests).
             sampled = set(model.parameterization.sampled_params())
             if sampled != set(point):
                 raise AssertionError(
@@ -942,8 +957,11 @@ def random_model_accuracy(example, n_models, seed=RANDOM_MODEL_SEED):
                     f"model {m}: generated vector has {generated_lines} "
                     f"lines; the original {original_vector} has "
                     f"{original_lines}")
-            # step 3: the new descriptor is the frozen descriptor
-            # text with only its data_file line replaced
+            # step 3: write the ".dataset" file for the synthetic
+            # vector: the frozen ".dataset" text, unchanged except for
+            # one line, so the likelihood reads the same covariance,
+            # n(z), and masks but fits the vector from step 2 instead
+            # of the shipped measurement
             replaced = 0
             out_lines = []
             for line in descriptor.splitlines(keepends=True):
@@ -1032,8 +1050,11 @@ def single_model_chi2(example, tatt, fastpt=False, high_accuracy=False,
                             high_accuracy=high_accuracy,
                             overrides=overrides)
     model = make_model(info)
-    # build_point returns the frozen evaluation point, cross-checked
-    # against the model's sampled-parameter set (drift fails loudly)
+    # build_point returns the frozen evaluation point after checking
+    # that the point and the model name the same sampled parameters:
+    # if the likelihood or theory code gained or lost a sampled
+    # parameter since the freeze, the mismatch is reported by name
+    # instead of failing deep inside cobaya
     point = build_point(model, example, tatt)
     print("  evaluating the fiducial point ...", flush=True)
     return evaluate_chi2(model, point)
@@ -1148,7 +1169,7 @@ TEST {number}: {label}
 def report_fastpt_test(number, label, chi2, ref, cfastpt_ref, tol):
     """Print one FASTPT comparison test as a readable block.
 
-    Two numbers matter here: the drift of the FASTPT chi2 against its
+    Two numbers matter here: how far the FASTPT chi2 moved from its
     own frozen reference (the pass/fail criterion, same rule as every
     other reference test), and the physical difference between the
     FASTPT and cfastpt implementations of the TATT terms at the same
@@ -1183,8 +1204,9 @@ def report_emul2_advisory(label, chi2, frozen_ref, exact_ref, limit):
     """Print one EMUL2 accuracy check: measurements and a recommendation.
 
     There is no pass/fail here. An emulator is an approximation, so
-    the useful outputs are the numbers themselves: the drift against
-    the frozen emulator reference (did the installed emulator change),
+    the useful outputs are the numbers themselves: the change against
+    the frozen emulator reference (nonzero: the installed emulator no
+    longer reproduces the chi2 it gave at freeze time),
     the difference against the exact-physics chi2 at the same
     cosmology (how accurate the emulator is), and the recommendation
     derived from that accuracy.
