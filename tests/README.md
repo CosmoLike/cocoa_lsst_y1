@@ -12,8 +12,8 @@ Contents:
 
 1. [Running the tests](#run_tests)
 2. [The tests](#the_tests)
-    1. [Advisory checks](#advisory_checks)
-    2. [Accuracy checks](#accuracy_checks)
+    1. [Running Advisory checks](#advisory_checks)
+    2. [Running Accuracy checks](#accuracy_checks)
     3. [Synthetic data vectors](#synthetic_vectors)
 3. [Tests keep their own copy of configurations and data](#frozen_copy)
 4. [Refreshing the frozen state (maintainers only)](#refreeze)
@@ -76,7 +76,7 @@ The test files and the configurations they cover:
 | 9-10  | `test_fastpt.py` | 3x2pt TATT with python FAST-PT (`IA_code: 1` plus the fastpt theory block) instead of the C cfastpt | $\chi^2$ vs its own frozen FASTPT reference (0.2); the FASTPT-minus-CFASTPT difference is stored in `frozen/reference_chi2.json` and printed |
 | 11-14 | `test_example2_2x2pt.py` | 2x2pt (`lsst_y1.combo_2x2pt`: example2 reduced to galaxy clustering plus galaxy-galaxy lensing) | $\chi^2$ + race, NLA and TATT |
 
-### Advisory checks (`test_emul2.py`, E1-E4) <a name="advisory_checks"></a>
+### Running Advisory checks (`test_emul2.py`, E1-E4) <a name="advisory_checks"></a>
 
 The EXAMPLE_EMUL2 examples,
 where trained machine-learning emulators replace the Boltzmann code.
@@ -90,7 +90,12 @@ external_modules/data/emultrf, not from the frozen state; the network
 device is frozen to `cpu` so the numbers do not depend on GPU
 availability.
 
-### Accuracy checks (`test_accuracy.py`, A1-A6) <a name="accuracy_checks"></a>
+**Step :one:**: with the environment of
+[Running the tests](#run_tests), run the advisory checks on their own
+
+    python -m pytest ./projects/lsst_y1/tests/test_emul2.py
+
+### Running Accuracy checks (`test_accuracy.py`, A1-A6) <a name="accuracy_checks"></a>
 
 First a one-knob-at-a-time scan on the 3x2pt NLA configuration, so a large delta can be
 attributed to the knob causing it (the scan includes
@@ -111,8 +116,14 @@ beyond the defaults at once:
 
 Each check reports $\Delta\chi^2 = \chi^2(\text{high accuracy}) -
 \chi^2(\text{default})$: the numerical error of the default
-settings. No pass/fail. High-accuracy evaluations take minutes; run
-the file on its own, or skip it with
+settings. No pass/fail; high-accuracy evaluations take minutes.
+
+**Step :one:**: with the environment of
+[Running the tests](#run_tests), run the accuracy checks on their own
+
+    python -m pytest ./projects/lsst_y1/tests/test_accuracy.py
+
+To run every other test while skipping these:
 
     python -m pytest ./projects/lsst_y1/tests --ignore ./projects/lsst_y1/tests/test_accuracy.py
 
