@@ -72,6 +72,12 @@ where each definition lives):
       |     the same four steps, with evaluate_chi2 run 11 times on
       |     one shared model instance (the race check)
       |
+      +-> random_model_accuracy(example, n_models)   opt-in accuracy
+      |     N random prior points; at each point a synthetic data
+      |     vector is generated with the default settings, then the
+      |     HIGH_ACCURACY chi2 against that vector is the delta
+      |     (test_accuracy.py, enabled by COCOA_ACCURACY_NMODELS)
+      |
       +-> report_*(...)   print the numbers; the test itself asserts
 
 Glossary:
@@ -104,6 +110,8 @@ start_cocoa.sh from the Cocoa/ folder (this exports ROOTDIR), then
 import hashlib
 import json
 import os
+import shutil
+import tempfile
 
 # =============================================================================
 # MAP OF THIS FILE
@@ -116,6 +124,7 @@ import os
 #   race perturbations  RACE_PERTURBATIONS
 #   accuracy knobs      HIGH_ACCURACY_LIKELIHOOD,
 #                       HIGH_ACCURACY_CAMB_EXTRA_ARGS, ACCURACY_KNOBS
+#   random models       RANDOM_MODEL_SEED
 #
 # Section 2: ENVIRONMENT CHECKS
 #   require_cocoa_environment  refuse to run outside a started Cocoa shell
@@ -134,6 +143,9 @@ import os
 #   load_frozen_point  read the frozen evaluation point of one example
 #   build_point        frozen point, cross-checked against the model
 #   evaluate_chi2      one point on one model -> chi2 (-2 ln L)
+#   draw_uniform_point     one random point across the uniform priors
+#   random_model_accuracy  N random points, one synthetic vector each,
+#                          delta chi2 = chi2(high accuracy) per point
 #
 # Section 5: TEST QUANTITIES (what the test methods call)
 #   single_model_chi2  chi2 of the fiducial point on a fresh model
@@ -147,6 +159,8 @@ import os
 #   report_emul2_race      advisory block: emulator race check
 #   report_accuracy        advisory block: default vs high-accuracy chi2
 #   report_knob            one line of the one-knob-at-a-time scan
+#   report_random_model         advisory block: one random-model delta
+#   report_random_model_summary min/median/max of the random deltas
 # =============================================================================
 
 
@@ -324,6 +338,17 @@ ACCURACY_KNOBS = [
     ("camb AccuracyBoost 1.05->2", {}, {"AccuracyBoost": 2.0}),
     ("camb k_per_logint 10->50", {}, {"k_per_logint": 50}),
 ]
+
+# ---- random models ----------------------------------------------------------
+
+# Base of the per-model random seeds of the N-random-models accuracy
+# check (random_model_accuracy): model m draws its point from
+# numpy.random.default_rng(RANDOM_MODEL_SEED + m). The value 137 is
+# arbitrary; what matters is that it is fixed, so two runs (on any
+# machine) evaluate the same points, and that each model has its own
+# seed, so model m's point does not depend on how many models a run
+# asks for.
+RANDOM_MODEL_SEED = 137
 
 
 # =============================================================================
@@ -732,6 +757,230 @@ def evaluate_chi2(model, point):
     return float(chi2)
 
 
+def draw_uniform_point(info, example, rng):
+    """Draw one random sampled-parameter point across the priors.
+
+    In this project every freely varied parameter carries a uniform
+    box prior (a `prior` block with `min` and `max`, for example
+    As_1e9 in [0.5, 5]), so drawing each of them uniformly across its
+    box IS a draw from the prior. Two kinds of sampled parameters are
+    not drawn and keep their frozen point value instead: those whose
+    prior is a Gaussian rather than a box (`dist: norm`, no min/max;
+    the photo-z shifts LSST_DZ_* and the shear calibrations LSST_M*),
+    and any parameter without a prior block at all. Keeping their
+    frozen values leaves the draw well inside those Gaussian priors
+    while the box-prior parameters explore the full volume.
+
+    Arguments:
+      info    = the cobaya input dictionary of the frozen
+                configuration (a load_frozen_info result); its params
+                block holds every parameter's prior.
+      example = a key of EXAMPLES; names the frozen point that fills
+                the parameters no box prior covers.
+      rng     = a numpy random Generator; the caller seeds it, which
+                is what makes the draw reproducible.
+
+    Returns:
+      {parameter name: value} with the same names as the frozen
+      point, every box-prior parameter replaced by a uniform draw.
+    """
+    # load_frozen_point returns a copy of the frozen evaluation
+    # point; its keys are exactly the sampled parameters
+    point = load_frozen_point(example)
+    drawn = {}
+    # sorted() fixes the order the rng is consumed in: dict order
+    # would also be stable here (the generator writes the point
+    # sorted), but reproducibility must not hang on that detail
+    for name in sorted(point):
+        spec = info["params"][name]
+        prior = spec.get("prior")
+        if isinstance(prior, dict) and "min" in prior and "max" in prior:
+            # a uniform box prior: the draw is a prior sample
+            drawn[name] = float(rng.uniform(prior["min"], prior["max"]))
+        else:
+            # Gaussian prior or no prior: keep the frozen value
+            drawn[name] = point[name]
+    return drawn
+
+
+def random_model_accuracy(example, n_models, seed=RANDOM_MODEL_SEED):
+    """Delta chi2 at N random prior points, each against its own vector.
+
+    The A1-A6 checks of test_accuracy.py measure the numerical error
+    of the default settings at ONE frozen fiducial point. This
+    measures it at n_models random points across the prior instead.
+    Per model m, in order:
+
+      1. draw a point with draw_uniform_point, seeded with seed + m
+         (see RANDOM_MODEL_SEED for why per model);
+      2. generate a synthetic data vector AT that point: a
+         DEFAULT-settings model with print_datavector enabled writes
+         the full-length theory vector during its evaluation. The
+         vector goes into a temporary directory, never into frozen/
+         (the manifest pins every byte there, so a write into it
+         would fail every later test). Because the default model
+         itself produced the vector, the default-settings chi2
+         against it is zero by construction;
+      3. write a dataset descriptor for that vector into the same
+         temporary directory: the frozen descriptor text with only
+         its data_file line replaced. The other files the descriptor
+         names (covariance, n(z), masks, baryon files) are plain
+         filenames the likelihood joins onto its `path` option, so
+         the temporary directory must look like a complete data
+         folder: every file of frozen/data is symlinked in;
+      4. evaluate a HIGH_ACCURACY model at the same point against the
+         new descriptor. Since the vector is exact for the default
+         settings, that chi2 IS
+         delta chi2 = chi2(high accuracy) - chi2(default);
+      5. remove the temporary directory, also when a step failed.
+
+    Every configuration built here shares example2's data-vector
+    dimensions, so building the models one after another inside one
+    process is safe in this project. (Where configurations differ in
+    dimensions, cosmolike's C globals keep the first size and each
+    build would need its own process.)
+
+    One report block per model streams as it finishes
+    (report_random_model), so a long run shows progress; the caller
+    receives the deltas for the finiteness assertion and the summary.
+
+    Arguments:
+      example  = a key of EXAMPLES (exact-physics configurations
+                 only); test_accuracy.py uses "example2" (3x2pt, NLA).
+      n_models = how many random points to evaluate. Each one costs a
+                 default build+evaluation plus a high-accuracy
+                 build+evaluation, minutes per model.
+      seed     = base of the per-model rng seeds (seed + m);
+                 RANDOM_MODEL_SEED unless a caller needs a second,
+                 different reproducible set.
+
+    Returns:
+      the list of per-model delta chi2 values (floats), in model
+      order.
+
+    Raises:
+      RuntimeError when print_datavector wrote no file, when the
+      generated vector's line count differs from the frozen data
+      vector's (a masking or probe mismatch: the covariance and the
+      masks would select the wrong entries), or when the frozen
+      descriptor does not contain exactly one data_file line;
+      AssertionError when the drawn point does not cover the model's
+      sampled parameters (the same drift condition build_point
+      reports), or when a chi2 comes out non-finite (evaluate_chi2).
+    """
+    import numpy as np
+
+    cfg = EXAMPLES[example]
+    frozen_data_dir = os.path.join(FROZEN_DIR, "data")
+    deltas = []
+    for m in range(n_models):
+        rng = np.random.default_rng(seed + m)
+        # the DEFAULT-settings configuration; its params block also
+        # supplies the prior boxes the draw reads
+        info = load_frozen_info(example, tatt=False)
+        likelihood_block = info["likelihood"][cfg["likelihood"]]
+        point = draw_uniform_point(info, example, rng)
+        # mkdtemp creates a fresh private directory; this model's
+        # vector, descriptor, and symlinks live and die inside it
+        workdir = tempfile.mkdtemp(prefix="cocoa_random_model_")
+        try:
+            # the likelihood joins path + filename for EVERY file a
+            # descriptor names, so the temporary directory must look
+            # like a complete data folder: symlink each frozen data
+            # file in (a symlink reads as the original file)
+            for name in sorted(os.listdir(frozen_data_dir)):
+                os.symlink(os.path.join(frozen_data_dir, name),
+                           os.path.join(workdir, name))
+            # names absent from frozen/data, so writing them can
+            # never follow a symlink back into the pinned folder
+            vector_name = f"random_model_{m}.modelvector"
+            descriptor_name = f"random_model_{m}.dataset"
+            vector_path = os.path.join(workdir, vector_name)
+            # step 2: the evaluation of the default model at the
+            # drawn point is what makes cosmolike write the theory
+            # vector; the chi2 of that evaluation (against the frozen
+            # data vector) plays no role
+            likelihood_block["print_datavector"] = True
+            likelihood_block["print_datavector_file"] = vector_path
+            print(f"  model {m + 1}/{n_models}: building the "
+                  "default-settings model ...", flush=True)
+            model = make_model(info)
+            # same drift condition build_point checks for the frozen
+            # point: the drawn point must cover the sampled set
+            sampled = set(model.parameterization.sampled_params())
+            if sampled != set(point):
+                raise AssertionError(
+                    "sampled-parameter set differs from the frozen point "
+                    "(the likelihood/theory code changed its parameters):\n"
+                    f"  new since freeze: {sorted(sampled - set(point))}\n"
+                    f"  gone since freeze: {sorted(set(point) - sampled)}"
+                )
+            print(f"  model {m + 1}/{n_models}: evaluating the drawn "
+                  "point (writes the synthetic vector) ...", flush=True)
+            evaluate_chi2(model, point)
+            if not os.path.isfile(vector_path):
+                raise RuntimeError(
+                    f"print_datavector wrote no file at {vector_path}; "
+                    "the likelihood accepted print_datavector_file but "
+                    "produced nothing (did its path handling change?)")
+            # the generated vector must be full length: the frozen
+            # descriptor names the original vector, and that file's
+            # line count is the definition of full length
+            with open(vector_path) as f:
+                generated_lines = sum(1 for _ in f)
+            with open(os.path.join(frozen_data_dir,
+                                   likelihood_block["data_file"])) as f:
+                descriptor = f.read()
+            original_vector = None
+            for line in descriptor.splitlines():
+                if line.strip().startswith("data_file"):
+                    original_vector = line.split("=", 1)[1].strip()
+            with open(os.path.join(frozen_data_dir, original_vector)) as f:
+                original_lines = sum(1 for _ in f)
+            if generated_lines != original_lines:
+                raise RuntimeError(
+                    f"model {m}: generated vector has {generated_lines} "
+                    f"lines; the original {original_vector} has "
+                    f"{original_lines}")
+            # step 3: the new descriptor is the frozen descriptor
+            # text with only its data_file line replaced
+            replaced = 0
+            out_lines = []
+            for line in descriptor.splitlines(keepends=True):
+                if line.strip().startswith("data_file"):
+                    out_lines.append(f"data_file = {vector_name}\n")
+                    replaced += 1
+                else:
+                    out_lines.append(line)
+            if replaced != 1:
+                raise RuntimeError(
+                    f"{likelihood_block['data_file']}: expected exactly "
+                    f"one data_file line, found {replaced}")
+            with open(os.path.join(workdir, descriptor_name), "w") as f:
+                f.write("".join(out_lines))
+            # step 4: the high-accuracy model reads the temporary
+            # directory as its data folder and the new descriptor as
+            # its dataset; at the same point its chi2 is the delta
+            info_high = load_frozen_info(example, tatt=False,
+                                         high_accuracy=True)
+            block_high = info_high["likelihood"][cfg["likelihood"]]
+            block_high["path"] = workdir
+            block_high["data_file"] = descriptor_name
+            print(f"  model {m + 1}/{n_models}: building the "
+                  "high-accuracy model ...", flush=True)
+            model_high = make_model(info_high)
+            print(f"  model {m + 1}/{n_models}: evaluating the same "
+                  "point at high accuracy ...", flush=True)
+            chi2_high = evaluate_chi2(model_high, point)
+        finally:
+            # every exit path removes the temporary directory;
+            # leftover directories would pile up across runs
+            shutil.rmtree(workdir, ignore_errors=True)
+        report_random_model(m, n_models, point, chi2_high)
+        deltas.append(chi2_high)
+    return deltas
+
+
 # =============================================================================
 # SECTION 5: TEST QUANTITIES (what the test methods call)
 # =============================================================================
@@ -1041,3 +1290,60 @@ def report_knob(label, chi2, default_ref):
     print(f"  KNOB {label:30s} chi2 = {chi2:12.6f}  "
           f"delta = {delta:+12.6f}", flush=True)
     return delta
+
+
+def report_random_model(index, n_models, point, chi2_high):
+    """Print one N-random-models block. Advisory only.
+
+    No subtraction happens here: the synthetic data vector was
+    generated by the default-settings model at this exact point, so
+    the default chi2 against it is zero by construction and the
+    high-accuracy chi2 already IS
+    delta chi2 = chi2(high accuracy) - chi2(default). The three
+    printed parameters locate the point inside the prior at a glance;
+    the full point is reproducible from RANDOM_MODEL_SEED + index.
+
+    Arguments:
+      index     = the model counter, 0-based (printed 1-based).
+      n_models  = how many models the run evaluates in total.
+      point     = the drawn {parameter name: value} point.
+      chi2_high = chi2 with the HIGH_ACCURACY settings against the
+                  point's own synthetic vector (= the delta).
+
+    Returns:
+      chi2_high, the printed delta.
+    """
+    print(f"""
+{'-' * 66}
+RANDOM MODEL {index + 1}/{n_models}
+  As_1e9 = {point['As_1e9']:.6f}   omegam = {point['omegam']:.6f}   \
+ns = {point['ns']:.6f}
+  delta chi2 = chi2(high accuracy) = {chi2_high:+.6f}
+{'-' * 66}""", flush=True)
+    return chi2_high
+
+
+def report_random_model_summary(deltas):
+    """Print the spread of the N-random-models deltas. Advisory only.
+
+    The median rather than the mean: one point near a prior edge can
+    carry a delta far above the rest, and the median keeps the
+    typical numerical error readable next to that outlier (which the
+    max still shows).
+
+    Arguments:
+      deltas = the per-model delta chi2 list from
+               random_model_accuracy, one float per model.
+
+    Returns:
+      (minimum, median, maximum) of the deltas as floats.
+    """
+    import numpy as np
+
+    lowest = float(np.min(deltas))
+    middle = float(np.median(deltas))
+    highest = float(np.max(deltas))
+    print(f"  RANDOM MODELS SUMMARY ({len(deltas)} models): delta chi2 "
+          f"min = {lowest:+.6f}  median = {middle:+.6f}  "
+          f"max = {highest:+.6f}", flush=True)
+    return lowest, middle, highest

@@ -31,6 +31,23 @@ accuracyboost 5 as a stress knob: past experience (desy1xplanck) is
 that extreme boosts can break an interface rather than refine it,
 and the one-at-a-time delta is what tells those cases apart.
 
+One opt-in check extends the scan beyond the fiducial: the
+N-random-models check evaluates the same delta at N reproducible
+random points across the prior, each against a synthetic data vector
+generated at that point (see test_ax99_nmodels). It runs only when
+the COCOA_ACCURACY_NMODELS environment variable is a positive
+integer:
+
+    COCOA_ACCURACY_NMODELS=10 python -m pytest \\
+        ./projects/lsst_y1/tests/test_accuracy.py -k nmodels
+
+When this file runs as a script, --nmodels N sets the same option:
+
+    python ./projects/lsst_y1/tests/test_accuracy.py --nmodels 10
+
+With the variable unset (or 0) the check prints how to enable it and
+passes without evaluating anything.
+
 A high-accuracy evaluation takes minutes, not seconds: the whole file
 is far slower than the rest of the suite. To run only this file (from
 the Cocoa/ folder, cocoa environment active, start_cocoa.sh sourced):
@@ -49,6 +66,7 @@ import os
 # this must run before ANY cobaya/cosmolike import in the process.
 os.environ["OMP_NUM_THREADS"] = "4"
 
+import math
 import sys
 import unittest
 
@@ -134,6 +152,70 @@ class TestAccuracyAdvisory(unittest.TestCase):
         self._accuracy_check("A6", "example2", True,
                              "example2 (3x2pt, TATT)")
 
+    def test_ax99_nmodels(self):
+        """N-random-models check across the prior. Opt-in, advisory.
+
+        A1-A6 measure the numerical error of the default settings at
+        the one frozen fiducial point. This check measures it at N
+        reproducible random points across the prior of the example2
+        (3x2pt, NLA) configuration instead. For each point a
+        synthetic data vector is generated AT that point with the
+        default settings, so the default chi2 against it is zero by
+        construction and the high-accuracy chi2 against it is the
+        delta directly (the mechanism lives in
+        cocoa_test_utils.random_model_accuracy). Nothing fails on a
+        large delta; the deltas only have to be finite.
+
+        Opt-in because each model costs a default build+evaluation
+        plus a high-accuracy build+evaluation, minutes per model.
+        Enable it with the COCOA_ACCURACY_NMODELS environment
+        variable, or with --nmodels N when this file runs as a
+        script:
+
+            COCOA_ACCURACY_NMODELS=10 python -m pytest \\
+                ./projects/lsst_y1/tests/test_accuracy.py -k nmodels
+
+        The ax99 in the method name sorts this check after A1-A6
+        (unittest runs methods in name order), so the cheap fiducial
+        checks always report before the expensive multi-model loop
+        starts.
+        """
+        n_models_text = os.environ.get("COCOA_ACCURACY_NMODELS", "0")
+        try:
+            n_models = int(n_models_text)
+        except ValueError:
+            raise AssertionError(
+                f"COCOA_ACCURACY_NMODELS={n_models_text!r} is not an "
+                "integer; set it to the number of random models, for "
+                "example COCOA_ACCURACY_NMODELS=10")
+        if n_models <= 0:
+            # the default: report how to enable the check and pass
+            # without building anything
+            print("\n  N-random-models check skipped (set "
+                  "COCOA_ACCURACY_NMODELS=<N>, or run this file with "
+                  "--nmodels <N>, to enable it).", flush=True)
+            return
+        print(f"\n  N-random-models check: {n_models} models, example2 "
+              f"(3x2pt, NLA), seed base {u.RANDOM_MODEL_SEED}",
+              flush=True)
+        deltas = u.random_model_accuracy("example2", n_models)
+        for index, delta in enumerate(deltas):
+            # advisory: the size of the delta is a judgment call, but
+            # a non-finite one means the evaluation itself broke
+            self.assertTrue(
+                math.isfinite(delta),
+                msg=f"model {index}: non-finite delta chi2 {delta!r}")
+        u.report_random_model_summary(deltas)
+
 
 if __name__ == "__main__":
+    # --nmodels N is the script-run spelling of COCOA_ACCURACY_NMODELS;
+    # it must leave sys.argv before unittest.main parses the arguments
+    if "--nmodels" in sys.argv:
+        flag_index = sys.argv.index("--nmodels")
+        if flag_index + 1 >= len(sys.argv):
+            sys.exit("--nmodels requires a value, for example "
+                     "--nmodels 10")
+        os.environ["COCOA_ACCURACY_NMODELS"] = sys.argv[flag_index + 1]
+        del sys.argv[flag_index:flag_index + 2]
     unittest.main(verbosity=2)

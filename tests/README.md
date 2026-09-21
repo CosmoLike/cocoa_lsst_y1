@@ -77,6 +77,24 @@ the default settings. No pass/fail. A high-accuracy evaluation takes
 minutes; run this file on its own, or skip it with
 `--ignore ./projects/lsst_y1/tests/test_accuracy.py`.
 
+The accuracy file also carries an opt-in N-random-models check
+(`test_ax99_nmodels`): instead of the one frozen fiducial, N
+reproducible random points are drawn across the prior of the 3x2pt
+NLA configuration, a synthetic data vector is generated at each point
+with the default settings (so the default chi2 against it is zero by
+construction), and the high-accuracy chi2 against that vector is the
+delta directly. The report streams one block per model and ends with
+the min/median/max delta. Each model costs a default build+evaluation
+plus a high-accuracy build+evaluation (minutes per model), so the
+check is off by default: with `COCOA_ACCURACY_NMODELS` unset (or 0)
+it prints how to enable it and passes. To run it:
+
+    COCOA_ACCURACY_NMODELS=10 python -m pytest \
+        ./projects/lsst_y1/tests/test_accuracy.py -k nmodels
+
+Running the file as a script accepts `--nmodels N` in place of the
+environment variable. Advisory: the deltas only have to be finite.
+
 All TATT variants evaluate against `frozen/data/tatt_lsst_y1.dataset`,
 a data vector GENERATED WITH TATT at the fiducial point during the
 freeze. Reason: against the shipped NLA-based vector the TATT chi2
