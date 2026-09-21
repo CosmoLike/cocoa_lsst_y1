@@ -52,7 +52,9 @@ model. The TATT variants set
 | 9-10  | `test_fastpt.py` | 3x2pt TATT with python FAST-PT (`IA_code: 1` plus the fastpt theory block) instead of the C cfastpt | $\chi^2$ vs its own frozen FASTPT reference (0.2); the FASTPT-minus-CFASTPT difference is stored in `frozen/reference_chi2.json` and printed |
 | 11-14 | `test_example2_2x2pt.py` | 2x2pt (`lsst_y1.combo_2x2pt`: example2 reduced to galaxy clustering plus galaxy-galaxy lensing) | $\chi^2$ + race, NLA and TATT |
 
-Advisory checks (`test_emul2.py`, E1-E4): the EXAMPLE_EMUL2 examples,
+### Advisory checks (`test_emul2.py`, E1-E4)
+
+The EXAMPLE_EMUL2 examples,
 where trained machine-learning emulators replace the Boltzmann code.
 No pass/fail: each check prints the emulator $\chi^2$, its drift against
 the frozen emulator reference, the difference against the
@@ -64,8 +66,9 @@ external_modules/data/emultrf, not from the frozen state; the network
 device is frozen to `cpu` so the numbers do not depend on GPU
 availability.
 
-Accuracy checks (`test_accuracy.py`): first a one-knob-at-a-time
-scan on the 3x2pt NLA configuration, so a large delta can be
+### Accuracy checks (`test_accuracy.py`, A1-A6)
+
+First a one-knob-at-a-time scan on the 3x2pt NLA configuration, so a large delta can be
 attributed to the knob causing it (the scan includes
 `accuracyboost: 5` as a stress knob, which in other projects exposed
 interface breakdowns). Then the all-knobs checks A1-A6 re-evaluate
@@ -89,9 +92,10 @@ the file on its own, or skip it with
 
     python -m pytest ./projects/lsst_y1/tests --ignore ./projects/lsst_y1/tests/test_accuracy.py
 
-The accuracy file also carries an opt-in N-random-models check.
-Instead of the one frozen fiducial point, it repeats the accuracy
-measurement at N reproducible random points drawn across the prior
+#### The N-random-models check (opt-in)
+
+Instead of the one frozen fiducial point, this check repeats the
+accuracy measurement at N reproducible random points drawn across the prior
 of the 3x2pt NLA configuration. Per point:
 
 1. draw the point (seeded, so every run draws the same points);
@@ -116,6 +120,8 @@ it and passes. To run it:
 Running the file as a script accepts `--nmodels N` in place of the
 environment variable.
 
+### Synthetic data vectors
+
 All TATT variants evaluate against `frozen/data/tatt_lsst_y1.dataset`,
 a data vector GENERATED WITH TATT at the fiducial point during the
 freeze. Reason: against the shipped NLA-based vector the TATT $\chi^2$
@@ -123,7 +129,7 @@ sits away from its minimum, where it responds linearly to tiny
 numerical changes; at its own minimum the response is quadratic and
 the drift bounds stay meaningful.
 
-## Why the tests keep their own copy of everything
+## Tests keep their own copy of configurations and data
 
 The tests read nothing from the live project: not `../data`, not the
 `EXAMPLE_EVALUATE` yaml files, and not the likelihood default yaml
