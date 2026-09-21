@@ -83,6 +83,15 @@ From `Cocoa/Readme` instructions:
 >
 > The project lsst-y1 contains jupyter notebook examples located at `projects/lsst_y1`.
 
+> [!NOTE]
+> The example notebooks load their shared support functions from
+> `Cocoa/external_modules/code/cosmolike_core/cosmolike_notebook_utils/`:
+> the CAMB run packaged for cosmolike, the data-vector plots, and the
+> Fisher-forecast helpers, called through the `cnu` namespace. The
+> notebooks keep only what is specific to this project: fiducial
+> values, the compiled-interface calls, and thin wrappers binding
+> them to the shared functions.
+
 To run the example
 
  **Step :one:**: activate the Cocoa Conda environment,  and the private Python environment 
@@ -708,3 +717,40 @@ Details on the matter power spectrum emulator designs will be presented in the [
   </p>
 
 
+
+# Unit tests
+
+The `tests/` folder holds unit tests for the likelihoods of this
+project: they compare each likelihood against stored reference
+values, check for race conditions from OpenMP threading, and measure
+the numerical error of the default accuracy settings, and the accuracy of the
+hybrid emulated pipelines. The
+tests read nothing from the live project;
+[tests/README.md](tests/README.md) describes every test, the tests'
+own data snapshot, and how to refresh it.
+
+We assume users are in the Conda cocoa environment from a previous
+`conda activate cocoa` command, that the shell is bash, and that the
+current folder is the cocoa main folder `cocoa/Cocoa`.
+
+**Step :one:**: activate the private Python environment by sourcing
+the script `start_cocoa.sh`
+
+    source start_cocoa.sh
+
+**Step :two:**: run the tests of this project
+
+    python -m pytest ./projects/lsst_y1/tests
+
+## Minimum accuracy parameters
+
+The advisory checks in `tests/test_accuracy.py` measure the
+numerical error of the default accuracy settings: each setting is
+raised one at a time on the 3x2pt configuration, so a large
+$\Delta\chi^2$ can be attributed to the setting causing it, and
+then every setting at once. Each check prints the $\Delta\chi^2$
+between the high-accuracy and the default evaluations, to compare
+against the 0.2 band the reference tests allow. No measured values
+are quoted here: rerun the checks to measure them on the current
+code, and see [tests/README.md](tests/README.md) for each check,
+the settings raised, and what each setting controls.
