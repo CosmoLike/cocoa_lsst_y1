@@ -38,6 +38,8 @@ import unittest
 
 # The tests folder is not a package; put it on the import path so the
 # shared harness resolves no matter where pytest was launched from.
+# insert(0, ...) puts the folder FIRST in the search order, ahead of
+# every other place a same-named module could hide.
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import cocoa_test_utils as u
 
@@ -51,6 +53,9 @@ class TestFastptTatt(unittest.TestCase):
     the frozen reference chi2 values.
     """
 
+    # the classmethod decorator hands the method the class itself
+    # (cls), not an instance; unittest calls setUpClass once before
+    # the first test of the class
     @classmethod
     def setUpClass(cls):
         u.require_cocoa_environment()
@@ -74,8 +79,12 @@ class TestFastptTatt(unittest.TestCase):
         u.report_fastpt_test(number, label, chi2, ref, cfastpt_ref,
                              u.CHI2_TOLERANCE)
         frozen_diff = self.reference[f"{example}_fastpt_minus_cfastpt"]
+        # the + in :+.6f forces a sign, so the direction of the
+        # frozen difference always shows
         print(f"  frozen FASTPT - CFASTPT difference = {frozen_diff:+.6f}",
               flush=True)
+        # assertLess(a, b) passes when a < b and fails with msg
+        # otherwise; in that message, :.6f prints fixed six decimals
         self.assertLess(
             abs(chi2 - ref), u.CHI2_TOLERANCE,
             msg=f"FASTPT chi2 = {chi2:.6f} vs frozen reference {ref:.6f} "
@@ -98,5 +107,8 @@ class TestFastptTatt(unittest.TestCase):
             "vs frozen reference")
 
 
+# __name__ is "__main__" only when this file runs directly as a
+# script; pytest imports the module instead, so this block stays
+# idle under pytest
 if __name__ == "__main__":
     unittest.main(verbosity=2)

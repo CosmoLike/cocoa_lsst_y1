@@ -72,6 +72,8 @@ import unittest
 
 # The tests folder is not a package; put it on the import path so the
 # shared harness resolves no matter where pytest was launched from.
+# insert(0, ...) puts the folder FIRST in the search order, ahead of
+# every other place a same-named module could hide.
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import cocoa_test_utils as u
 
@@ -85,6 +87,9 @@ class TestAccuracyAdvisory(unittest.TestCase):
     reference chi2 values.
     """
 
+    # the classmethod decorator hands the method the class itself
+    # (cls), not an instance; unittest calls setUpClass once before
+    # the first test of the class
     @classmethod
     def setUpClass(cls):
         u.require_cocoa_environment()
@@ -103,6 +108,8 @@ class TestAccuracyAdvisory(unittest.TestCase):
           label   = one line naming the probe and IA model.
         """
         chi2_high = u.single_model_chi2(example, tatt, high_accuracy=True)
+        # ternary: the reference key ends in "tatt" or "nla", the
+        # naming the frozen reference file uses
         suffix = "tatt" if tatt else "nla"
         default_ref = self.reference[f"{example}_{suffix}"]
         u.report_accuracy(f"{name}: {label}", chi2_high, default_ref)
@@ -118,6 +125,9 @@ class TestAccuracyAdvisory(unittest.TestCase):
         """
         default_ref = self.reference["example2_nla"]
         print("", flush=True)
+        # each knob entry is (label, likelihood overrides, camb
+        # overrides); the two _ discard the override tables here,
+        # single_model_chi2 looks them up again by label
         for label, _, _ in u.ACCURACY_KNOBS:
             chi2 = u.single_model_chi2("example2", False, knob=label)
             u.report_knob(label, chi2, default_ref)
@@ -180,7 +190,11 @@ class TestAccuracyAdvisory(unittest.TestCase):
         checks always report before the expensive multi-model loop
         starts.
         """
+        # .get returns its second argument, "0", when the variable
+        # is unset, so an untouched environment means a clean skip
         n_models_text = os.environ.get("COCOA_ACCURACY_NMODELS", "0")
+        # int() raises ValueError on non-numeric text; the except
+        # turns the stack trace into an instruction
         try:
             n_models = int(n_models_text)
         except ValueError:
@@ -199,6 +213,8 @@ class TestAccuracyAdvisory(unittest.TestCase):
               f"(3x2pt, NLA), seed base {u.RANDOM_MODEL_SEED}",
               flush=True)
         deltas = u.random_model_accuracy("example2", n_models)
+        # enumerate pairs each delta with its position, counted
+        # from 0, so a broken model is named by number
         for index, delta in enumerate(deltas):
             # advisory: the size of the delta is a judgment call, but
             # a non-finite one means the evaluation itself broke
@@ -208,14 +224,21 @@ class TestAccuracyAdvisory(unittest.TestCase):
         u.report_random_model_summary(deltas)
 
 
+# __name__ is "__main__" only when this file runs directly as a
+# script; pytest imports the module instead, so this block stays
+# idle under pytest
 if __name__ == "__main__":
     # --nmodels N is the script-run spelling of COCOA_ACCURACY_NMODELS;
-    # it must leave sys.argv before unittest.main parses the arguments
+    # it must leave sys.argv before unittest.main parses the arguments.
+    # `in` scans the argument list for the flag, and .index returns
+    # the position of its first occurrence
     if "--nmodels" in sys.argv:
         flag_index = sys.argv.index("--nmodels")
         if flag_index + 1 >= len(sys.argv):
             sys.exit("--nmodels requires a value, for example "
                      "--nmodels 10")
         os.environ["COCOA_ACCURACY_NMODELS"] = sys.argv[flag_index + 1]
+        # del on the slice removes the flag and its value from the
+        # list in place, so unittest.main never sees them
         del sys.argv[flag_index:flag_index + 2]
     unittest.main(verbosity=2)
