@@ -15,8 +15,9 @@ Contents:
     1. [Running Advisory checks](#advisory_checks)
     2. [Running Accuracy checks](#accuracy_checks)
     3. [Synthetic data vectors](#synthetic_vectors)
-3. [Tests keep their own copy of configurations and data](#frozen_copy)
-4. [Refreshing the frozen state (maintainers only)](#refreeze)
+3. [Appendix](#appendix)
+    1. [FAQ: Tests keep their own copy of configurations and data](#frozen_copy)
+    2. [FAQ: Refreshing the frozen state (maintainers only)](#refreeze)
 
 ## Running the tests <a name="run_tests"></a>
 
@@ -127,7 +128,7 @@ To run every other test while skipping these:
 
     python -m pytest ./projects/lsst_y1/tests --ignore ./projects/lsst_y1/tests/test_accuracy.py
 
-#### The N-random-models check (opt-in) <a name="nmodels_check"></a>
+#### Running the N-random-models check (opt-in) <a name="nmodels_check"></a>
 
 Instead of the one frozen fiducial point, this check repeats the
 accuracy measurement at N reproducible random points drawn across the prior
@@ -167,7 +168,9 @@ sits away from its minimum, where it responds linearly to tiny
 numerical changes; at its own minimum the response is quadratic and
 the drift bounds stay meaningful.
 
-## Tests keep their own copy of configurations and data <a name="frozen_copy"></a>
+# Appendix <a name="appendix"></a>
+
+## :interrobang: FAQ: Tests keep their own copy of configurations and data <a name="frozen_copy"></a>
 
 The tests read nothing from the live project: not `../data`, not the
 `EXAMPLE_EVALUATE` yaml files, and not the likelihood default yaml
@@ -192,7 +195,7 @@ edited, naming the file. The result: users may change the live data
 and examples freely, and nobody can quietly edit the frozen state
 either.
 
-## Refreshing the frozen state (maintainers only) <a name="refreeze"></a>
+## :interrobang: FAQ: Refreshing the frozen state (maintainers only) <a name="refreeze"></a>
 
 A deliberate change to the data vectors, n(z), covariance, examples,
 or likelihood defaults requires a re-freeze.
