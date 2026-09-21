@@ -49,7 +49,7 @@ few minutes. The test files force `OMP_NUM_THREADS=4` internally.
 ## The tests <a name="the_tests"></a>
 
 The standard configurations get four tests each: a $\chi^2$ drift check
-and a race check, both in the NLA and in the TATT intrinsic-alignment
+and a race-condition check, both in the NLA and in the TATT intrinsic-alignment
 model. The TATT variants set
 
     IA_model: 1
@@ -62,16 +62,16 @@ The two checks and their pass limits:
 | check | pass limit                                        | a failure means                    |
 |-------|---------------------------------------------------|------------------------------------|
 | $\chi^2$  | within 0.2 of `frozen/reference_chi2.json`        | code or data changed the numbers   |
-| race  | fresh vs 10th of 10 cosmologies in a row, to $10^{-4}$ | leftover state or an OpenMP race   |
+| race condition | fresh vs 10th of 10 cosmologies in a row, to $10^{-4}$ | leftover state or an OpenMP race   |
 
 The test files and the configurations they cover:
 
 | tests | file | configuration | checks |
 |-------|------|---------------|--------|
-| 1-4   | `test_example1.py` | cosmic shear | $\chi^2$ + race, NLA and TATT |
-| 5-8   | `test_example2.py` | 3x2pt | $\chi^2$ + race, NLA and TATT |
-| 9-10  | `test_fastpt.py` | 3x2pt TATT with python FAST-PT (`IA_code: 1` plus the fastpt theory block) instead of the C cfastpt | $\chi^2$ vs its own frozen FASTPT reference (0.2); the FASTPT-minus-CFASTPT difference is stored in `frozen/reference_chi2.json` and printed |
-| 11-14 | `test_example2_2x2pt.py` | 2x2pt (`lsst_y1.combo_2x2pt`: the 3x2pt configuration reduced to galaxy clustering plus galaxy-galaxy lensing) | $\chi^2$ + race, NLA and TATT |
+| 1-4   | `test_example1.py` | cosmic shear; IA modeling: NLA and TATT | $\chi^2$ + race condition (OpenMP threading) |
+| 5-8   | `test_example2.py` | 3x2pt; IA modeling: NLA and TATT | $\chi^2$ + race condition (OpenMP threading) |
+| 9-10  | `test_fastpt.py` | 3x2pt; IA modeling: TATT with python FAST-PT (`IA_code: 1` plus the fastpt theory block) instead of the C cfastpt | $\chi^2$ vs its own frozen FASTPT reference (0.2); the FASTPT-minus-CFASTPT difference is stored in `frozen/reference_chi2.json` and printed |
+| 11-14 | `test_example2_2x2pt.py` | 2x2pt (`lsst_y1.combo_2x2pt`: the 3x2pt configuration reduced to galaxy clustering plus galaxy-galaxy lensing); IA modeling: NLA and TATT | $\chi^2$ + race condition (OpenMP threading) |
 
 ### Running Advisory checks (`test_emul2.py`, E1-E4) <a name="advisory_checks"></a>
 
