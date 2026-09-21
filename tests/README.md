@@ -14,7 +14,8 @@ no pass/fail).
 2. [The tests](#the_tests)
     1. [Running Advisory checks](#advisory_checks)
     2. [Running Accuracy checks](#accuracy_checks)
-    3. [Synthetic data vectors](#synthetic_vectors)
+    3. [Running the N-random-models check](#nmodels_check)
+    4. [Synthetic data vectors](#synthetic_vectors)
 3. [Appendices about the frozen state](#appendix)
     1. [FAQ: How do the tests keep their own copy of configurations and data?](#frozen_copy)
     2. [FAQ: How can maintainers refresh the frozen state?](#refreeze)
@@ -66,32 +67,55 @@ The two checks and their pass limits:
 
 The test files and the configurations they cover:
 
-| tests | file | configuration | checks |
-|-------|------|---------------|--------|
-| 1-2 | `test_example1.py` | cosmic shear; IA modeling: NLA | $\chi^2$ + race condition (OpenMP threading) |
-| 3-4 | `test_example1.py` | cosmic shear; IA modeling: TATT | $\chi^2$ + race condition (OpenMP threading) |
-| 5-6 | `test_example2.py` | 3x2pt; IA modeling: NLA | $\chi^2$ + race condition (OpenMP threading) |
-| 7-8 | `test_example2.py` | 3x2pt; IA modeling: TATT | $\chi^2$ + race condition (OpenMP threading) |
-| 9-10  | `test_fastpt.py` | 3x2pt; IA modeling: TATT with python FAST-PT (`IA_code: 1` plus the fastpt theory block) instead of the C cfastpt | $\chi^2$ vs its own frozen FASTPT reference (0.2); the FASTPT-minus-CFASTPT difference is stored in `frozen/reference_chi2.json` and printed |
-| 11-12 | `test_example2_2x2pt.py` | 2x2pt (`lsst_y1.combo_2x2pt`: the 3x2pt configuration reduced to galaxy clustering plus galaxy-galaxy lensing); IA modeling: NLA | $\chi^2$ + race condition (OpenMP threading) |
-| 13-14 | `test_example2_2x2pt.py` | 2x2pt (`lsst_y1.combo_2x2pt`: the 3x2pt configuration reduced to galaxy clustering plus galaxy-galaxy lensing); IA modeling: TATT | $\chi^2$ + race condition (OpenMP threading) |
+| test | file | configuration | what it checks |
+|---|---|---|---|
+| 1 | `test_example1.py` | cosmic shear; IA modeling: NLA | $\chi^2$ at the frozen fiducial point vs the stored reference |
+| 2 | `test_example1.py` | cosmic shear; IA modeling: NLA | race condition (OpenMP threading): fresh vs 10th-of-10 evaluation |
+| 3 | `test_example1.py` | cosmic shear; IA modeling: TATT | $\chi^2$ at the frozen fiducial point vs the stored reference |
+| 4 | `test_example1.py` | cosmic shear; IA modeling: TATT | race condition (OpenMP threading): fresh vs 10th-of-10 evaluation |
+| 5 | `test_example2.py` | 3x2pt; IA modeling: NLA | $\chi^2$ at the frozen fiducial point vs the stored reference |
+| 6 | `test_example2.py` | 3x2pt; IA modeling: NLA | race condition (OpenMP threading): fresh vs 10th-of-10 evaluation |
+| 7 | `test_example2.py` | 3x2pt; IA modeling: TATT | $\chi^2$ at the frozen fiducial point vs the stored reference |
+| 8 | `test_example2.py` | 3x2pt; IA modeling: TATT | race condition (OpenMP threading): fresh vs 10th-of-10 evaluation |
+| 9 | `test_fastpt.py` | cosmic shear; IA modeling: TATT with python FAST-PT (`IA_code: 1` plus the fastpt theory block) instead of the C cfastpt | $\chi^2$ vs its own frozen FASTPT reference; prints the FASTPT-minus-CFASTPT difference next to its frozen value |
+| 10 | `test_fastpt.py` | 3x2pt; IA modeling: TATT with python FAST-PT (`IA_code: 1` plus the fastpt theory block) instead of the C cfastpt | $\chi^2$ vs its own frozen FASTPT reference; prints the FASTPT-minus-CFASTPT difference next to its frozen value |
+| 11 | `test_example2_2x2pt.py` | 2x2pt (`lsst_y1.combo_2x2pt`: the 3x2pt configuration reduced to galaxy clustering plus galaxy-galaxy lensing); IA modeling: NLA | $\chi^2$ at the frozen fiducial point vs the stored reference |
+| 12 | `test_example2_2x2pt.py` | 2x2pt (`lsst_y1.combo_2x2pt`: the 3x2pt configuration reduced to galaxy clustering plus galaxy-galaxy lensing); IA modeling: NLA | race condition (OpenMP threading): fresh vs 10th-of-10 evaluation |
+| 13 | `test_example2_2x2pt.py` | 2x2pt (`lsst_y1.combo_2x2pt`: the 3x2pt configuration reduced to galaxy clustering plus galaxy-galaxy lensing); IA modeling: TATT | $\chi^2$ at the frozen fiducial point vs the stored reference |
+| 14 | `test_example2_2x2pt.py` | 2x2pt (`lsst_y1.combo_2x2pt`: the 3x2pt configuration reduced to galaxy clustering plus galaxy-galaxy lensing); IA modeling: TATT | race condition (OpenMP threading): fresh vs 10th-of-10 evaluation |
 
 ### Running Advisory checks (`test_emul2.py`, E1-E4) <a name="advisory_checks"></a>
 
-The EXAMPLE_EMUL2 examples,
-where trained machine-learning emulators replace the Boltzmann code.
-No pass/fail: each check prints the emulator $\chi^2$, its drift against
-the frozen emulator reference, the difference against the
-exact-physics $\chi^2$ at the same cosmology, and the recommendation
-(RECOMMENDED for actual data analysis when
-$\lvert\chi^2_\text{emulator} - \chi^2_\text{exact}\rvert < 0.2$, NOT recommended otherwise), plus a race check that warns
-instead of failing. The trained-network files are read from
-external_modules/data/emultrf, not from the frozen state; the network
-device is frozen to `cpu` so the numbers do not depend on GPU
-availability.
+The EXAMPLE_EMUL2 examples, where trained machine-learning
+emulators replace the Boltzmann code. There is no pass/fail; each
+check prints four quantities:
 
-**Step :one:**: with the environment of
-[Running the tests](#run_tests), run the advisory checks on their own
+| printed quantity | meaning |
+|---|---|
+| emulator $\chi^2$ | the emulated pipeline evaluated at the frozen fiducial point |
+| drift | change against the frozen emulator reference; nonzero means the installed emulator no longer reproduces its freeze-time $\chi^2$ |
+| $\lvert\chi^2_\text{emulator} - \chi^2_\text{exact}\rvert$ | the emulator error against the exact-physics $\chi^2$ at the same cosmology |
+| recommendation | RECOMMENDED for actual data analysis when $\lvert\chi^2_\text{emulator} - \chi^2_\text{exact}\rvert < 0.2$, NOT recommended otherwise |
+
+A race-condition check (OpenMP threading) runs as well, warning
+instead of failing.
+
+> [!NOTE]
+> The trained-network files are read from
+> `external_modules/data/emultrf`, not from the frozen state; the
+> network device is frozen to `cpu` so the numbers do not depend on
+> GPU availability.
+
+We assume users are in the Conda cocoa environment from a previous
+`conda activate cocoa` command, that the shell is bash, and that the
+current folder is the cocoa main folder `cocoa/Cocoa`.
+
+**Step :one:**: activate the private Python environment by sourcing
+the script `start_cocoa.sh`
+
+    source start_cocoa.sh
+
+**Step :two:**: run the advisory checks on their own
 
     python -m pytest ./projects/lsst_y1/tests/test_emul2.py
 
@@ -108,7 +132,7 @@ beyond the defaults at once:
 |---------|-----------|------------------|
 | `accuracyboost` (cosmolike) | 2 | sizes of cosmolike's internal lookup tables, including the dyadic z grid of the power-spectrum tables |
 | `integration_accuracy` (cosmolike) | 10 | extra refinement passes of cosmolike's numerical integrals |
-| `lmax` (cosmolike) | 200000 | highest multipole in cosmolike's angular power-spectrum tables |
+| `lmax` (cosmolike) | 200000 | highest multipole of the internal harmonic-space $C_\ell$ tables that cosmolike transforms into the real-space correlation functions; arcminute scales need very high $\ell$ |
 | `kmax_boltzmann` (cosmolike) | 40 | the k cutoff of the power spectrum the likelihood requests from CAMB |
 | `AccuracyBoost` (CAMB) | 2 | CAMB's overall accuracy multiplier: denser sampling in every internal CAMB grid, the most expensive knob |
 | `k_per_logint` (CAMB) | 50 | k samples CAMB computes per logarithmic interval of the transfer functions |
@@ -118,8 +142,16 @@ Each check reports $\Delta\chi^2 = \chi^2(\text{high accuracy}) -
 \chi^2(\text{default})$: the numerical error of the default
 settings. No pass/fail; high-accuracy evaluations take minutes.
 
-**Step :one:**: with the environment of
-[Running the tests](#run_tests), run the accuracy checks on their own
+We assume users are in the Conda cocoa environment from a previous
+`conda activate cocoa` command, that the shell is bash, and that the
+current folder is the cocoa main folder `cocoa/Cocoa`.
+
+**Step :one:**: activate the private Python environment by sourcing
+the script `start_cocoa.sh`
+
+    source start_cocoa.sh
+
+**Step :two:**: run the accuracy checks on their own
 
     python -m pytest ./projects/lsst_y1/tests/test_accuracy.py
 
@@ -127,7 +159,7 @@ To run every other test while skipping these:
 
     python -m pytest ./projects/lsst_y1/tests --ignore ./projects/lsst_y1/tests/test_accuracy.py
 
-#### Running the N-random-models check (opt-in) <a name="nmodels_check"></a>
+### Running the N-random-models check (opt-in) <a name="nmodels_check"></a>
 
 Instead of the one frozen fiducial point, this check repeats the
 accuracy measurement at N reproducible random points drawn across the prior
@@ -157,8 +189,16 @@ build+evaluation, minutes per model, so the check is off by default:
 with `COCOA_ACCURACY_NMODELS` unset (or 0) it prints how to enable
 it and passes.
 
-**Step :one:**: with the environment of
-[Running the tests](#run_tests), enable and run the check
+We assume users are in the Conda cocoa environment from a previous
+`conda activate cocoa` command, that the shell is bash, and that the
+current folder is the cocoa main folder `cocoa/Cocoa`.
+
+**Step :one:**: activate the private Python environment by sourcing
+the script `start_cocoa.sh`
+
+    source start_cocoa.sh
+
+**Step :two:**: enable and run the check
 
     COCOA_ACCURACY_NMODELS=10 python -m pytest \
         ./projects/lsst_y1/tests/test_accuracy.py -k nmodels
@@ -207,8 +247,14 @@ either.
 A deliberate change to the data vectors, n(z), covariance, examples,
 or likelihood defaults requires a re-freeze.
 
-**Step :one:**: set up the environment as in
-[Running the tests](#run_tests).
+We assume users are in the Conda cocoa environment from a previous
+`conda activate cocoa` command, that the shell is bash, and that the
+current folder is the cocoa main folder `cocoa/Cocoa`.
+
+**Step :one:**: activate the private Python environment by sourcing
+the script `start_cocoa.sh`
+
+    source start_cocoa.sh
 
 **Step :two:**: rebuild the frozen state
 
