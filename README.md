@@ -709,7 +709,7 @@ Details on the matter power spectrum emulator designs will be presented in the [
 
 
 
-## Unit tests
+# Unit tests
 
 The `tests/` folder holds 18 pass/fail tests and advisory checks.
 The pass/fail tests compare the chi2 of cosmic shear, 3x2pt, and
@@ -729,7 +729,7 @@ environment active and `start_cocoa.sh` sourced:
 `tests/README.md` describes every test and how to refresh the frozen
 state.
 
-## Minimum accuracy parameters
+# Minimum accuracy parameters
 
 The accuracy checks (`tests/test_accuracy.py`) measured, at the chi2
 minimum on the 3x2pt configuration, one knob at a time: cosmolike
