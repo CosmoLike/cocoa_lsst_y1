@@ -15,10 +15,10 @@ no pass/fail).
     1. [Advisory checks](#advisory_checks)
     2. [Accuracy checks](#accuracy_checks)
     3. [The N-random-models check](#nmodels_check)
-    4. [Why the TATT tests use their own data vector](#synthetic_vectors)
 3. [Appendix](#appendix)
     1. [FAQ: Do the tests keep their own data?](#frozen_copy)
-    2. [FAQ: How can maintainers refresh the snapshot?](#refreeze)
+    2. [FAQ: Why do the TATT tests use their own data vector?](#synthetic_vectors)
+    3. [FAQ: How can maintainers refresh the snapshot?](#refreeze)
 
 ## Running the tests <a name="run_tests"></a>
 
@@ -220,15 +220,6 @@ the script `start_cocoa.sh`
 Running the file as a script accepts `--nmodels N` in place of the
 environment variable.
 
-### Why the TATT tests use their own data vector <a name="synthetic_vectors"></a>
-
-All TATT variants evaluate against `frozen/data/tatt_lsst_y1.dataset`,
-a data vector generated with TATT at the fiducial point when the
-snapshot was created. Reason: against the shipped NLA-based vector the TATT $\chi^2$
-sits away from its minimum, where it responds linearly to tiny
-numerical changes; at its own minimum the response is quadratic and
-the drift bounds stay meaningful.
-
 # Appendix <a name="appendix"></a>
 
 ## :interrobang: FAQ: Do the tests keep their own data? <a name="frozen_copy"></a>
@@ -255,6 +246,15 @@ verifies the manifest first and refuses to run when a file under `frozen/` was
 edited, naming the file. The result: users may change the live data
 and examples freely, and nobody can quietly edit the snapshot
 either.
+
+## :interrobang: FAQ: Why do the TATT tests use their own data vector? <a name="synthetic_vectors"></a>
+
+All TATT variants evaluate against `frozen/data/tatt_lsst_y1.dataset`,
+a data vector generated with TATT at the fiducial point when the
+snapshot was created. Reason: against the shipped NLA-based vector the TATT $\chi^2$
+sits away from its minimum, where it responds linearly to tiny
+numerical changes; at its own minimum the response is quadratic and
+the drift bounds stay meaningful.
 
 ## :interrobang: FAQ: How can maintainers refresh the snapshot? <a name="refreeze"></a>
 
