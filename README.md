@@ -711,22 +711,27 @@ Details on the matter power spectrum emulator designs will be presented in the [
 
 # Unit tests
 
-The `tests/` folder holds 18 pass/fail tests and advisory checks.
-The pass/fail tests compare the $\chi^2$ of cosmic shear, 3x2pt, and
-2x2pt (each in NLA and TATT) against stored references within 0.2,
-re-evaluate each fiducial as the 10th of 10 cosmologies in a row
-under `OMP_NUM_THREADS=4` to catch state leaks and OpenMP races, and
-check the python FAST-PT implementation of the TATT terms against
-its own stored reference (printing the FASTPT-minus-cfastpt
-difference). Advisory files measure the hybrid emulated pipelines
-against the exact physics and the numerical error of the default
-accuracy settings. Everything evaluated comes from the tests' own snapshot under
-`tests/frozen/`, pinned by a SHA-256 manifest. From the `Cocoa/` folder, with the cocoa
-environment active and `start_cocoa.sh` sourced:
+The `tests/` folder holds unit tests for the likelihoods of this
+project: they compare each likelihood against stored reference
+values, check for race conditions from OpenMP threading, and measure
+the numerical error of the default accuracy settings, and the accuracy of the
+hybrid emulated pipelines. The
+tests read nothing from the live project;
+[tests/README.md](tests/README.md) describes every test, the tests'
+own data snapshot, and how to refresh it.
+
+We assume users are in the Conda cocoa environment from a previous
+`conda activate cocoa` command, that the shell is bash, and that the
+current folder is the cocoa main folder `cocoa/Cocoa`.
+
+**Step :one:**: activate the private Python environment by sourcing
+the script `start_cocoa.sh`
+
+    source start_cocoa.sh
+
+**Step :two:**: run the tests of this project
 
     python -m pytest ./projects/lsst_y1/tests
-
-`tests/README.md` describes every test and how to refresh the snapshot.
 
 # Minimum accuracy parameters
 
