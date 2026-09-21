@@ -733,12 +733,17 @@ state.
 
 The accuracy checks (`tests/test_accuracy.py`) measured, at the chi2
 minimum on the 3x2pt configuration, one knob at a time: cosmolike
-`accuracyboost` to 3 shifts the chi2 by -0.023 (and the stress value
-5 by -0.021), `integration_accuracy` to 10 by -0.001, `lmax` to
+`accuracyboost` to 3 shifts the chi2 by +0.0002 (and the stress value
+5 by +0.0016), `integration_accuracy` to 10 by -0.001, `lmax` to
 200000 by +0.0002, `kmax_boltzmann` 40 paired with CAMB `kmax` 50 by
 -0.0003, CAMB `AccuracyBoost` to 2 by +0.012, and CAMB
-`k_per_logint` to 50 by +0.0001. The all-knobs checks (comparing the
-default accuracyboost 1 against 3) stay within -0.051 to +0.014
+`k_per_logint` to 50 by +0.0001. `accuracyboost` refines a nested z
+grid in the power-spectrum tables: every coarser grid's nodes are a
+subset of every finer grid's, so a higher boost tightens the same
+interpolation instead of moving the nodes (the construction is
+commented in `likelihood/_cosmolike_prototype_base.py`). The
+all-knobs checks (comparing the
+default accuracyboost 1 against 3) stay within -0.015 to +0.009
 across every probe and IA model. All of this sits
 far below the 0.2 comfort level: the default accuracy settings of
 this project are adequate, and no default was changed.
