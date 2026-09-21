@@ -179,7 +179,8 @@ def main():
 
     print("freezing ../data ...", flush=True)
     shutil.copytree(os.path.join(PROJECT_DIR, "data"),
-                    os.path.join(u.FROZEN_DIR, "data"))
+                    os.path.join(u.FROZEN_DIR, "data"),
+                    ignore=shutil.ignore_patterns(".DS_Store"))
     for cfg in u.EXAMPLES.values():
         shutil.copy2(os.path.join(PROJECT_DIR, cfg["provenance"]),
                      os.path.join(u.FROZEN_DIR, cfg["provenance"]))
