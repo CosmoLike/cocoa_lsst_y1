@@ -226,7 +226,7 @@ def _set_state(omegam, omegab, H0, ns, As_1e9, w, w0pwa,
                A1=None, A2=None, BTA=None,
                lens_photoz_bias=None, B1=None, B2=None,
                B_MAG=None, B3nl=None, BK=None, PM=None,
-               baryon_sims=None):
+               baryon_sims=None, allsims_file=None):
     """Runs CAMB and pushes one complete state into the interface.
 
     This is the body every wrapper shares. The compiled interface
@@ -255,6 +255,8 @@ def _set_state(omegam, omegab, H0, ns, As_1e9, w, w0pwa,
       PM       = point-mass amplitudes, one per lens bin, or None.
       baryon_sims = a hydro simulation name to contaminate the
                  matter power with, or None to reset that state.
+      allsims_file = HDF5 file for baryon_sims, or None for the one
+                 init_cosmolike recorded.
 
     Returns:
       nothing; the interface state is the result.
@@ -303,7 +305,9 @@ def _set_state(omegam, omegab, H0, ns, As_1e9, w, w0pwa,
     if baryon_sims is None:
         ci.reset_bary_struct()
     else:
-        ci.init_baryons_contamination(sim=baryon_sims)
+        if allsims_file is None:
+            allsims_file = allsims
+        ci.init_baryons_contamination(sim=baryon_sims, allsims=allsims_file)
 
 
 def _shear_defaults(M, shear_photoz_bias, A1, A2, BTA):
@@ -345,7 +349,7 @@ def C_ss_tomo_limber(ell, omegam=omegam, omegab=omegab, H0=H0, ns=ns,
                      baryon_sims=None, AccuracyBoost=1.0, kmax=5.0,
                      k_per_logint=10, CAMBAccuracyBoost=1.0,
                      CLAccuracyBoost=1.0, CLIntegrationAccuracy=0,
-                     non_linear_emul=None):
+                     non_linear_emul=None, allsims=None):
     """Cosmic-shear angular power spectra (EE, BB) at multipoles ell.
 
     Rebuilds the full interface state (see _set_state) and evaluates
@@ -368,7 +372,7 @@ def C_ss_tomo_limber(ell, omegam=omegam, omegab=omegab, H0=H0, ns=ns,
                CLAccuracyBoost, CLIntegrationAccuracy, non_linear_emul,
                M=M, shear_photoz_bias=shear_photoz_bias,
                A1=A1, A2=A2, BTA=BTA,
-               baryon_sims=baryon_sims)
+               baryon_sims=baryon_sims, allsims_file=allsims)
     return ci.C_ss_tomo_limber(l=ell)
 
 
@@ -378,7 +382,7 @@ def xi(ntheta=None, theta_min_arcmin=None, theta_max_arcmin=None,
        shear_photoz_bias=None, M=None, baryon_sims=None,
        AccuracyBoost=1.0, kmax=5.0, k_per_logint=10,
        CAMBAccuracyBoost=1.0, CLAccuracyBoost=1.0,
-       CLIntegrationAccuracy=0, non_linear_emul=None):
+       CLIntegrationAccuracy=0, non_linear_emul=None, allsims=None):
     """Real-space shear correlations xi_plus/minus on a theta grid.
 
     Same state build as C_ss_tomo_limber plus a re-binning, so the
@@ -405,7 +409,7 @@ def xi(ntheta=None, theta_min_arcmin=None, theta_max_arcmin=None,
                binning=(ntheta, theta_min_arcmin, theta_max_arcmin),
                M=M, shear_photoz_bias=shear_photoz_bias,
                A1=A1, A2=A2, BTA=BTA,
-               baryon_sims=baryon_sims)
+               baryon_sims=baryon_sims, allsims_file=allsims)
     (xip, xim) = ci.xi_pm_tomo()
     return (ci.get_binning_real_space(), xip, xim)
 
@@ -420,7 +424,7 @@ def C_gs_tomo_limber(ell, omegam=omegam, omegab=omegab, H0=H0, ns=ns,
                      baryon_sims=None, AccuracyBoost=1.0, kmax=5.0,
                      k_per_logint=10, CAMBAccuracyBoost=1.0,
                      CLAccuracyBoost=1.0, CLIntegrationAccuracy=0,
-                     non_linear_emul=None):
+                     non_linear_emul=None, allsims=None):
     """Galaxy-galaxy lensing spectra C_gs at multipoles ell.
 
     Builds the shear AND clustering state (both samples enter ggl)
@@ -446,7 +450,7 @@ def C_gs_tomo_limber(ell, omegam=omegam, omegab=omegab, H0=H0, ns=ns,
                lens_photoz_bias=lens_photoz_bias, B1=galaxy_bias_b1,
                B2=galaxy_bias_b2, B_MAG=galaxy_bias_bmag,
                B3nl=galaxy_bias_b3nl, BK=galaxy_bias_bk,
-               baryon_sims=baryon_sims)
+               baryon_sims=baryon_sims, allsims_file=allsims)
     return ci.C_gs_tomo_limber(l=ell)
 
 
@@ -458,7 +462,7 @@ def C_gg_tomo(ell, limber, omegam=omegam, omegab=omegab, H0=H0, ns=ns,
               baryon_sims=None, AccuracyBoost=1.0, kmax=5.0,
               k_per_logint=10, CAMBAccuracyBoost=1.0,
               CLAccuracyBoost=1.0, CLIntegrationAccuracy=0,
-              non_linear_emul=None):
+              non_linear_emul=None, allsims=None):
     """Galaxy-clustering spectra C_gg at multipoles ell.
 
     Clustering state only. limber = 1 evaluates the Limber
@@ -480,7 +484,7 @@ def C_gg_tomo(ell, limber, omegam=omegam, omegab=omegab, H0=H0, ns=ns,
                lens_photoz_bias=lens_photoz_bias, B1=galaxy_bias_b1,
                B2=galaxy_bias_b2, B_MAG=galaxy_bias_bmag,
                B3nl=galaxy_bias_b3nl, BK=galaxy_bias_bk,
-               baryon_sims=baryon_sims)
+               baryon_sims=baryon_sims, allsims_file=allsims)
     if limber == 1:
         return ci.C_gg_tomo_limber(l=ell)
     else:
@@ -497,7 +501,7 @@ def gamma_t(ntheta=None, theta_min_arcmin=None, theta_max_arcmin=None,
             baryon_sims=None, AccuracyBoost=1.0, kmax=5.0,
             k_per_logint=10, CAMBAccuracyBoost=1.0,
             CLAccuracyBoost=1.0, CLIntegrationAccuracy=0,
-            non_linear_emul=None):
+            non_linear_emul=None, allsims=None):
     """Real-space tangential shear gamma_t on a theta grid.
 
     Full 3x2pt nuisance state (shear, clustering, point masses) plus
@@ -532,7 +536,7 @@ def gamma_t(ntheta=None, theta_min_arcmin=None, theta_max_arcmin=None,
                lens_photoz_bias=lens_photoz_bias, B1=galaxy_bias_b1,
                B2=galaxy_bias_b2, B_MAG=galaxy_bias_bmag,
                B3nl=galaxy_bias_b3nl, BK=galaxy_bias_bk, PM=PM,
-               baryon_sims=baryon_sims)
+               baryon_sims=baryon_sims, allsims_file=allsims)
     return (ci.get_binning_real_space(), ci.w_gammat_tomo())
 
 
@@ -545,7 +549,7 @@ def w_theta(ntheta=None, theta_min_arcmin=None, theta_max_arcmin=None,
             baryon_sims=None, AccuracyBoost=1.0, kmax=5.0,
             k_per_logint=10, CAMBAccuracyBoost=1.0,
             CLAccuracyBoost=1.0, CLIntegrationAccuracy=0,
-            non_linear_emul=None):
+            non_linear_emul=None, allsims=None):
     """Real-space clustering w(theta) on a theta grid.
 
     Clustering state plus a re-binning, then ci.w_gg_tomo.
@@ -573,7 +577,7 @@ def w_theta(ntheta=None, theta_min_arcmin=None, theta_max_arcmin=None,
                lens_photoz_bias=lens_photoz_bias, B1=galaxy_bias_b1,
                B2=galaxy_bias_b2, B_MAG=galaxy_bias_bmag,
                B3nl=galaxy_bias_b3nl, BK=galaxy_bias_bk,
-               baryon_sims=baryon_sims)
+               baryon_sims=baryon_sims, allsims_file=allsims)
     return (ci.get_binning_real_space(), ci.w_gg_tomo())
 
 
@@ -586,7 +590,7 @@ def get_chi2(omegam=omegam, omegab=omegab, H0=H0, ns=ns, As_1e9=As_1e9,
              baryon_sims=None, AccuracyBoost=1.0, kmax=5.0,
              k_per_logint=10, CAMBAccuracyBoost=1.0,
              CLAccuracyBoost=1.0, CLIntegrationAccuracy=0,
-             non_linear_emul=None):
+             non_linear_emul=None, allsims=None):
     """chi2 of the masked data vector against the loaded data.
 
     Requires init_cosmolike(CLprobe=..., with_data=True) first: the
@@ -617,7 +621,7 @@ def get_chi2(omegam=omegam, omegab=omegab, H0=H0, ns=ns, As_1e9=As_1e9,
                lens_photoz_bias=lens_photoz_bias, B1=galaxy_bias_b1,
                B2=galaxy_bias_b2, B_MAG=galaxy_bias_bmag,
                B3nl=galaxy_bias_b3nl, BK=galaxy_bias_bk, PM=PM,
-               baryon_sims=baryon_sims)
+               baryon_sims=baryon_sims, allsims_file=allsims)
     datavector = np.array(ci.compute_data_vector_masked())
     return ci.compute_chi2(datavector)
 
