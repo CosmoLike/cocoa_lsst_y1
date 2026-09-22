@@ -234,7 +234,7 @@ the script `start_cocoa.sh`
 Running the file as a script accepts `--nmodels N` in place of the
 environment variable.
 
-### Baryonic feedback accuracy checks (`test_accuracy_baryons.py`, B1-B7) <a name="baryon_accuracy_checks"></a>
+### Baryonic feedback accuracy checks (`test_accuracy_baryons.py`, BF1-BF7) <a name="baryon_accuracy_checks"></a>
 
 The file `test_accuracy_baryons.py` repeats the default-versus-high
 accuracy comparison with the `bfmt` theory block switched on: one
