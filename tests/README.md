@@ -15,6 +15,7 @@ no pass/fail).
     1. [Advisory checks](#advisory_checks)
     2. [Accuracy checks](#accuracy_checks)
     3. [The N-random-models check](#nmodels_check)
+    4. [Baryonic feedback accuracy checks](#baryon_accuracy_checks)
 3. [Appendix](#appendix)
     1. [FAQ: Do the tests keep their own data?](#frozen_copy)
     2. [FAQ: Why do the TATT tests use their own data vector?](#synthetic_vectors)
@@ -232,6 +233,38 @@ the script `start_cocoa.sh`
 
 Running the file as a script accepts `--nmodels N` in place of the
 environment variable.
+
+### Baryonic feedback accuracy checks (`test_accuracy_baryons.py`, B1-B7) <a name="baryon_accuracy_checks"></a>
+
+The file `test_accuracy_baryons.py` repeats the default-versus-high
+accuracy comparison with the `bfmt` theory block switched on: one
+advisory check per feedback method (the three SP(k) fb relations,
+BCEmu, Flamingo, BACCOemu, and BCemu2025), at a fixed parameter
+point per method. Both $\chi^2$ values are computed in the run
+itself, because the stored data vector carries no feedback.
+
+> [!NOTE]
+> With no feedback in the stored data vector, these checks sit far
+> from the $\chi^2$ minimum and their deltas ride a steep slope:
+> compare the methods against each other rather than against the
+> $\Delta\chi^2 < 0.2$ band of the reference tests. A method whose
+> training box excludes the fiducial point reports the rejection as
+> documented behavior instead of a delta.
+
+#### Running the baryonic feedback checks <a name="run_baryon_accuracy"></a>
+
+We assume users are in the Conda cocoa environment from a previous
+`conda activate cocoa` command, that the shell is bash, and that the
+current folder is the cocoa main folder `cocoa/Cocoa`.
+
+**Step :one:**: activate the private Python environment by sourcing
+the script `start_cocoa.sh`
+
+    source start_cocoa.sh
+
+**Step :two:**: run the baryonic feedback checks of this project
+
+    python -m pytest ./projects/lsst_y1/tests/test_accuracy_baryons.py
 
 # Appendix <a name="appendix"></a>
 
