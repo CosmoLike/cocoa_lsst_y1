@@ -1595,7 +1595,13 @@ def _fastpt_comparison_block(example, fastpt, high, fastpt_settings=None,
                 keeps the frozen contract's M1 mask; the other keys
                 swap the TATT dataset for the variant whose mask_file
                 is that scale-cut mask, changing which data points
-                the masked inverse covariance weights.
+                the masked inverse covariance weights. Under a
+                non-frozen mask the shipped TATT data vector does
+                not apply (it was generated under the frozen mask),
+                so the block regenerates the baseline: the CFASTPT
+                fiducial vector under the chosen mask becomes the
+                sweep's data vector and every reported chi2 is
+                measured against it, from a zero baseline.
 
     Returns:
       {"chi2s": the per-point chi2 list against the shipped data
@@ -1646,6 +1652,46 @@ def _fastpt_comparison_block(example, fastpt, high, fastpt_settings=None,
     # sampled-parameter name check every test shares
     base = build_point(model, example, tatt=True)
     n_points = len(FASTPT_COMPARISON_POINTS)
+    fiducial_truth = None
+    if mask != "frozen":
+        # Under a non-frozen mask the shipped TATT data vector does
+        # not apply: it was generated under the frozen contract's
+        # mask, so rows this mask newly unmasks would be compared
+        # against zeros and the chi2 against it would be meaningless.
+        # The baseline is regenerated instead, the same construction
+        # the accuracy checks use when they change cosmology: the
+        # fiducial TATT point is evaluated first, and the CFASTPT
+        # block's printed vector at it becomes the data vector of the
+        # whole sweep, so the reported chi2 starts from a zero
+        # baseline (CFASTPT at the fiducial scores exactly zero).
+        # The fastpt blocks read the cfastpt fiducial from
+        # vectors_dir, where the cfastpt block (always first) left
+        # it.
+        started = time.perf_counter()
+        evaluate_chi2(model, base, cached=True)
+        elapsed = time.perf_counter() - started
+        if not os.path.isfile(current_path):
+            raise RuntimeError(
+                f"{code} fiducial: the evaluation printed no data "
+                f"vector at {current_path}")
+        os.replace(current_path,
+                   os.path.join(vectors_dir,
+                                f"{label}_fiducial.modelvector"))
+        # the compiled interface was initialized by the likelihood
+        # build above; its masked inverse covariance carries the
+        # chosen mask
+        import cosmolike_lsst_y1_interface as ci
+
+        icov_fid = np.array(ci.get_inv_cov_masked())
+        # "cfastpt" is the label the driver gives the reference
+        # block, which always runs first, so this file exists for
+        # every block (the cfastpt block reads its own)
+        fiducial_truth = _load_datavector(
+            os.path.join(vectors_dir, "cfastpt_fiducial.modelvector"))
+        print(f"  {code} fiducial under mask {mask}: baseline "
+              f"regenerated ({elapsed:.2f} s); the chi2 below is "
+              "measured against the CFASTPT fiducial vector",
+              flush=True)
     chi2s = []
     eval_seconds = []
     # enumerate pairs each point with a counter; start=1 makes the
@@ -1666,7 +1712,6 @@ def _fastpt_comparison_block(example, fastpt, high, fastpt_settings=None,
         # next point
         chi2 = evaluate_chi2(model, {**base, **ia_values}, cached=True)
         elapsed = time.perf_counter() - started
-        chi2s.append(chi2)
         eval_seconds.append(elapsed)
         if not os.path.isfile(current_path):
             raise RuntimeError(
@@ -1680,6 +1725,19 @@ def _fastpt_comparison_block(example, fastpt, high, fastpt_settings=None,
         os.replace(current_path,
                    os.path.join(vectors_dir,
                                 f"{label}_point{i:02d}.modelvector"))
+        if fiducial_truth is not None:
+            # the reported chi2 is measured against the regenerated
+            # baseline: the quadratic form of this point's printed
+            # vector against the CFASTPT fiducial vector, which IS
+            # the chi2 against a dataset whose data vector is that
+            # fiducial (the likelihood's own chi2 rides the stale
+            # frozen-mask data vector and is discarded)
+            own = _load_datavector(
+                os.path.join(vectors_dir,
+                             f"{label}_point{i:02d}.modelvector"))
+            delta = own - fiducial_truth
+            chi2 = float(delta @ icov_fid @ delta)
+        chi2s.append(chi2)
         print(f"  {code} point {i:2d}/{n_points}: chi2 = {chi2:.6f}"
               f"   ({elapsed:.2f} s)", flush=True)
     # the first evaluation carries the one-time work (CAMB plus this

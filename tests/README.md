@@ -229,7 +229,11 @@ settings
 > and `--mask=M6` fewer (1,378); `--mask=ones` keeps every point
 > (no scale cuts), the strictest comparison. Each choice is a
 > frozen TATT dataset variant differing only in its `mask_file`
-> line, and the 0.2 pass rule applies unchanged.
+> line, and the 0.2 pass rule applies unchanged. Under a non-frozen
+> mask the sweep regenerates its baseline: the cfastpt fiducial
+> vector under that mask becomes the data vector (the shipped TATT
+> vector applies to the frozen mask only), so the printed chi2
+> column keeps a zero baseline.
 
 ### Advisory checks (`test_emul2.py`, E1-E4) <a name="advisory_checks"></a>
 
