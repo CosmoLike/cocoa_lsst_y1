@@ -126,9 +126,11 @@ internal grid the FFTLog convolutions run on, with a cubic spline in
 log k upsampling the terms from one grid onto the other. Both boosts
 are rebased so 1.0 is the converged configuration.
 
-The historical single-grid default, one shared 1100-point grid for
-both roles, disagreed with cfastpt by up to $\Delta\chi^2 = 21$
-across the intrinsic-alignment prior. Separating the two grids
+Before the two-grid upgrade of the fastpt theory block (2026-09)
+there was no upsampling: one shared 1100-point grid played both
+roles, and the difference against cfastpt reached
+$\Delta\chi^2 = 21$ across the intrinsic-alignment prior.
+Separating the two grids
 located the entire divergence in the density of the interpolated
 table and none of it in the convolutions:
 
