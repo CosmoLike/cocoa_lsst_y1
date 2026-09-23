@@ -107,10 +107,12 @@ point the cfastpt data vector is the fiducial: the reported quantity
 is the $\Delta\chi^2$ of the FAST-PT vector against it, which is zero
 for identical vectors and grows quadratically with their difference.
 A comparison against the shipped data vector would measure the slope
-of the distance to the data instead of the numerics. The pass limit
-is 30. A second FAST-PT evaluation with the fastpt settings pushed
-repeats the measurement as an advisory, so the part of the deviation
-carried by the FAST-PT default grid shows next to the pass quantity.
+of the distance to the data instead of the numerics. The FAST-PT
+side runs at the recommended minimum settings the example yamls
+carry in their commented fastpt block, and the pass limit is 0.2. A
+second FAST-PT evaluation at a doubled grid boost repeats the
+measurement as an advisory, so the residual grid error of the
+recommended settings shows next to the pass quantity.
 
 #### Running the comparison <a name="run_cfastpt_fastpt"></a>
 

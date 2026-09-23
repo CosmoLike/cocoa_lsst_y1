@@ -343,7 +343,7 @@ theory:
 #  fastpt:
 #    path: ./external_modules/code/FAST-PT
     #extra_args:
-      #accuracyboost: 5
+      #accuracyboost: 80
       #kmax_boltzmann: 7.5
       #extrap_kmax: 250.0
 sampler:

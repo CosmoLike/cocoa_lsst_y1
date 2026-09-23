@@ -366,41 +366,39 @@ FASTPT_COMPARISON_POINTS = [
 # measures the distance from the data, not the numerics (the same
 # reason the accuracy checks evaluate at a chi2 minimum).
 #
-# The value 30 is the measured agreement level with headroom, not a
-# statistical-noise band (decision record, 2026-09-22): at the fastpt
-# block's shipped defaults the deviation reached 21.4 at the
-# largest-amplitude comparison point (median 4.2), and pushing the
-# FAST-PT grid boost to 10 shrank every deviation by about 6.5x (max
-# 3.4) - most of the gap is the FAST-PT default grid, and the two
-# implementations genuinely differ at large TATT amplitudes by more
-# than the statistical noise of this survey. The limit therefore
-# documents today's agreement and catches regressions an order of
-# magnitude above it; tightening it means first raising the fastpt
-# block's default settings.
-FASTPT_COMPARISON_TOLERANCE = 30.0
+# The value 0.2 is the house comfort band of the reference tests,
+# reachable because FASTPT_LOW_SETTINGS carries the converged
+# FAST-PT grid (decision record, 2026-09-22: max delta chi2 over the
+# comparison points 0.125 at grid boost 80; at the fastpt block's
+# shipped boost 1 the deviation reached 21.4, almost all of it
+# FAST-PT default-grid error, shrinking as a power law with the
+# boost - 3.2 at 10, 1.2 at 20, 0.39 at 40).
+FASTPT_COMPARISON_TOLERANCE = 0.2
 
 # The python FAST-PT side has numerical settings of its own, read by
 # the fastpt theory block from its extra_args block
-# (cobaya/cobaya/theories/fastpt/fastpt.py). Low hard-codes the
-# block's shipped defaults, so the low blocks of test 15 keep
-# evaluating this exact configuration even if the shipped defaults
-# later move (the same reasoning as the hard-coded comparison
-# points). High pushes the FAST-PT grid boost to 10 and keeps the
-# other two entries at the shipped values: the block multiplies both
-# its CAMB power-spectrum request (kmax_boltzmann * accuracyboost)
-# and its extrapolation range (extrap_kmax * accuracyboost) by the
-# boost, so this one knob widens and refines every FAST-PT table at
-# once. The camb/cosmolike settings are a SEPARATE axis (the --high=1
+# (external_modules/code/PyFAST-PT/fastpt.py, symlinked into cobaya
+# as theories/fastpt). Low is the recommended minimum the example
+# yamls carry in their commented fastpt block, hard-coded here so
+# the test keeps evaluating this exact configuration even if the
+# yamls later move (the same reasoning as the hard-coded comparison
+# points). The grid boost refines the FAST-PT k grid only; the
+# Boltzmann k_max request stays at kmax_boltzmann, with the grid's
+# high-k reach served by the Pk interpolator's log-extrapolation.
+# Boost 80 is where the implementation deviation first converges
+# below the 0.2 band (see FASTPT_COMPARISON_TOLERANCE). High doubles
+# the boost, so the advisory column shows the residual grid error of
+# low. The camb/cosmolike settings are a SEPARATE axis (the --high=1
 # option); the full comparison covers both axes: the points go
 # through the FASTPT side four times (fastpt low and high, under the
 # default and the HIGH_ACCURACY camb/cosmolike settings).
 FASTPT_LOW_SETTINGS = {
-    "accuracyboost": 1.0,
+    "accuracyboost": 80.0,
     "kmax_boltzmann": 7.5,
     "extrap_kmax": 250.0,
 }
 FASTPT_HIGH_SETTINGS = {
-    "accuracyboost": 10.0,
+    "accuracyboost": 160.0,
     "kmax_boltzmann": 7.5,
     "extrap_kmax": 250.0,
 }
@@ -1986,7 +1984,7 @@ def cfastpt_vs_fastpt_chi2s(example, high=False):
          measured against (its own chi2 against that vector is zero
          by construction);
       2. python FAST-PT (IA_code 1) at FASTPT_LOW_SETTINGS, the
-         shipped defaults of the fastpt theory block;
+         recommended minimum settings of the example yamls;
       3. python FAST-PT at FASTPT_HIGH_SETTINGS, the pushed FAST-PT
          grid.
 
