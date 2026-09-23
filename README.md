@@ -151,6 +151,15 @@ and
           cobaya-run ./projects/lsst_y1/EXAMPLE_MCMC1.yaml -f
 
 
+# Table of contents <a name="table_of_contents"></a>
+
+1. [Running Cosmolike projects (Basic instructions)](#running_cosmolike_projects)
+2. [Baryonic feedback on EXAMPLE_EVALUATE1](#lsst_y1_baryonic_feedback)
+3. [Running ML emulators](#cobaya_base_code_examples_emul)
+4. [Running Hybrid Cosmolike-ML emulators](#cobaya_base_code_examples_emul2)
+5. [Running Fisher](#lsst_examples_fisher)
+6. [Unit tests](#unit_tests)
+
 # Baryonic feedback on EXAMPLE_EVALUATE1 <a name="lsst_y1_baryonic_feedback"></a>
 
 `EXAMPLE_EVALUATE1.yaml` can apply an external baryonic feedback suppression to the
@@ -718,7 +727,7 @@ Details on the matter power spectrum emulator designs will be presented in the [
 
 
 
-# Unit tests
+# Unit tests <a name="unit_tests"></a>
 
 The `tests/` folder holds unit tests for the likelihoods of this
 project: they compare each likelihood against stored reference

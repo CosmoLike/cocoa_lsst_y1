@@ -12,11 +12,12 @@ no pass/fail).
 
 1. [Running the tests](#run_tests)
 2. [The tests](#the_tests)
-    1. [Advisory checks](#advisory_checks)
-    2. [Accuracy checks](#accuracy_checks)
-    3. [The N-random-models check](#nmodels_check)
-    4. [Baryonic feedback accuracy checks](#baryon_accuracy_checks)
-    5. [Baryonic feedback drift tests](#baryon_drift_tests)
+    1. [The CFASTPT vs FASTPT comparison](#cfastpt_fastpt)
+    2. [Advisory checks](#advisory_checks)
+    3. [Accuracy checks](#accuracy_checks)
+    4. [The N-random-models check](#nmodels_check)
+    5. [Baryonic feedback accuracy checks](#baryon_accuracy_checks)
+    6. [Baryonic feedback drift tests](#baryon_drift_tests)
 3. [Appendix](#appendix)
     1. [FAQ: Do the tests keep their own data?](#frozen_copy)
     2. [FAQ: Why do the TATT tests use their own data vector?](#synthetic_vectors)
@@ -46,7 +47,7 @@ per model build and per evaluation, then a report with the
 computed $\chi^2$, the stored reference, the difference, and the pass
 limit.
 
-A full run performs about 50 likelihood evaluations and takes a
+A full run performs about 110 likelihood evaluations and takes a
 few minutes. The test files force `OMP_NUM_THREADS=4` internally.
 
 ## The tests <a name="the_tests"></a>
@@ -90,6 +91,93 @@ The test files and the configurations they cover:
 | 12 | `test_example2_2x2pt.py` | 2x2pt (`lsst_y1.combo_2x2pt`: the 3x2pt configuration reduced to galaxy clustering plus galaxy-galaxy lensing); IA modeling: NLA | race condition (OpenMP threading): fiducial alone vs after nine other cosmologies |
 | 13 | `test_example2_2x2pt.py` | 2x2pt (`lsst_y1.combo_2x2pt`: the 3x2pt configuration reduced to galaxy clustering plus galaxy-galaxy lensing); IA modeling: TATT | $\Delta\chi^2$ against the stored reference at the fiducial point |
 | 14 | `test_example2_2x2pt.py` | 2x2pt (`lsst_y1.combo_2x2pt`: the 3x2pt configuration reduced to galaxy clustering plus galaxy-galaxy lensing); IA modeling: TATT | race condition (OpenMP threading): fiducial alone vs after nine other cosmologies |
+| 15 | `test_fastpt.py` | cosmic shear; IA modeling: TATT; the C cfastpt (`IA_code: 0`) vs the python FAST-PT package (`IA_code: 1`) at 30 fixed points (20 across the intrinsic-alignment prior plus a one-parameter-at-a-time family), cosmology at the fiducial | $\Delta\chi^2$ of the FAST-PT data vector against the cfastpt data vector at the same point; the cfastpt vector is that point's fiducial, so agreement means zero |
+
+### The CFASTPT vs FASTPT comparison (`test_fastpt.py`, test 15) <a name="cfastpt_fastpt"></a>
+
+Cosmolike computes the TATT perturbation-theory integrals with two
+implementations: cfastpt, the C code built into the interface
+(`IA_code: 0`), and the python FAST-PT package through the fastpt
+theory block (`IA_code: 1`). Test 15 evaluates both at 30
+fixed points across the intrinsic-alignment prior and checks
+their agreement.
+
+At every point the cfastpt data vector is the fiducial: the reported
+quantity is the $\Delta\chi^2$ of the FAST-PT vector against it,
+zero for identical vectors and quadratic in their difference. A
+comparison against the shipped data vector would measure the slope
+of the distance to the data instead of the numerics.
+
+The FAST-PT side runs at the fastpt block's default settings, the
+converged two-grid configuration, and the pass limit is 0.2. A
+second FAST-PT evaluation at doubled boosts repeats the measurement
+as an advisory, so the residual grid response of the defaults shows
+next to the pass quantity.
+
+#### Why the defaults are the converged configuration <a name="fastpt_minimum"></a>
+
+This is a decision record (2026-09-22, this check's own sweeps). The
+fastpt block computes on two grids: `accuracyboost` multiplies the
+density of the output table cosmolike reads with linear
+interpolation, and `internal_accuracyboost` the density of the
+internal grid the FFTLog convolutions run on, with a cubic spline in
+log k upsampling the terms from one grid onto the other. Both boosts
+are rebased so 1.0 is the converged configuration.
+
+Before the two-grid upgrade of the fastpt theory block (2026-09)
+there was no upsampling: one shared 1100-point grid played both
+roles, and the difference against cfastpt reached
+$\Delta\chi^2 = 21$ across the intrinsic-alignment prior.
+Separating the two grids
+located the entire divergence in the density of the interpolated
+table and none of it in the convolutions:
+
+| output table (points) | internal grid (points) | max $\Delta\chi^2$ | cost per cosmology |
+|---|---|---|---|
+| 1,100 | 1,100 (shared) | 21.40 | 1.05 s |
+| 16,900 | 1,100 | 0.125 | 1.05 s |
+| 128,900 | 1,100 | 0.0118 | 1.09 s |
+| 1,024,900 (`accuracyboost: 1`, the default) | 1,100 (the default) | 0.0082 | 1.4 s |
+| 2,048,900 (`accuracyboost: 2`) | 1,300 (`internal_accuracyboost: 2`) | 0.0080 | 1.7 s |
+
+Raising the internal grid alone moves nothing (0.00830 at 1,100
+points, 0.00827 at 4,900, output fixed at the default), so the
+convolutions were already accurate on their default grid; the dense
+splined table removes the interpolation error at almost no cost.
+
+![Convergence of the FAST-PT vs cfastpt difference with the table density](cfastpt_vs_fastpt_convergence.png)
+
+![The 30 comparison points, colored by the per-point difference](cfastpt_vs_fastpt_points.png)
+
+> [!NOTE]
+> The fastpt defaults hold this accuracy on their own; raising the
+> boosts is a convergence test, not a need. cfastpt (`IA_code: 0`)
+> remains the reference implementation.
+
+#### Running the comparison <a name="run_cfastpt_fastpt"></a>
+
+We assume users are in the Conda cocoa environment from a previous
+`conda activate cocoa` command, that the shell is bash, and that the
+current folder is the cocoa main folder `cocoa/Cocoa`.
+
+**Step :one:**: activate the private Python environment by sourcing
+the script `start_cocoa.sh`
+
+    source start_cocoa.sh
+
+**Step :two:**: run the comparison at the default camb/cosmolike
+settings
+
+    python -m pytest ./projects/lsst_y1/tests/test_fastpt.py
+
+**Step :three:**: repeat it at the pushed camb/cosmolike settings
+
+    python -m pytest ./projects/lsst_y1/tests/test_fastpt.py --high=1
+
+> [!NOTE]
+> `--high=1`: applies the pushed camb/cosmolike settings of the
+> accuracy checks to every block of test 15 (tests 9 and 10 do not
+> read it). The full comparison is both invocations.
 
 ### Advisory checks (`test_emul2.py`, E1-E4) <a name="advisory_checks"></a>
 
@@ -241,16 +329,21 @@ The file `test_accuracy_baryons.py` repeats the default-versus-high
 accuracy comparison with the `bfmt` theory block switched on: one
 advisory check per feedback method (the three SP(k) fb relations,
 BCEmu, Flamingo, BACCOemu, and BCemu2025), at a fixed parameter
-point per method. Each check creates its data vector on the fly, by
-the same mechanism as the N-random-models check: the
-default-settings model writes its own theory vector during
-evaluation, that vector becomes the data of a temporary dataset, and
-the pushed-settings model evaluates at the same point against it.
-The fiducial $\chi^2$ is therefore zero by construction, nothing is
-stored in the snapshot, and the single reported number,
-$\Delta\chi^2$, is a pure numerics response. The check BF0
-additionally runs the one-setting-at-a-time scan with the Akino
-SP(k) feedback on, so a large delta names the setting causing it.
+point per method.
+
+Each check creates its data vector on the fly, by the same mechanism
+as the N-random-models check:
+
+1. The default-settings model writes its own theory vector during
+   evaluation.
+2. That vector becomes the data of a temporary dataset.
+3. The pushed-settings model evaluates at the same point against it.
+
+The fiducial $\chi^2$ is zero by construction and nothing is stored
+in the snapshot, so the single reported number, $\Delta\chi^2$, is a
+pure numerics response. The check BF0 additionally runs the
+one-setting-at-a-time scan with the Akino SP(k) feedback on, so a
+large delta names the setting causing it.
 
 Every checked configuration is measurable by construction. The
 BACCOemu check evaluates with `omegab: 0.049`, inside that
