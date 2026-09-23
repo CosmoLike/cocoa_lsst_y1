@@ -134,7 +134,7 @@ table and none of it in the convolutions:
 
 | output table (points) | internal grid (points) | max $\Delta\chi^2$ | cost per cosmology |
 |---|---|---|---|
-| 1,100 (the historical single grid) | 1,100 (shared) | 21.40 | 1.05 s |
+| 1,100 | 1,100 (shared) | 21.40 | 1.05 s |
 | 16,900 | 1,100 | 0.125 | 1.05 s |
 | 128,900 | 1,100 | 0.0118 | 1.09 s |
 | 1,024,900 (`accuracyboost: 1`, the default) | 1,100 (the default) | 0.0082 | 1.4 s |
