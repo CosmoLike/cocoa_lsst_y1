@@ -2209,6 +2209,240 @@ def report_nonlinear_comparison(label, dchi2s):
           flush=True)
 
 
+# ---- the EE2 modifications check (test 18) ----------------------------------
+
+# The commit of vivianmiranda/EuclidEmulator2 BEFORE the Cocoa
+# modifications (the commented-out EE2_GIT_COMMIT alternative in
+# set_installation_options.sh). Test 18 builds it side by side and
+# scores the installed, modified EE2 against it.
+EE2_ORIGINAL_COMMIT = "ff59f6683069417f6b4d2fb5d59197044d424445"
+
+# The compatibility patch the original needs to run inside Cocoa at
+# all, injected into the original-EE2 worker before the model builds:
+#   - the original has no get_boost2 (the Cocoa addition that takes a
+#     pre-built PyEuclidEmulator), so the adapter maps it onto the
+#     original get_boost, which builds its own emulator internally;
+#   - the original computes AT MOST 101 redshifts per call (its
+#     training-grid size) and silently overflows beyond that - the
+#     likelihood sends about 110 - so the adapter batches the
+#     redshifts in chunks of 100 and stacks the per-chunk results
+#     (the original returns a per-redshift dict, the likelihood
+#     expects a 2D array). The numerics inside each chunk are the
+#     original's, untouched.
+EE2_ORIGINAL_SHIM = """
+import numpy as _np
+_orig_get_boost = euclidemu2.get_boost
+def _get_boost2(cosmo_par_in, redshifts, ee2_obj, custom_kvec=None):
+    redshifts = _np.atleast_1d(_np.asarray(redshifts, dtype=float))
+    rows = []
+    k = None
+    for start in range(0, len(redshifts), 100):
+        k, b = _orig_get_boost(cosmo_par_in,
+                               redshifts[start:start + 100],
+                               custom_kvec)
+        if isinstance(b, dict):
+            rows.extend(_np.asarray(b[i]) for i in sorted(b))
+        else:
+            rows.extend(_np.asarray(b))
+    return k, _np.array(rows)
+euclidemu2.get_boost2 = _get_boost2
+"""
+
+
+def build_original_ee2(prefix_dir):
+    """Build the pre-modification EE2 into prefix_dir, offline.
+
+    Clones the LOCAL euclidemu2 checkout (no internet: the pinned
+    clone's history carries the original commit), checks out
+    EE2_ORIGINAL_COMMIT, and pip-installs it with the offline flags
+    the compile scripts use PLUS --ignore-installed: without that
+    flag pip uninstalls the same-name distribution from .local
+    before installing into the prefix, breaking the environment.
+
+    Arguments:
+      prefix_dir = the directory the build is installed under (a
+                temporary directory owned by the caller).
+
+    Returns:
+      the site-packages path inside prefix_dir, for PYTHONPATH.
+
+    Raises:
+      RuntimeError when the original commit is not present in the
+      local clone (a shallow checkout); the caller turns this into
+      a test skip rather than a failure.
+    """
+    import subprocess
+
+    clone_src = os.path.join(os.environ["ROOTDIR"], "external_modules",
+                             "code", "euclidemu2")
+    probe = subprocess.run(
+        ["git", "-C", clone_src, "cat-file", "-e", EE2_ORIGINAL_COMMIT],
+        capture_output=True)
+    if probe.returncode != 0:
+        raise RuntimeError(
+            f"the local euclidemu2 clone does not carry commit "
+            f"{EE2_ORIGINAL_COMMIT} (shallow checkout?)")
+    workdir = os.path.join(prefix_dir, "src")
+    subprocess.run(["git", "clone", "-q", clone_src, workdir],
+                   check=True)
+    subprocess.run(["git", "-C", workdir, "checkout", "-q",
+                    EE2_ORIGINAL_COMMIT], check=True)
+    env = dict(os.environ)
+    # the compile scripts export the compiler pair; pass it through
+    # the same way when present
+    if "CXX_COMPILER" in env:
+        env["CXX"] = env["CXX_COMPILER"]
+    if "C_COMPILER" in env:
+        env["CC"] = env["C_COMPILER"]
+    import sys
+
+    subprocess.run(
+        [sys.executable, "-m", "pip", "install", workdir,
+         "--no-dependencies", "--no-index", "--no-build-isolation",
+         "--ignore-installed", f"--prefix={prefix_dir}", "--quiet"],
+        check=True, env=env)
+    return os.path.join(
+        prefix_dir, "lib",
+        f"python{sys.version_info.major}.{sys.version_info.minor}",
+        "site-packages")
+
+
+def _ee2_comparison_block(example, label, vectors_dir, reference_label,
+                          original_site=None):
+    """The ten-cosmology sweep on ONE EE2 build (test 18's worker).
+
+    The same construction as the Halofit-vs-EE2 blocks: the frozen
+    NLA configuration with non_linear_emul: 1, evaluated at every
+    NONLINEAR_COMPARISON_POINTS entry with the printed data vector
+    per cosmology; a block given a reference_label reports the
+    per-cosmology delta^T C^-1 delta against the reference block's
+    vectors (the reference is the installed, modified EE2, so its
+    own chi2 against itself is zero by construction). The worker
+    asserts WHICH euclidemu2 binary it imported, so a path mistake
+    cannot silently compare a build against itself.
+
+    Arguments:
+      example = a key of EXAMPLES; test 18 uses "example1".
+      label   = the file-name tag of this block's printed vectors
+                ("cocoa", "original").
+      vectors_dir = the directory the per-cosmology vectors are
+                printed into, shared by the two blocks.
+      reference_label = None to only print vectors, or the label of
+                the block to measure against.
+      original_site = None for the installed build, or the
+                site-packages path of the original build (the worker
+                then expects euclidemu2 to resolve there; the caller
+                prepends it to the child's PYTHONPATH and the shim
+                is applied).
+
+    Returns:
+      {"dchi2_vs_reference": per-cosmology list or None}.
+    """
+    import subprocess
+    import sys
+
+    workdir = tempfile.mkdtemp(prefix="cocoa_ee2_check_")
+    out_path = os.path.join(workdir, "result.json")
+    expect = original_site if original_site else ".local"
+    shim = EE2_ORIGINAL_SHIM if original_site else ""
+    child_code = (
+        "import os\n"
+        f"os.environ['OMP_NUM_THREADS'] = {REQUIRED_OMP_THREADS!r}\n"
+        "import json\n"
+        "import sys\n"
+        f"sys.path.insert(0, {TESTS_DIR!r})\n"
+        "import euclidemu2\n"
+        f"assert {expect!r} in euclidemu2.__file__, euclidemu2.__file__\n"
+        "print('  euclidemu2 =', euclidemu2.__file__, flush=True)\n"
+        f"{shim}\n"
+        "import numpy as np\n"
+        "import cocoa_test_utils as u\n"
+        "u.require_cocoa_environment()\n"
+        f"info = u.load_frozen_info({example!r}, tatt=False)\n"
+        f"lb = info['likelihood'][u.EXAMPLES[{example!r}]['likelihood']]\n"
+        "lb['non_linear_emul'] = 1\n"
+        f"cur = os.path.join({vectors_dir!r}, {label!r}"
+        " + '_cur.modelvector')\n"
+        "lb['print_datavector'] = True\n"
+        "lb['print_datavector_file'] = cur\n"
+        "model = u.make_model(info)\n"
+        f"base = u.build_point(model, {example!r}, tatt=False)\n"
+        "for i, cosmo in enumerate(u.NONLINEAR_COMPARISON_POINTS, 1):\n"
+        "    u.evaluate_chi2(model, dict(base, **cosmo), cached=True)\n"
+        "    assert os.path.isfile(cur), 'no vector printed'\n"
+        f"    os.replace(cur, os.path.join({vectors_dir!r},\n"
+        f"        {label!r} + '_pt%02d.modelvector' % i))\n"
+        f"    print('  ' + {label!r} + ' cosmology %2d/10' % i,\n"
+        "          flush=True)\n"
+        "result = {}\n"
+        f"ref = {reference_label!r}\n"
+        "if ref is not None:\n"
+        "    import cosmolike_lsst_y1_interface as ci\n"
+        "    icov = np.array(ci.get_inv_cov_masked())\n"
+        "    dchi2s = []\n"
+        "    for i in range(1, 11):\n"
+        f"        own = u._load_datavector(os.path.join({vectors_dir!r},\n"
+        f"            {label!r} + '_pt%02d.modelvector' % i))\n"
+        f"        rv = u._load_datavector(os.path.join({vectors_dir!r},\n"
+        "            ref + '_pt%02d.modelvector' % i))\n"
+        "        assert own.shape == rv.shape == (icov.shape[0],)\n"
+        "        d = own - rv\n"
+        "        dchi2s.append(float(d @ icov @ d))\n"
+        "    result['dchi2_vs_reference'] = dchi2s\n"
+        f"with open({out_path!r}, 'w') as f:\n"
+        "    json.dump(result, f)\n"
+    )
+    env = dict(os.environ)
+    if original_site:
+        env["PYTHONPATH"] = (original_site + os.pathsep
+                             + env.get("PYTHONPATH", ""))
+    try:
+        subprocess.run([sys.executable, "-c", child_code], check=True,
+                       env=env)
+        with open(out_path) as f:
+            return json.load(f)
+    finally:
+        shutil.rmtree(workdir, ignore_errors=True)
+
+
+def ee2_original_vs_cocoa_dchi2s(example):
+    """The per-cosmology differences of the two EE2 builds (test 18).
+
+    Builds the pre-modification EE2 into a temporary prefix
+    (build_original_ee2), then runs the two blocks: the installed,
+    modified EE2 prints the reference vectors, and the original
+    (through the compatibility shim) is measured against them at
+    the ten shared cosmologies. Everything temporary dies with this
+    call; the installed environment is never touched
+    (--ignore-installed protects .local).
+
+    Arguments:
+      example = a key of EXAMPLES; test 18 uses "example1".
+
+    Returns:
+      the per-cosmology delta^T C^-1 delta list, index-aligned with
+      NONLINEAR_COMPARISON_POINTS.
+
+    Raises:
+      RuntimeError from build_original_ee2 when the original commit
+      is unavailable locally (the test turns this into a skip).
+    """
+    prefix_dir = tempfile.mkdtemp(prefix="cocoa_ee2_original_")
+    vectors_dir = tempfile.mkdtemp(prefix="cocoa_ee2_vectors_")
+    try:
+        print("  building the pre-modification EE2 "
+              f"({EE2_ORIGINAL_COMMIT[:7]}) ...", flush=True)
+        original_site = build_original_ee2(prefix_dir)
+        _ee2_comparison_block(example, "cocoa", vectors_dir, None)
+        original = _ee2_comparison_block(
+            example, "original", vectors_dir, "cocoa",
+            original_site=original_site)
+    finally:
+        shutil.rmtree(vectors_dir, ignore_errors=True)
+        shutil.rmtree(prefix_dir, ignore_errors=True)
+    return original["dchi2_vs_reference"]
+
+
 def _baryon_accuracy_delta_impl(baryon, knob=None):
     """Delta chi2 for one feedback method, against its own vector.
 
@@ -2378,7 +2612,7 @@ def baryon_drift_chi2(baryon):
     return float(_baryon_drift_chi2_impl(baryon))
 
 
-def ten_in_a_row_chi2(example, tatt):
+def ten_in_a_row_chi2(example, tatt, ee2=False):
     """Race check: the fiducial evaluated fresh and as 10th of a row.
 
     On ONE model instance, in order: the fiducial point (the fresh
@@ -2392,6 +2626,11 @@ def ten_in_a_row_chi2(example, tatt):
     Arguments:
       example = "example1" or "example2" (a key of EXAMPLES).
       tatt    = True runs the TATT variant, False the NLA one.
+      ee2     = True sources the nonlinear P(k) from EuclidEmulator2
+                (non_linear_emul: 1) instead of the frozen setting
+                (CAMB's Takahashi halofit). EE2's own compute is
+                OpenMP-threaded, so this variant exercises its
+                threading inside the race sequence (test 19).
 
     Returns:
       (fresh, tenth): chi2 of the first fiducial evaluation and chi2
@@ -2399,10 +2638,15 @@ def ten_in_a_row_chi2(example, tatt):
     """
     # ternary: "TATT" when tatt is True, "NLA" otherwise
     ia_label = "TATT" if tatt else "NLA"
+    if ee2:
+        ia_label += "+EE2"
     print(f"  building model ({example}, {ia_label}) ...", flush=True)
     # one model instance for the whole sequence: sharing the instance
     # is the point, since leaked state lives inside it
     info = load_frozen_info(example, tatt)
+    if ee2:
+        info["likelihood"][EXAMPLES[example]["likelihood"]][
+            "non_linear_emul"] = 1
     model = make_model(info)
     point = build_point(model, example, tatt)
     # the fresh value: the fiducial evaluated before anything else

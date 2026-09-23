@@ -14,11 +14,12 @@ no pass/fail).
 2. [The tests](#the_tests)
     1. [The CFASTPT vs FASTPT comparison](#cfastpt_fastpt)
     2. [The Halofit vs EE2 checks](#halofit_ee2)
-    3. [Advisory checks](#advisory_checks)
-    4. [Accuracy checks](#accuracy_checks)
-    5. [The N-random-models check](#nmodels_check)
-    6. [Baryonic feedback accuracy checks](#baryon_accuracy_checks)
-    7. [Baryonic feedback drift tests](#baryon_drift_tests)
+    3. [The EE2 modification tests](#ee2_tests)
+    4. [Advisory checks](#advisory_checks)
+    5. [Accuracy checks](#accuracy_checks)
+    6. [The N-random-models check](#nmodels_check)
+    7. [Baryonic feedback accuracy checks](#baryon_accuracy_checks)
+    8. [Baryonic feedback drift tests](#baryon_drift_tests)
 3. [Appendix](#appendix)
     1. [FAQ: Do the tests keep their own data?](#frozen_copy)
     2. [FAQ: Why do the TATT tests use their own data vector?](#synthetic_vectors)
@@ -95,6 +96,8 @@ The test files and the configurations they cover:
 | 15 | `test_fastpt.py` | cosmic shear; IA modeling: TATT; the C cfastpt (`IA_code: 0`) vs the python FAST-PT package (`IA_code: 1`) at 30 fixed points (20 across the intrinsic-alignment prior plus a one-parameter-at-a-time family), cosmology at the fiducial | $\Delta\chi^2$ of the FAST-PT data vector against the cfastpt data vector at the same point; the cfastpt vector is that point's fiducial, so agreement means zero |
 | 16 | `test_fastpt.py` | 3x2pt; IA modeling: TATT; the same comparison as test 15 on the 3x2pt likelihood (`lsst_y1.combo_3x2pt`) | the same pass rule as test 15, with the data-vector difference weighted by the 3x2pt masked inverse covariance |
 | 17 | `test_fastpt.py` | 2x2pt; IA modeling: TATT; the same comparison as test 15 on the 2x2pt likelihood (`lsst_y1.combo_2x2pt`) | the same pass rule as test 15; clustering carries no intrinsic alignment, so the TATT tables enter through galaxy-galaxy lensing alone, weighted by the 2x2pt masked inverse covariance |
+| 18 | `test_ee2.py` | cosmic shear; NLA with EE2 (`non_linear_emul: 1`); the installed, modified EuclidEmulator2 vs the pre-modification build (commit `ff59f66`), compiled side by side at test time | $\Delta\chi^2$ of the original-EE2 data vector against the modified-EE2 one at ten fixed cosmologies, below 0.2 |
+| 19 | `test_ee2.py` | cosmic shear; NLA with EE2 (`non_linear_emul: 1`) | race condition (OpenMP threading, including EE2's own threaded compute): fiducial alone vs after nine other cosmologies |
 
 ### The CFASTPT vs FASTPT comparison (`test_fastpt.py`, tests 15-17) <a name="cfastpt_fastpt"></a>
 
@@ -269,6 +272,42 @@ Measured on 2026-09-23 (the figure below, frozen M1 mask):
   disagreement is dominated by the small scales the masks remove.
 
 ![The ten cosmologies, colored by the Halofit-vs-EE2 difference](halofit_vs_ee2_points.png)
+
+### The EE2 modification tests (`test_ee2.py`, tests 18-19) <a name="ee2_tests"></a>
+
+Cocoa pins a modified EuclidEmulator2: OpenMP threading, a
+1,010-redshift capacity, the `get_boost2` API with a pre-built
+emulator, memory-leak fixes, and a bilinear interpolation with a
+border fix. The modifications and their measured speed-up are
+documented in the repository's own README
+(`external_modules/code/euclidemu2/README.md`).
+
+Test 18 pins the physics of those modifications: the
+pre-modification build (commit `ff59f66`) is compiled at test time
+into a temporary prefix from the local clone (offline;
+`--ignore-installed` keeps `.local` untouched), and both builds
+evaluate the cosmic-shear NLA data vector at the ten shared
+cosmologies. The per-cosmology $\Delta\chi^2$ of the original
+against the modified build must stay below 0.2.
+
+The original cannot run inside Cocoa as-is - it lacks `get_boost2`
+and silently overflows beyond 101 redshifts - so its worker carries
+a compatibility patch that leaves its numerics untouched: a
+`get_boost2` adapter onto the original `get_boost`, with the
+redshifts chunked in batches of 100.
+
+Test 19 is the race check with EE2 on: the fiducial evaluated fresh
+and again as the 10th of 10 cosmologies on one model instance, with
+the nonlinear $P(k)$ from EE2. EE2's compute is OpenMP-threaded, so
+a thread race inside it shifts the second fiducial value; the two
+must agree within $10^{-4}$.
+
+Measured on 2026-09-23:
+
+- Test 18: max $\Delta\chi^2 = 8.6\times10^{-6}$ over the ten
+  cosmologies (the modifications change no emulated physics).
+- Test 19: the fresh and 10th-in-a-row fiducial agree to all eight
+  printed decimals.
 
 ### Advisory checks (`test_emul2.py`, E1-E4) <a name="advisory_checks"></a>
 
