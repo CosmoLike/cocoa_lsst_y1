@@ -250,7 +250,7 @@ FASTPT_MASK_DATASETS = {
 
 # ---- Halofit vs EE2 comparison points ---------------------------------------
 
-# Advisory check NL1 evaluates the SAME ten cosmologies with the two
+# Advisory checks NL1-NL2 evaluate the SAME ten cosmologies with the two
 # nonlinear-P(k) sources the likelihood can consume (EuclidEmulator2,
 # non_linear_emul: 1, and CAMB's Takahashi halofit,
 # non_linear_emul: 2, the frozen contract's setting) and compares the
@@ -1960,7 +1960,7 @@ def cfastpt_vs_fastpt_chi2s(example, high=False, mask="frozen"):
 def _nonlinear_comparison_block(example, emul, label=None,
                                 vectors_dir=None, reference_label=None,
                                 mask="frozen"):
-    """The ten-cosmology sweep on ONE nonlinear-P(k) source (check NL1).
+    """The ten-cosmology sweep on ONE nonlinear-P(k) source (NL1-NL2).
 
     Builds the frozen NLA configuration with one nonlinear-P(k)
     source selected (non_linear_emul 1 = EuclidEmulator2, 2 = CAMB's
@@ -1990,8 +1990,8 @@ def _nonlinear_comparison_block(example, emul, label=None,
     points stay cheap.
 
     Arguments:
-      example = a key of EXAMPLES; check NL1 uses "example2"
-                (3x2pt).
+      example = a key of EXAMPLES; NL1 uses "example1" (cosmic
+                shear), NL2 "example2" (3x2pt).
       emul    = the likelihood's non_linear_emul: 1 evaluates with
                 EuclidEmulator2, 2 with CAMB's Takahashi halofit.
       label   = the file-name tag of this block's printed vectors
@@ -2137,7 +2137,7 @@ def _run_nonlinear_comparison_worker(example, emul, label, vectors_dir,
 
 
 def halofit_vs_ee2_dchi2s(example, mask="frozen"):
-    """The per-cosmology Halofit-vs-EE2 differences (check NL1).
+    """The per-cosmology Halofit-vs-EE2 differences (NL1-NL2).
 
     The ten hard-coded cosmologies (NONLINEAR_COMPARISON_POINTS)
     evaluated twice with everything else identical:
@@ -2157,7 +2157,8 @@ def halofit_vs_ee2_dchi2s(example, mask="frozen"):
     temporary directory that dies with this call.
 
     Arguments:
-      example = a key of EXAMPLES; check NL1 uses "example2".
+      example = a key of EXAMPLES; NL1 uses "example1", NL2
+                "example2".
       mask    = a FASTPT_MASK_DATASETS key (the --mask command line
                 option of the tests).
 

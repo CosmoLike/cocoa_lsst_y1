@@ -13,7 +13,7 @@ no pass/fail).
 1. [Running the tests](#run_tests)
 2. [The tests](#the_tests)
     1. [The CFASTPT vs FASTPT comparison](#cfastpt_fastpt)
-    2. [The Halofit vs EE2 check](#halofit_ee2)
+    2. [The Halofit vs EE2 checks](#halofit_ee2)
     3. [Advisory checks](#advisory_checks)
     4. [Accuracy checks](#accuracy_checks)
     5. [The N-random-models check](#nmodels_check)
@@ -240,28 +240,33 @@ settings
 > vector applies to the frozen mask only), so the printed chi2
 > column keeps a zero baseline.
 
-### The Halofit vs EE2 check (`test_nonlinear.py`, NL1) <a name="halofit_ee2"></a>
+### The Halofit vs EE2 checks (`test_nonlinear.py`, NL1-NL2) <a name="halofit_ee2"></a>
 
 The likelihood can source the nonlinear matter power from CAMB's
 Takahashi halofit (`non_linear_emul: 2`, the frozen contract's
 setting) or from EuclidEmulator2 (`non_linear_emul: 1`). Check NL1
-evaluates the 3x2pt data vector with both at ten fixed cosmologies
-across the omegam/ns/As space (every other parameter at the frozen
-fiducial) and reports, per cosmology, the $\Delta\chi^2$ of the
-Halofit vector against the EE2 vector.
+evaluates the cosmic-shear data vector and check NL2 the 3x2pt one,
+each with both sources at ten fixed cosmologies across the
+omegam/ns/As space (every other parameter at the frozen fiducial),
+reporting per cosmology the $\Delta\chi^2$ of the Halofit vector
+against the EE2 vector.
 
 The EE2 vector is that cosmology's fiducial, so the baseline is
 zero by construction and no stored data vector enters the metric.
-The check is advisory - there is no pass limit: the numbers say how
+The checks are advisory - there is no pass limit: the numbers say how
 much of the statistical error budget the Halofit-vs-emulator
 difference consumes under the chosen scale cuts, the question "can
 Halofit be used on real data analysis at this mask". The `--mask`
 option of the comparison sweeps applies.
 
-On 2026-09-23 the check measures, under the frozen M1 mask,
+On 2026-09-23 check NL2 (3x2pt) measures, under the frozen M1 mask,
 per-cosmology $\Delta\chi^2$ between 4.9 and 204.0 (median 25.4),
 largest at the high-omegam draws; under `--mask=ones` it measures a
-median of 4,292 and a maximum of 12,991.
+median of 4,292 and a maximum of 12,991. Check NL1 (cosmic shear,
+2026-09-23) measures a median of 23.2 and a maximum of 189.1 under
+the frozen mask, and 33.0 / 329.0 under `--mask=ones`: at the
+frozen cuts the shear block alone carries nearly the whole 3x2pt
+disagreement.
 
 At these ten cosmologies
 the two nonlinear-P(k) sources are therefore not interchangeable at
