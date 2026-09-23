@@ -149,21 +149,6 @@ splined table removes the interpolation error at almost no cost.
 
 ![Convergence of the FAST-PT vs cfastpt difference with the table density](cfastpt_vs_fastpt_convergence.png)
 
-The one-parameter family localizes the historical divergence in the
-convolution terms as read from the coarse table; the linear
-tidal-alignment term needs no convolution and agrees at the
-numerical floor. $\Delta\chi^2$ at the historical single-grid
-default, parameters not listed at zero:
-
-| activated parameters | $\Delta\chi^2$ |
-|---|---|
-| none (all IA amplitudes zero) | 0.002 |
-| $a_1 = \pm 4$ | 0.001-0.002 |
-| $a_2 = \pm 4$ | 1.3-1.5 |
-| $a_2 = 4$, $\eta_2 = +4$ / $-4$ | 3.8 / 14.0 |
-| $a_1 = 4$, $b_{\rm TA} = 2$ | 6.4 |
-| $a_1 = 4$, $\eta_1 = \pm 4$ | 0.002 |
-
 ![The 30 comparison points, colored by the per-point difference](cfastpt_vs_fastpt_points.png)
 
 > [!NOTE]
