@@ -98,11 +98,9 @@ The test files and the configurations they cover:
 Cosmolike computes the TATT perturbation-theory integrals with two
 implementations: cfastpt, the C code built into the interface
 (`IA_code: 0`), and the python FAST-PT package through the fastpt
-theory block (`IA_code: 1`). Test 15 evaluates both at the same 30
-fixed points: 20 drawn once across the intrinsic-alignment prior and
-hard-coded, plus a one-parameter-at-a-time family that names the TATT
-parameter driving a divergence (every other parameter stays at the
-fiducial), each implementation in its own subprocess.
+theory block (`IA_code: 1`). Test 15 evaluates both at 30
+fixed points across the intrinsic-alignment prior and checks
+their agreement.
 
 At every point the cfastpt data vector is the fiducial: the reported
 quantity is the $\Delta\chi^2$ of the FAST-PT vector against it,
