@@ -124,7 +124,7 @@ import tempfile
 #   tolerances          REQUIRED_OMP_THREADS, CHI2_TOLERANCE, RACE_TOLERANCE
 #   TATT                TATT_POINT, TATT_DATASET
 #   FASTPT sweep        FASTPT_COMPARISON_POINTS,
-#                       FASTPT_COMPARISON_TOLERANCE
+#                       FASTPT_COMPARISON_TOLERANCE, FASTPT_MASK_DATASETS
 #   configurations      EXAMPLES
 #   race perturbations  RACE_PERTURBATIONS
 #   accuracy knobs      HIGH_ACCURACY_LIKELIHOOD,
@@ -227,6 +227,25 @@ TATT_POINT = {
 # chi2 band the reference tests allow. Against its own data vector
 # the TATT chi2 sits at the minimum, where it is stable.
 TATT_DATASET = "tatt_lsst_y1.dataset"
+
+# The comparison sweeps (tests 15-17) can rerun under a different
+# scale-cut mask (the --mask option): each entry names a frozen TATT
+# dataset descriptor identical to TATT_DATASET except for its
+# mask_file line. "frozen" is the M1 mask of the frozen contract
+# (959 of the 1,560 data points kept); M2-M5 cut progressively more
+# points (854, 749, 659, 569), M6 cuts fewer (1,378), and "ones"
+# keeps every point (no scale cuts), the strictest comparison: the
+# small angular scales the shipped masks remove are exactly where
+# the perturbation-theory tables matter most.
+FASTPT_MASK_DATASETS = {
+    "frozen": TATT_DATASET,
+    "M2": "tatt_lsst_y1_M2.dataset",
+    "M3": "tatt_lsst_y1_M3.dataset",
+    "M4": "tatt_lsst_y1_M4.dataset",
+    "M5": "tatt_lsst_y1_M5.dataset",
+    "M6": "tatt_lsst_y1_M6.dataset",
+    "ones": "tatt_lsst_y1_ones.dataset",
+}
 
 # ---- CFASTPT vs FASTPT comparison points ------------------------------------
 
@@ -353,7 +372,7 @@ FASTPT_COMPARISON_POINTS = [
      "LSST_BTA_1": 2.0},
 ]
 
-# Pass limit of tests 15-16 on the covariance-weighted difference of the
+# Pass limit of tests 15-17 on the covariance-weighted difference of the
 # two implementations: at each comparison point both blocks print
 # their theory data vector, and the tested number is
 # delta^T C^-1 delta with delta = dv(FASTPT low) - dv(CFASTPT) and
@@ -1512,8 +1531,8 @@ def _load_datavector(path):
 
 def _fastpt_comparison_block(example, fastpt, high, fastpt_settings=None,
                              label=None, vectors_dir=None,
-                             reference_label=None):
-    """The 30-point sweep on ONE model: the worker half of tests 15-16.
+                             reference_label=None, mask="frozen"):
+    """The 30-point sweep on ONE model: the worker half of tests 15-17.
 
     Builds the frozen TATT configuration with one perturbation-theory
     implementation selected (IA_code 0 = cfastpt, the C code inside
@@ -1553,7 +1572,8 @@ def _fastpt_comparison_block(example, fastpt, high, fastpt_settings=None,
 
     Arguments:
       example = a key of EXAMPLES; the cosmic-shear sweep uses
-                "example1", the 3x2pt sweep "example2".
+                "example1", the 3x2pt sweep "example2", the 2x2pt sweep
+                "example2_2x2pt".
       fastpt  = False evaluates with cfastpt (IA_code 0), True with
                 python FAST-PT (IA_code 1).
       high    = False keeps the frozen default settings; True applies
@@ -1571,6 +1591,11 @@ def _fastpt_comparison_block(example, fastpt, high, fastpt_settings=None,
       reference_label = None to only print vectors (the reference
                 block itself), or the label of the block to measure
                 against.
+      mask    = a FASTPT_MASK_DATASETS key: "frozen" (the default)
+                keeps the frozen contract's M1 mask; the other keys
+                swap the TATT dataset for the variant whose mask_file
+                is that scale-cut mask, changing which data points
+                the masked inverse covariance weights.
 
     Returns:
       {"chi2s": the per-point chi2 list against the shipped data
@@ -1600,8 +1625,8 @@ def _fastpt_comparison_block(example, fastpt, high, fastpt_settings=None,
         # low and high tables differ in
         code += f"(boost {fastpt_settings['accuracyboost']:g})"
     setting = "high accuracy" if high else "default settings"
-    print(f"  building model ({example}, TATT, {code}, {setting}) ...",
-          flush=True)
+    print(f"  building model ({example}, TATT, {code}, {setting}, "
+          f"mask {mask}) ...", flush=True)
     info = load_frozen_info(example, tatt=True, fastpt=fastpt,
                             high_accuracy=high,
                             fastpt_extra_args=fastpt_settings)
@@ -1610,6 +1635,10 @@ def _fastpt_comparison_block(example, fastpt, high, fastpt_settings=None,
     current_path = os.path.join(vectors_dir,
                                 f"{label}_current.modelvector")
     likelihood_block = info["likelihood"][EXAMPLES[example]["likelihood"]]
+    # the mask choice is a TATT dataset variant: same data vector and
+    # covariance, only the mask_file line differs (for "frozen" this
+    # reassigns the same TATT_DATASET load_frozen_info already set)
+    likelihood_block["data_file"] = FASTPT_MASK_DATASETS[mask]
     likelihood_block["print_datavector"] = True
     likelihood_block["print_datavector_file"] = current_path
     model = make_model(info)
@@ -1692,7 +1721,8 @@ def _fastpt_comparison_block(example, fastpt, high, fastpt_settings=None,
 
 
 def _run_fastpt_comparison_worker(example, fastpt, high, fastpt_settings,
-                                  label, vectors_dir, reference_label):
+                                  label, vectors_dir, reference_label,
+                                  mask="frozen"):
     """Run one _fastpt_comparison_block in a fresh python subprocess.
 
     A fresh process is the cache flush: cobaya's component caches,
@@ -1711,8 +1741,8 @@ def _run_fastpt_comparison_worker(example, fastpt, high, fastpt_settings,
 
     Arguments:
       example, fastpt, high, fastpt_settings, label, vectors_dir,
-      reference_label = forwarded to _fastpt_comparison_block (see
-                there).
+      reference_label, mask = forwarded to _fastpt_comparison_block
+                (see there).
 
     Returns:
       the block's {"chi2s": ..., "dchi2_vs_reference": ...} result.
@@ -1745,7 +1775,7 @@ def _run_fastpt_comparison_worker(example, fastpt, high, fastpt_settings,
         f"fastpt={fastpt!r}, high={high!r}, "
         f"fastpt_settings={fastpt_settings!r}, "
         f"label={label!r}, vectors_dir={vectors_dir!r}, "
-        f"reference_label={reference_label!r})\n"
+        f"reference_label={reference_label!r}, mask={mask!r})\n"
         f"with open({out_path!r}, 'w') as f:\n"
         "    json.dump(result, f)\n"
     )
@@ -1767,10 +1797,10 @@ def _run_fastpt_comparison_worker(example, fastpt, high, fastpt_settings,
     return result
 
 
-def cfastpt_vs_fastpt_chi2s(example, high=False):
+def cfastpt_vs_fastpt_chi2s(example, high=False, mask="frozen"):
     """The comparison-point quantities under the three configurations.
 
-    Tests 15-16's machinery: the same 30 hard-coded intrinsic-alignment
+    Tests 15-17's machinery: the same 30 hard-coded intrinsic-alignment
     points (FASTPT_COMPARISON_POINTS) evaluated three times with
     everything else identical -
 
@@ -1796,7 +1826,8 @@ def cfastpt_vs_fastpt_chi2s(example, high=False):
 
     Arguments:
       example = a key of EXAMPLES; the cosmic-shear comparison uses
-                "example1", the 3x2pt comparison "example2".
+                "example1", the 3x2pt comparison "example2", the 2x2pt
+                comparison "example2_2x2pt".
       high    = False compares at the frozen default camb/cosmolike
                 settings; True repeats all three blocks with the
                 HIGH_ACCURACY settings (the --high=1 command line
@@ -1804,6 +1835,11 @@ def cfastpt_vs_fastpt_chi2s(example, high=False):
                 30 points therefore go through the FASTPT side four
                 times: fastpt low and high, under each camb/cosmolike
                 setting.
+      mask    = a FASTPT_MASK_DATASETS key, applied to all three
+                blocks: "frozen" (the default) keeps the frozen
+                contract's M1 mask, "M2".."M6" select the other
+                shipped scale cuts, and "ones" keeps every data
+                point (the --mask command line option of the tests).
 
     Returns:
       (chi2_cfastpt, chi2_fastpt_low, chi2_fastpt_high, dchi2_low,
@@ -1817,17 +1853,17 @@ def cfastpt_vs_fastpt_chi2s(example, high=False):
         cfastpt = _run_fastpt_comparison_worker(
             example, fastpt=False, high=high, fastpt_settings=None,
             label="cfastpt", vectors_dir=vectors_dir,
-            reference_label=None)
+            reference_label=None, mask=mask)
         fastpt_low = _run_fastpt_comparison_worker(
             example, fastpt=True, high=high,
             fastpt_settings=FASTPT_LOW_SETTINGS,
             label="fastpt_low", vectors_dir=vectors_dir,
-            reference_label="cfastpt")
+            reference_label="cfastpt", mask=mask)
         fastpt_high = _run_fastpt_comparison_worker(
             example, fastpt=True, high=high,
             fastpt_settings=FASTPT_HIGH_SETTINGS,
             label="fastpt_high", vectors_dir=vectors_dir,
-            reference_label="cfastpt")
+            reference_label="cfastpt", mask=mask)
     finally:
         # the shared vectors die with the sweep, whether it finished
         # or an exception is on its way out

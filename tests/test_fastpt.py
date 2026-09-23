@@ -1,4 +1,4 @@
-"""Unit tests 9, 10, 15, and 16: the TATT terms computed with python FAST-PT.
+"""Unit tests 9, 10, and 15-17: the TATT terms computed with python FAST-PT.
 
 Cosmolike offers two implementations of the perturbation-theory
 integrals that the TATT intrinsic-alignment model needs: cfastpt, a C
@@ -44,13 +44,19 @@ Tests 9 and 10 evaluate the frozen TATT point with FASTPT and:
      implementations compute multiply by zero here: this sweep
      compares the intrinsic-alignment tables only, on the wider
      data vector.
+ 17. example2_2x2pt (2x2pt): the same sweep on the 2x2pt likelihood
+     (galaxy clustering plus galaxy-galaxy lensing, cosmic shear
+     dropped). Clustering carries no intrinsic alignment, so here
+     the TATT tables are scored through galaxy-galaxy lensing
+     alone, under the 2x2pt covariance; LSST_B2_* stays zero as in
+     test 16.
 
 To run (from the Cocoa/ folder, cocoa environment active,
 start_cocoa.sh sourced):
 
     python -m pytest ./projects/lsst_y1/tests
 
-Tests 15 and 16 repeat at the pushed numerical settings of the
+Tests 15-17 repeat at the pushed numerical settings of the
 low-vs-high accuracy checks (HIGH_ACCURACY_LIKELIHOOD and
 HIGH_ACCURACY_CAMB_EXTRA_ARGS, applied to every block) when the
 --high=1 option is given; the full comparison is one run without the
@@ -58,6 +64,15 @@ option and one with it, so the 30 points go through the FASTPT side
 four times (fastpt low and high, under each camb/cosmolike setting):
 
     python -m pytest ./projects/lsst_y1/tests/test_fastpt.py --high=1
+
+Tests 15-17 also read the --mask option (see conftest.py and
+FASTPT_MASK_DATASETS): --mask=frozen (the default) keeps the M1
+mask of the frozen contract, --mask=M2 .. --mask=M6 select the
+other shipped scale cuts, and --mask=ones keeps every data point
+(no scale cuts), the strictest comparison; the 0.2 pass rule
+applies unchanged:
+
+    python -m pytest ./projects/lsst_y1/tests/test_fastpt.py --mask=ones
 """
 
 import os
@@ -141,7 +156,7 @@ class TestFastptTatt(unittest.TestCase):
 
 
 class TestCfastptVsFastptSweep(unittest.TestCase):
-    """Tests 15-16, the direct CFASTPT-vs-FASTPT comparison.
+    """Tests 15-17, the direct CFASTPT-vs-FASTPT comparison.
 
     setUpClass runs once before the tests: it moves to ROOTDIR and
     verifies every frozen file against the SHA-256 manifest. No
@@ -167,13 +182,14 @@ class TestCfastptVsFastptSweep(unittest.TestCase):
         # settings unless the variable is exported by hand
         high = os.environ.get("COCOA_FASTPT_HIGH", "0") == "1"
         setting = "high accuracy" if high else "default settings"
+        mask = os.environ.get("COCOA_FASTPT_MASK", "frozen")
         (chi2_cfastpt, chi2_fastpt_low, chi2_fastpt_high,
          dchi2_low, dchi2_high) = u.cfastpt_vs_fastpt_chi2s(
-            "example1", high=high)
+            "example1", high=high, mask=mask)
         largest = u.report_fastpt_comparison(
             15,
-            f"example1 (cosmic shear, TATT, camb/cosmolike {setting}): "
-            "CFASTPT vs FASTPT at 30 hard-coded points",
+            f"example1 (cosmic shear, TATT, camb/cosmolike {setting}, "
+            f"mask {mask}): CFASTPT vs FASTPT at 30 hard-coded points",
             chi2_cfastpt, chi2_fastpt_low, chi2_fastpt_high,
             dchi2_low, dchi2_high, u.FASTPT_COMPARISON_TOLERANCE)
         self.assertLess(
@@ -195,13 +211,44 @@ class TestCfastptVsFastptSweep(unittest.TestCase):
         """
         high = os.environ.get("COCOA_FASTPT_HIGH", "0") == "1"
         setting = "high accuracy" if high else "default settings"
+        mask = os.environ.get("COCOA_FASTPT_MASK", "frozen")
         (chi2_cfastpt, chi2_fastpt_low, chi2_fastpt_high,
          dchi2_low, dchi2_high) = u.cfastpt_vs_fastpt_chi2s(
-            "example2", high=high)
+            "example2", high=high, mask=mask)
         largest = u.report_fastpt_comparison(
             16,
-            f"example2 (3x2pt, TATT, camb/cosmolike {setting}): "
-            "CFASTPT vs FASTPT at 30 hard-coded points",
+            f"example2 (3x2pt, TATT, camb/cosmolike {setting}, "
+            f"mask {mask}): CFASTPT vs FASTPT at 30 hard-coded points",
+            chi2_cfastpt, chi2_fastpt_low, chi2_fastpt_high,
+            dchi2_low, dchi2_high, u.FASTPT_COMPARISON_TOLERANCE)
+        self.assertLess(
+            largest, u.FASTPT_COMPARISON_TOLERANCE,
+            msg="max chi2 of the FASTPT(low)-vs-CFASTPT data-vector "
+                f"difference = {largest:.6f} over the comparison "
+                f"points ({setting}); limit "
+                f"{u.FASTPT_COMPARISON_TOLERANCE}")
+
+    def test_x17_cfastpt_vs_fastpt_sweep_2x2pt(self):
+        """2x2pt: cfastpt and FASTPT agree at the same 30 IA points.
+
+        Test 15 on example2_2x2pt: the same three blocks, the same
+        points, the same pass rule. Clustering carries no intrinsic
+        alignment, so the TATT tables enter through galaxy-galaxy
+        lensing alone and the difference is weighted by the 2x2pt
+        masked inverse covariance. The method name carries the x
+        prefix only so unittest's alphabetical ordering runs it after
+        test 16.
+        """
+        high = os.environ.get("COCOA_FASTPT_HIGH", "0") == "1"
+        setting = "high accuracy" if high else "default settings"
+        mask = os.environ.get("COCOA_FASTPT_MASK", "frozen")
+        (chi2_cfastpt, chi2_fastpt_low, chi2_fastpt_high,
+         dchi2_low, dchi2_high) = u.cfastpt_vs_fastpt_chi2s(
+            "example2_2x2pt", high=high, mask=mask)
+        largest = u.report_fastpt_comparison(
+            17,
+            f"example2_2x2pt (2x2pt, TATT, camb/cosmolike {setting}, "
+            f"mask {mask}): CFASTPT vs FASTPT at 30 hard-coded points",
             chi2_cfastpt, chi2_fastpt_low, chi2_fastpt_high,
             dchi2_low, dchi2_high, u.FASTPT_COMPARISON_TOLERANCE)
         self.assertLess(
