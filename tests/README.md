@@ -132,7 +132,7 @@ inverse covariance.
 
 #### Why the defaults are the converged configuration <a name="fastpt_minimum"></a>
 
-This is a decision record (2026-09-22, this check's own sweeps). The
+This is a decision record, built from this check's own sweeps. The
 fastpt block computes on two grids: `accuracyboost` multiplies the
 density of the output table cosmolike reads with linear
 interpolation, and `internal_accuracyboost` the density of the
@@ -140,13 +140,20 @@ internal grid the FFTLog convolutions run on, with a cubic spline in
 log k upsampling the terms from one grid onto the other. Both boosts
 are rebased so 1.0 is the converged configuration.
 
-Before the two-grid upgrade of the fastpt theory block (2026-09)
-there was no upsampling: one shared 1100-point grid played both
-roles, and the difference against cfastpt reached
-$\Delta\chi^2 = 21$ across the intrinsic-alignment prior.
-Separating the two grids
-located the entire divergence in the density of the interpolated
-table and none of it in the convolutions:
+- Before the two-grid upgrade of the fastpt theory block (2026-09)
+  there was no upsampling: one shared 1,100-point grid played both
+  roles, and the difference against cfastpt reached
+  $\Delta\chi^2 = 21$ across the intrinsic-alignment prior.
+- Separating the two grids located the entire divergence in the
+  density of the interpolated table and none of it in the
+  convolutions.
+- Raising the internal grid alone moves nothing (0.00830 at 1,100
+  points, 0.00827 at 4,900, output fixed at the default): the
+  convolutions were already accurate on their default grid, and the
+  dense splined table removes the interpolation error at almost no
+  cost.
+
+Table measured on 2026-09-22 (cosmic shear, test 15):
 
 | output table (points) | internal grid (points) | max $\Delta\chi^2$ | cost per cosmology |
 |---|---|---|---|
@@ -156,45 +163,35 @@ table and none of it in the convolutions:
 | 1,024,900 (`accuracyboost: 1`, the default) | 1,100 (the default) | 0.0082 | 1.4 s |
 | 2,048,900 (`accuracyboost: 2`) | 1,300 (`internal_accuracyboost: 2`) | 0.0080 | 1.7 s |
 
-Raising the internal grid alone moves nothing (0.00830 at 1,100
-points, 0.00827 at 4,900, output fixed at the default), so the
-convolutions were already accurate on their default grid; the dense
-splined table removes the interpolation error at almost no cost.
-
 ![Convergence of the FAST-PT vs cfastpt difference with the table density](cfastpt_vs_fastpt_convergence.png)
 
 ![The 30 comparison points, colored by the per-point difference](cfastpt_vs_fastpt_points.png)
 
-The same sweep on the 3x2pt likelihood (test 16, 2026-09-23)
-measures max $\Delta\chi^2 = 0.00018$ at the defaults and
-$0.00008$ at the pushed camb/cosmolike settings, smaller than
-cosmic shear's 0.0082 at the same points under the 3x2pt masked
-covariance; on the 2x2pt likelihood (test 17, 2026-09-23) it
-measures $0.00004$ and $0.00001$, the mildest of the three, with
-the TATT tables entering through galaxy-galaxy lensing alone.
+Measured on 2026-09-23:
 
-A b2-activated variant of the sweep (2026-09-23, exploratory, not a
-shipped test: `LSST_B2_* = 1.0` fixed in BOTH implementations, every
-other setting the frozen 3x2pt contract) measures the one-loop
-galaxy-bias tables the frozen configuration turns off: max
-$\Delta\chi^2 = 0.044$, with a floor of 0.013 at the IA-off null
-where only the bias tables differ.
-
-Doubling the FAST-PT boosts moves
-nothing (0.044408 to 0.044394), so this is a density-independent
-numerics difference between the two bias implementations, well
-inside the 0.2 limit.
-
-Under the all-ones mask (`--mask=ones`, 2026-09-23: no scale cuts,
-all 1,560 points weighted) every sweep still passes. Cosmic shear
-measures max $\Delta\chi^2 = 0.097$ at the default camb/cosmolike
-settings - twelve times its M1 value, insensitive to the FAST-PT
-boosts - and 0.00012 at the pushed settings: the unmasked small
-scales amplify cosmolike's default integration error, not a FAST-PT
-grid deficiency.
-
-3x2pt and 2x2pt measure 0.0029 and 0.0027 at the
-defaults, 0.0015 and 0.0014 pushed.
+- Test 16 (3x2pt): max $\Delta\chi^2 = 0.00018$ at the defaults,
+  $0.00008$ at the pushed camb/cosmolike settings - smaller than
+  cosmic shear's 0.0082 at the same points under the 3x2pt masked
+  covariance.
+- Test 17 (2x2pt): $0.00004$ and $0.00001$, the mildest of the
+  three, with the TATT tables entering through galaxy-galaxy
+  lensing alone.
+- b2-activated variant (exploratory, not a shipped test:
+  `LSST_B2_* = 1.0` fixed in BOTH implementations, every other
+  setting the frozen 3x2pt contract): the one-loop galaxy-bias
+  tables the frozen configuration turns off measure max
+  $\Delta\chi^2 = 0.044$, with a floor of 0.013 at the IA-off null
+  where only the bias tables differ. Doubling the FAST-PT boosts
+  moves nothing (0.044408 to 0.044394): a density-independent
+  numerics difference between the two bias implementations, well
+  inside the 0.2 limit.
+- `--mask=ones` (no scale cuts, all 1,560 points weighted): every
+  sweep still passes. Cosmic shear measures 0.097 at the default
+  camb/cosmolike settings - twelve times its M1 value, insensitive
+  to the FAST-PT boosts - and 0.00012 at the pushed settings: the
+  unmasked small scales amplify cosmolike's default integration
+  error, not a FAST-PT grid deficiency. 3x2pt and 2x2pt measure
+  0.0029 and 0.0027 at the defaults, 0.0015 and 0.0014 pushed.
 
 > [!NOTE]
 > The fastpt defaults hold this accuracy on their own; raising the
@@ -259,20 +256,19 @@ difference consumes under the chosen scale cuts, the question "can
 Halofit be used on real data analysis at this mask". The `--mask`
 option of the comparison sweeps applies.
 
-On 2026-09-23 check NL2 (3x2pt) measures, under the frozen M1 mask,
-per-cosmology $\Delta\chi^2$ between 4.9 and 204.0 (median 25.4),
-largest at the high-omegam draws; under `--mask=ones` it measures a
-median of 4,292 and a maximum of 12,991. Check NL1 (cosmic shear,
-2026-09-23) measures a median of 23.2 and a maximum of 189.1 under
-the frozen mask, and 33.0 / 329.0 under `--mask=ones`: at the
-frozen cuts the shear block alone carries nearly the whole 3x2pt
-disagreement.
+Measured on 2026-09-23 (the figure below, frozen M1 mask):
 
-At these ten cosmologies
-the two nonlinear-P(k) sources are therefore not interchangeable at
-this project's precision even under the frozen scale cuts, and
-without cuts the disagreement is dominated by the small scales the
-masks remove.
+- NL1 (cosmic shear): median $\Delta\chi^2$ 23.2, maximum 189.1;
+  33.0 and 329.0 under `--mask=ones`.
+- NL2 (3x2pt): median 25.4, maximum 204.0, largest at the
+  high-omegam draws; median 4,292 and maximum 12,991 under
+  `--mask=ones`.
+- At the frozen cuts the shear block alone carries nearly the whole
+  3x2pt disagreement, and the two nonlinear-P(k) sources are not
+  interchangeable at this project's precision; without cuts the
+  disagreement is dominated by the small scales the masks remove.
+
+![The ten cosmologies, colored by the Halofit-vs-EE2 difference](halofit_vs_ee2_points.png)
 
 ### Advisory checks (`test_emul2.py`, E1-E4) <a name="advisory_checks"></a>
 
