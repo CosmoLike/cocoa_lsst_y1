@@ -13,11 +13,12 @@ no pass/fail).
 1. [Running the tests](#run_tests)
 2. [The tests](#the_tests)
     1. [The CFASTPT vs FASTPT comparison](#cfastpt_fastpt)
-    2. [Advisory checks](#advisory_checks)
-    3. [Accuracy checks](#accuracy_checks)
-    4. [The N-random-models check](#nmodels_check)
-    5. [Baryonic feedback accuracy checks](#baryon_accuracy_checks)
-    6. [Baryonic feedback drift tests](#baryon_drift_tests)
+    2. [The Halofit vs EE2 check](#halofit_ee2)
+    3. [Advisory checks](#advisory_checks)
+    4. [Accuracy checks](#accuracy_checks)
+    5. [The N-random-models check](#nmodels_check)
+    6. [Baryonic feedback accuracy checks](#baryon_accuracy_checks)
+    7. [Baryonic feedback drift tests](#baryon_drift_tests)
 3. [Appendix](#appendix)
     1. [FAQ: Do the tests keep their own data?](#frozen_copy)
     2. [FAQ: Why do the TATT tests use their own data vector?](#synthetic_vectors)
@@ -234,6 +235,33 @@ settings
 > vector under that mask becomes the data vector (the shipped TATT
 > vector applies to the frozen mask only), so the printed chi2
 > column keeps a zero baseline.
+
+### The Halofit vs EE2 check (`test_nonlinear.py`, NL1) <a name="halofit_ee2"></a>
+
+The likelihood can source the nonlinear matter power from CAMB's
+Takahashi halofit (`non_linear_emul: 2`, the frozen contract's
+setting) or from EuclidEmulator2 (`non_linear_emul: 1`). Check NL1
+evaluates the 3x2pt data vector with both at ten fixed cosmologies
+across the omegam/ns/As space (every other parameter at the frozen
+fiducial) and reports, per cosmology, the $\Delta\chi^2$ of the
+Halofit vector against the EE2 vector.
+
+The EE2 vector is that cosmology's fiducial, so the baseline is
+zero by construction and no stored data vector enters the metric.
+The check is advisory - there is no pass limit: the numbers say how
+much of the statistical error budget the Halofit-vs-emulator
+difference consumes under the chosen scale cuts, the question "can
+Halofit be used on real data analysis at this mask". The `--mask`
+option of the comparison sweeps applies.
+
+On 2026-09-23 the check measures, under the frozen M1 mask,
+per-cosmology $\Delta\chi^2$ between 4.9 and 204.0 (median 25.4),
+largest at the high-omegam draws; under `--mask=ones` it measures a
+median of 4,292 and a maximum of 12,991. At these ten cosmologies
+the two nonlinear-P(k) sources are therefore not interchangeable at
+this project's precision even under the frozen scale cuts, and
+without cuts the disagreement is dominated by the small scales the
+masks remove.
 
 ### Advisory checks (`test_emul2.py`, E1-E4) <a name="advisory_checks"></a>
 
