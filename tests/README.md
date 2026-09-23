@@ -110,37 +110,48 @@ zero for identical vectors and quadratic in their difference. A
 comparison against the shipped data vector would measure the slope
 of the distance to the data instead of the numerics.
 
-The FAST-PT side runs at the recommended minimum settings the
-example yamls carry in their commented fastpt block, and the pass
-limit is 0.2. A second FAST-PT evaluation at a doubled grid boost
-repeats the measurement as an advisory, so the residual grid error
-of the recommended settings shows next to the pass quantity.
+The FAST-PT side runs at the fastpt block's default settings, the
+converged two-grid configuration, and the pass limit is 0.2. A
+second FAST-PT evaluation at doubled boosts repeats the measurement
+as an advisory, so the residual grid response of the defaults shows
+next to the pass quantity.
 
-#### Why the recommended minimum is `accuracyboost: 80` <a name="fastpt_minimum"></a>
+#### Why the defaults are the converged configuration <a name="fastpt_minimum"></a>
 
-This is a decision record (2026-09-22, this check's own sweep).
-The default fastpt settings were validated on a restricted region of
-the TATT prior, where the two implementations agree closely (the
-fiducial-point regression tests 9 and 10); across the entire prior
-volume they disagree by up to $\Delta\chi^2 = 21$. The disagreement
-falls as a power law with the FAST-PT grid boost, with no plateau,
-and crosses the 0.2 band at 80:
+This is a decision record (2026-09-22, this check's own sweeps). The
+fastpt block computes on two grids: `accuracyboost` multiplies the
+density of the output table cosmolike reads with linear
+interpolation, and `internal_accuracyboost` the density of the
+internal grid the FFTLog convolutions run on, with a cubic spline in
+log k upsampling the terms from one grid onto the other. Both boosts
+are rebased so 1.0 is the converged configuration.
 
-| FAST-PT grid boost | max $\Delta\chi^2$ | median $\Delta\chi^2$ | cost per cosmology |
+The historical single-grid default, one shared 1100-point grid for
+both roles, disagreed with cfastpt by up to $\Delta\chi^2 = 21$
+across the intrinsic-alignment prior. Separating the two grids
+located the entire divergence in the density of the interpolated
+table and none of it in the convolutions:
+
+| output table (points) | internal grid (points) | max $\Delta\chi^2$ | cost per cosmology |
 |---|---|---|---|
-| 1 (default settings) | 21.40 | 3.49 | 1.05 s |
-| 10 | 3.21 | 0.52 | 1.17 s |
-| 20 | 1.17 | 0.18 | 1.22 s |
-| 40 | 0.385 | 0.055 | 1.77 s |
-| 80 (recommended minimum) | 0.125 | 0.017 | 2.7 s |
-| 160 | 0.045 | - | 2.9 s |
+| 1,100 (the historical single grid) | 1,100 (shared) | 21.40 | 1.05 s |
+| 16,900 | 1,100 | 0.125 | 1.05 s |
+| 128,900 | 1,100 | 0.0118 | 1.09 s |
+| 1,024,900 (`accuracyboost: 1`, the default) | 1,100 (the default) | 0.0082 | 1.4 s |
+| 2,048,900 (`accuracyboost: 2`) | 1,300 (`internal_accuracyboost: 2`) | 0.0080 | 1.7 s |
 
-![Convergence of the FAST-PT vs cfastpt difference with the grid boost](cfastpt_vs_fastpt_convergence.png)
+Raising the internal grid alone moves nothing (0.00830 at 1,100
+points, 0.00827 at 4,900, output fixed at the default), so the
+convolutions were already accurate on their default grid; the dense
+splined table removes the interpolation error at almost no cost.
 
-The one-parameter family localizes the divergence in the FAST-PT
-convolution integrals; the linear tidal-alignment term needs no
-convolution and agrees at the numerical floor. $\Delta\chi^2$ at
-the default settings, parameters not listed at zero:
+![Convergence of the FAST-PT vs cfastpt difference with the table density](cfastpt_vs_fastpt_convergence.png)
+
+The one-parameter family localizes the historical divergence in the
+convolution terms as read from the coarse table; the linear
+tidal-alignment term needs no convolution and agrees at the
+numerical floor. $\Delta\chi^2$ at the historical single-grid
+default, parameters not listed at zero:
 
 | activated parameters | $\Delta\chi^2$ |
 |---|---|
@@ -153,12 +164,10 @@ the default settings, parameters not listed at zero:
 
 ![The 30 comparison points, colored by the per-point difference](cfastpt_vs_fastpt_points.png)
 
-> [!Warning]
-> Do not lower the fastpt `accuracyboost` below 80 in a TATT
-> analysis with `IA_code: 1`: the tidal-torquing and $b_{\rm TA}$
-> convolution terms need the raised grid at large amplitudes.
-> Production analyses use cfastpt (`IA_code: 0`), the converged and
-> faster reference.
+> [!NOTE]
+> The fastpt defaults hold this accuracy on their own; raising the
+> boosts is a convergence test, not a need. cfastpt (`IA_code: 0`)
+> remains the reference implementation.
 
 #### Running the comparison <a name="run_cfastpt_fastpt"></a>
 

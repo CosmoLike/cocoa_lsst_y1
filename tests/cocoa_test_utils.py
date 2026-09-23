@@ -368,37 +368,54 @@ FASTPT_COMPARISON_POINTS = [
 #
 # The value 0.2 is the house comfort band of the reference tests,
 # reachable because FASTPT_LOW_SETTINGS carries the converged
-# FAST-PT grid (decision record, 2026-09-22: max delta chi2 over the
-# comparison points 0.125 at grid boost 80; the default fastpt
-# settings, validated on the restricted prior region of the
-# fiducial-point tests, reach 21.4 across the entire prior, shrinking
-# as a power law with the boost - 3.2 at 10, 1.2 at 20, 0.39 at 40).
+# two-grid configuration (decision record, 2026-09-22: max delta
+# chi2 over the comparison points 0.008185 at the rebased defaults;
+# the historical single-grid default reached 21.4 across the entire
+# prior, and the divergence was the density of the table cosmolike
+# interpolates linearly, not the FFTLog convolutions - see the
+# settings comment below).
 FASTPT_COMPARISON_TOLERANCE = 0.2
 
 # The python FAST-PT side has numerical settings of its own, read by
 # the fastpt theory block from its extra_args block
 # (external_modules/code/PyFAST-PT/fastpt.py, symlinked into cobaya
-# as theories/fastpt). Low is the recommended minimum the example
-# yamls carry in their commented fastpt block, hard-coded here so
-# the test keeps evaluating this exact configuration even if the
-# yamls later move (the same reasoning as the hard-coded comparison
-# points). The grid boost refines the FAST-PT k grid only; the
-# Boltzmann k_max request stays at kmax_boltzmann, with the grid's
-# high-k reach served by the Pk interpolator's log-extrapolation.
-# Boost 80 is where the implementation deviation first converges
-# below the 0.2 band (see FASTPT_COMPARISON_TOLERANCE). High doubles
-# the boost, so the advisory column shows the residual grid error of
-# low. The camb/cosmolike settings are a SEPARATE axis (the --high=1
-# option); the full comparison covers both axes: the points go
-# through the FASTPT side four times (fastpt low and high, under the
-# default and the HIGH_ACCURACY camb/cosmolike settings).
+# as theories/fastpt). The block computes on two grids: accuracyboost
+# multiplies the density of the output table cosmolike reads with
+# linear interpolation (the accuracy driver), and
+# internal_accuracyboost the density of the internal grid the FFTLog
+# convolutions run on; a cubic spline in log k upsamples the terms
+# from one grid onto the other. Both boosts default to 1.0 = the
+# converged configuration, so low IS the default; it is hard-coded
+# here so the test keeps evaluating this exact configuration even if
+# the defaults later move (the same reasoning as the hard-coded
+# comparison points). High doubles both boosts, so the advisory
+# column shows the residual grid response of low. The camb/cosmolike
+# settings are a SEPARATE axis (the --high=1 option); the full
+# comparison covers both axes: the points go through the FASTPT side
+# four times (fastpt low and high, under the default and the
+# HIGH_ACCURACY camb/cosmolike settings).
 FASTPT_LOW_SETTINGS = {
-    "accuracyboost": 80.0,
+    "accuracyboost": 1.0,
+    "internal_accuracyboost": 1.0,
     "kmax_boltzmann": 7.5,
     "extrap_kmax": 250.0,
 }
 FASTPT_HIGH_SETTINGS = {
-    "accuracyboost": 160.0,
+    "accuracyboost": 2.0,
+    "internal_accuracyboost": 2.0,
+    "kmax_boltzmann": 7.5,
+    "extrap_kmax": 250.0,
+}
+
+# The frozen references of tests 9 and 10 were generated on the
+# fastpt block's historical default: one shared 1100-point grid for
+# the convolutions and the table. Under the rebased boost semantics
+# (1.0 = the converged two-grid configuration) that grid is the
+# output density 1/5120, pinned here so the frozen chi2 values keep
+# meaning what they meant when they were generated.
+FASTPT_FROZEN_SETTINGS = {
+    "accuracyboost": 1.0 / 5120.0,
+    "internal_accuracyboost": 1.0,
     "kmax_boltzmann": 7.5,
     "extrap_kmax": 250.0,
 }
@@ -1127,10 +1144,12 @@ def load_frozen_info(example, tatt, fastpt=False, high_accuracy=False,
                 extra_args overrides) applied on top of the frozen
                 configuration; single_model_chi2 builds this pair
                 from one ACCURACY_KNOBS entry.
-      fastpt_extra_args = None leaves the fastpt block on its own
-                default settings; a dictionary (FASTPT_LOW_SETTINGS or
-                FASTPT_HIGH_SETTINGS) becomes the block's extra_args.
-                Only meaningful with fastpt=True.
+      fastpt_extra_args = None pins the block on
+                FASTPT_FROZEN_SETTINGS, the historical grid of the
+                frozen references (see its comment); a dictionary
+                (FASTPT_LOW_SETTINGS or FASTPT_HIGH_SETTINGS) becomes
+                the block's extra_args. Only meaningful with
+                fastpt=True.
 
     Returns:
       the input dictionary ready for cobaya's get_model.
@@ -1193,10 +1212,14 @@ def load_frozen_info(example, tatt, fastpt=False, high_accuracy=False,
         info.setdefault("theory", {})["fastpt"] = {
             "path": "./external_modules/code/FAST-PT",
         }
-        if fastpt_extra_args is not None:
-            # dict(...) copies, so a caller's settings table is never
-            # shared with (or mutated through) the built model
-            info["theory"]["fastpt"]["extra_args"] = dict(fastpt_extra_args)
+        if fastpt_extra_args is None:
+            # the frozen references were generated on the historical
+            # default grid; FASTPT_FROZEN_SETTINGS pins it under the
+            # rebased boost semantics (see its comment)
+            fastpt_extra_args = FASTPT_FROZEN_SETTINGS
+        # dict(...) copies, so a caller's settings table is never
+        # shared with (or mutated through) the built model
+        info["theory"]["fastpt"]["extra_args"] = dict(fastpt_extra_args)
     if baryon is not None:
         _, theory_options, baryon_point = _baryon_method(baryon)
         # the likelihood requests the suppression product only when
@@ -1984,9 +2007,8 @@ def cfastpt_vs_fastpt_chi2s(example, high=False):
          measured against (its own chi2 against that vector is zero
          by construction);
       2. python FAST-PT (IA_code 1) at FASTPT_LOW_SETTINGS, the
-         recommended minimum settings of the example yamls;
-      3. python FAST-PT at FASTPT_HIGH_SETTINGS, the pushed FAST-PT
-         grid.
+         converged two-grid defaults;
+      3. python FAST-PT at FASTPT_HIGH_SETTINGS, the doubled boosts.
 
     Blocks 2 and 3 return, at every point, the chi2 of their
     data-vector difference against block 1 (delta^T C^-1 delta, the

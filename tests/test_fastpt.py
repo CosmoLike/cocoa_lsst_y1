@@ -23,9 +23,9 @@ Tests 9 and 10 evaluate the frozen TATT point with FASTPT and:
  15. example1 (cosmic shear): the SAME 30 hard-coded points across
      the intrinsic-alignment prior (FASTPT_COMPARISON_POINTS;
      cosmology fixed at the frozen fiducial) evaluated three times -
-     with cfastpt, with FASTPT at the example yamls' recommended
-     minimum settings (FASTPT_LOW_SETTINGS, hard-coded), and with
-     FASTPT at the doubled grid boost (FASTPT_HIGH_SETTINGS). Every block
+     with cfastpt, with FASTPT at the converged two-grid defaults
+     (FASTPT_LOW_SETTINGS, hard-coded), and with FASTPT at the
+     doubled boosts (FASTPT_HIGH_SETTINGS). Every block
      prints its theory vector at every point, and the CFASTPT vector
      is the fiducial of that point: its own chi2 against it is zero
      by construction, so the pass rule is the chi2 of the
