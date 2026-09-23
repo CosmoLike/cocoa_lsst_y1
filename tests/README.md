@@ -102,17 +102,61 @@ theory block (`IA_code: 1`). Test 15 evaluates both at the same 30
 fixed points: 20 drawn once across the intrinsic-alignment prior and
 hard-coded, plus a one-parameter-at-a-time family that names the TATT
 parameter driving a divergence (every other parameter stays at the
-fiducial), each implementation in its own subprocess. At every
-point the cfastpt data vector is the fiducial: the reported quantity
-is the $\Delta\chi^2$ of the FAST-PT vector against it, which is zero
-for identical vectors and grows quadratically with their difference.
-A comparison against the shipped data vector would measure the slope
-of the distance to the data instead of the numerics. The FAST-PT
-side runs at the recommended minimum settings the example yamls
-carry in their commented fastpt block, and the pass limit is 0.2. A
-second FAST-PT evaluation at a doubled grid boost repeats the
-measurement as an advisory, so the residual grid error of the
-recommended settings shows next to the pass quantity.
+fiducial), each implementation in its own subprocess.
+
+At every point the cfastpt data vector is the fiducial: the reported
+quantity is the $\Delta\chi^2$ of the FAST-PT vector against it,
+zero for identical vectors and quadratic in their difference. A
+comparison against the shipped data vector would measure the slope
+of the distance to the data instead of the numerics.
+
+The FAST-PT side runs at the recommended minimum settings the
+example yamls carry in their commented fastpt block, and the pass
+limit is 0.2. A second FAST-PT evaluation at a doubled grid boost
+repeats the measurement as an advisory, so the residual grid error
+of the recommended settings shows next to the pass quantity.
+
+#### Why the recommended minimum is `accuracyboost: 80` <a name="fastpt_minimum"></a>
+
+This is a decision record (2026-09-22, this check's own sweep). At
+the fastpt block's shipped grid the two implementations disagree by
+up to $\Delta\chi^2 = 21$ across the intrinsic-alignment prior. The
+disagreement falls as a power law with the FAST-PT grid boost, with
+no plateau, and crosses the 0.2 band at 80:
+
+| FAST-PT grid boost | max $\Delta\chi^2$ | median $\Delta\chi^2$ | cost per cosmology |
+|---|---|---|---|
+| 1 (shipped default) | 21.40 | 3.49 | 1.05 s |
+| 10 | 3.21 | 0.52 | 1.17 s |
+| 20 | 1.17 | 0.18 | 1.22 s |
+| 40 | 0.385 | 0.055 | 1.77 s |
+| 80 (recommended minimum) | 0.125 | 0.017 | 2.7 s |
+| 160 | 0.045 | - | 2.9 s |
+
+![Convergence of the FAST-PT vs cfastpt difference with the grid boost](cfastpt_vs_fastpt_convergence.png)
+
+The one-parameter family localizes the divergence in the FAST-PT
+convolution integrals; the linear tidal-alignment term needs no
+convolution and agrees at the numerical floor. $\Delta\chi^2$ at
+the shipped grid, parameters not listed at zero:
+
+| activated parameters | $\Delta\chi^2$ |
+|---|---|
+| none (all IA amplitudes zero) | 0.002 |
+| $a_1 = \pm 4$ | 0.001-0.002 |
+| $a_2 = \pm 4$ | 1.3-1.5 |
+| $a_2 = 4$, $\eta_2 = +4$ / $-4$ | 3.8 / 14.0 |
+| $a_1 = 4$, $b_{\rm TA} = 2$ | 6.4 |
+| $a_1 = 4$, $\eta_1 = \pm 4$ | 0.002 |
+
+![The 30 comparison points, colored by the per-point difference](cfastpt_vs_fastpt_points.png)
+
+> [!Warning]
+> Do not lower the fastpt `accuracyboost` below 80 in a TATT
+> analysis with `IA_code: 1`: the tidal-torquing and $b_{\rm TA}$
+> convolution terms are under-resolved at the shipped grid.
+> Production analyses use cfastpt (`IA_code: 0`), the converged and
+> faster reference.
 
 #### Running the comparison <a name="run_cfastpt_fastpt"></a>
 
@@ -289,16 +333,21 @@ The file `test_accuracy_baryons.py` repeats the default-versus-high
 accuracy comparison with the `bfmt` theory block switched on: one
 advisory check per feedback method (the three SP(k) fb relations,
 BCEmu, Flamingo, BACCOemu, and BCemu2025), at a fixed parameter
-point per method. Each check creates its data vector on the fly, by
-the same mechanism as the N-random-models check: the
-default-settings model writes its own theory vector during
-evaluation, that vector becomes the data of a temporary dataset, and
-the pushed-settings model evaluates at the same point against it.
-The fiducial $\chi^2$ is therefore zero by construction, nothing is
-stored in the snapshot, and the single reported number,
-$\Delta\chi^2$, is a pure numerics response. The check BF0
-additionally runs the one-setting-at-a-time scan with the Akino
-SP(k) feedback on, so a large delta names the setting causing it.
+point per method.
+
+Each check creates its data vector on the fly, by the same mechanism
+as the N-random-models check:
+
+1. The default-settings model writes its own theory vector during
+   evaluation.
+2. That vector becomes the data of a temporary dataset.
+3. The pushed-settings model evaluates at the same point against it.
+
+The fiducial $\chi^2$ is zero by construction and nothing is stored
+in the snapshot, so the single reported number, $\Delta\chi^2$, is a
+pure numerics response. The check BF0 additionally runs the
+one-setting-at-a-time scan with the Akino SP(k) feedback on, so a
+large delta names the setting causing it.
 
 Every checked configuration is measurable by construction. The
 BACCOemu check evaluates with `omegab: 0.049`, inside that

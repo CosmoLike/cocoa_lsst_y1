@@ -754,3 +754,33 @@ against the 0.2 band the reference tests allow. No measured values
 are quoted here: rerun the checks to measure them on the current
 code, and see [tests/README.md](tests/README.md) for each check,
 the settings raised, and what each setting controls.
+
+### FAST-PT settings under `IA_code: 1`
+
+The example yamls' commented `fastpt` block recommends
+`accuracyboost: 80`. This is a decision record (2026-09-22): at the
+shipped FAST-PT grid, the python FAST-PT and the C cfastpt
+implementations of the TATT perturbation-theory integrals disagree
+by up to $\Delta\chi^2 = 21$ on the cosmic-shear data vector across
+the intrinsic-alignment prior, and the disagreement falls as a power
+law with the FAST-PT grid boost, crossing the 0.2 band at 80:
+
+| FAST-PT grid boost | max $\Delta\chi^2$ | cost per cosmology |
+|---|---|---|
+| 1 (shipped default) | 21.40 | 1.05 s |
+| 10 | 3.21 | 1.17 s |
+| 40 | 0.385 | 1.77 s |
+| 80 (recommended minimum) | 0.125 | 2.7 s |
+| 160 | 0.045 | 2.9 s |
+
+Unit test 15 pins the comparison;
+[tests/README.md](tests/README.md#fastpt_minimum) carries the
+figures, the full table, and the parameter attribution (the
+divergence lives in the tidal-torquing and $b_{\rm TA}$ convolution
+terms; the linear tidal-alignment term agrees at the numerical
+floor).
+
+> [!Warning]
+> Do not lower the fastpt `accuracyboost` below 80 in a TATT
+> analysis with `IA_code: 1`. Production analyses use cfastpt
+> (`IA_code: 0`), the converged and faster reference.
