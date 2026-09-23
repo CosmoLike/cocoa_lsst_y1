@@ -178,7 +178,9 @@ shipped test: `LSST_B2_* = 1.0` fixed in BOTH implementations, every
 other setting the frozen 3x2pt contract) measures the one-loop
 galaxy-bias tables the frozen configuration turns off: max
 $\Delta\chi^2 = 0.044$, with a floor of 0.013 at the IA-off null
-where only the bias tables differ. Doubling the FAST-PT boosts moves
+where only the bias tables differ.
+
+Doubling the FAST-PT boosts moves
 nothing (0.044408 to 0.044394), so this is a density-independent
 numerics difference between the two bias implementations, well
 inside the 0.2 limit.
@@ -189,7 +191,9 @@ measures max $\Delta\chi^2 = 0.097$ at the default camb/cosmolike
 settings - twelve times its M1 value, insensitive to the FAST-PT
 boosts - and 0.00012 at the pushed settings: the unmasked small
 scales amplify cosmolike's default integration error, not a FAST-PT
-grid deficiency. 3x2pt and 2x2pt measure 0.0029 and 0.0027 at the
+grid deficiency.
+
+3x2pt and 2x2pt measure 0.0029 and 0.0027 at the
 defaults, 0.0015 and 0.0014 pushed.
 
 > [!NOTE]
@@ -257,7 +261,9 @@ option of the comparison sweeps applies.
 On 2026-09-23 the check measures, under the frozen M1 mask,
 per-cosmology $\Delta\chi^2$ between 4.9 and 204.0 (median 25.4),
 largest at the high-omegam draws; under `--mask=ones` it measures a
-median of 4,292 and a maximum of 12,991. At these ten cosmologies
+median of 4,292 and a maximum of 12,991.
+
+At these ten cosmologies
 the two nonlinear-P(k) sources are therefore not interchangeable at
 this project's precision even under the frozen scale cuts, and
 without cuts the disagreement is dominated by the small scales the
@@ -454,12 +460,15 @@ the script `start_cocoa.sh`
 ### Baryonic feedback drift tests (`test_baryons.py`, BD1-BD7) <a name="baryon_drift_tests"></a>
 
 The file `test_baryons.py` pins the feedback pipeline against change
-over time, one test per method. Each method's default-settings
+over time, one test per method.
+
+Each method's default-settings
 theory prediction was stored at freeze time
 (`generate_frozen_reference.py --baryons`), and the test evaluates
 today's prediction against that stored vector: zero at freeze time
 by construction, so a $\chi^2$ above the tolerance means cosmolike
 or the `bfmt` theory block changed its prediction since the freeze.
+
 These tests complement the accuracy checks above: the accuracy
 checks regenerate their vector on the fly per run, so they measure
 the numerical settings and can never see drift; the drift tests hold
