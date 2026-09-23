@@ -12,6 +12,7 @@ likelihood:
     #data_file: lsst_y1_M5_GGL0.05.dataset  # 315 non-masked elements  (EE2 delta chi^2 ~ 0.5)
     #data_file: lsst_y1_M6_GGL0.05.dataset  # 780 non-masked elements  (EE2 delta chi^2 ~ 12.96)
     #data_file: lsst_y1_ones.dataset
+    data_vector_file: projects/lsst_y1/data/example1_lsst_y1_theory_emul.modelvector
     print_datavector: False
     print_datavector_file: "./projects/lsst_y1/chains/theory.modelvector"
     accuracyboost: 1.0

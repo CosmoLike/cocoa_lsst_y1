@@ -1,5 +1,6 @@
 path: null
 data_file: lsst_y1_M1_GGL0.05.dataset
+data_vector_file: null
 accuracyboost: 1.0
 integration_accuracy: 0
 lmax: 60000 # lmax computed for real space correlation function
