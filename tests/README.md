@@ -12,11 +12,12 @@ no pass/fail).
 
 1. [Running the tests](#run_tests)
 2. [The tests](#the_tests)
-    1. [Advisory checks](#advisory_checks)
-    2. [Accuracy checks](#accuracy_checks)
-    3. [The N-random-models check](#nmodels_check)
-    4. [Baryonic feedback accuracy checks](#baryon_accuracy_checks)
-    5. [Baryonic feedback drift tests](#baryon_drift_tests)
+    1. [The CFASTPT vs FASTPT comparison](#cfastpt_fastpt)
+    2. [Advisory checks](#advisory_checks)
+    3. [Accuracy checks](#accuracy_checks)
+    4. [The N-random-models check](#nmodels_check)
+    5. [Baryonic feedback accuracy checks](#baryon_accuracy_checks)
+    6. [Baryonic feedback drift tests](#baryon_drift_tests)
 3. [Appendix](#appendix)
     1. [FAQ: Do the tests keep their own data?](#frozen_copy)
     2. [FAQ: Why do the TATT tests use their own data vector?](#synthetic_vectors)
@@ -46,7 +47,7 @@ per model build and per evaluation, then a report with the
 computed $\chi^2$, the stored reference, the difference, and the pass
 limit.
 
-A full run performs about 50 likelihood evaluations and takes a
+A full run performs about 110 likelihood evaluations and takes a
 few minutes. The test files force `OMP_NUM_THREADS=4` internally.
 
 ## The tests <a name="the_tests"></a>
@@ -90,6 +91,51 @@ The test files and the configurations they cover:
 | 12 | `test_example2_2x2pt.py` | 2x2pt (`lsst_y1.combo_2x2pt`: the 3x2pt configuration reduced to galaxy clustering plus galaxy-galaxy lensing); IA modeling: NLA | race condition (OpenMP threading): fiducial alone vs after nine other cosmologies |
 | 13 | `test_example2_2x2pt.py` | 2x2pt (`lsst_y1.combo_2x2pt`: the 3x2pt configuration reduced to galaxy clustering plus galaxy-galaxy lensing); IA modeling: TATT | $\Delta\chi^2$ against the stored reference at the fiducial point |
 | 14 | `test_example2_2x2pt.py` | 2x2pt (`lsst_y1.combo_2x2pt`: the 3x2pt configuration reduced to galaxy clustering plus galaxy-galaxy lensing); IA modeling: TATT | race condition (OpenMP threading): fiducial alone vs after nine other cosmologies |
+| 15 | `test_fastpt.py` | cosmic shear; IA modeling: TATT; the C cfastpt (`IA_code: 0`) vs the python FAST-PT package (`IA_code: 1`) at 30 fixed points (20 across the intrinsic-alignment prior plus a one-parameter-at-a-time family), cosmology at the fiducial | $\Delta\chi^2$ of the FAST-PT data vector against the cfastpt data vector at the same point; the cfastpt vector is that point's fiducial, so agreement means zero |
+
+### The CFASTPT vs FASTPT comparison (`test_fastpt.py`, test 15) <a name="cfastpt_fastpt"></a>
+
+Cosmolike computes the TATT perturbation-theory integrals with two
+implementations: cfastpt, the C code built into the interface
+(`IA_code: 0`), and the python FAST-PT package through the fastpt
+theory block (`IA_code: 1`). Test 15 evaluates both at the same 30
+fixed points: 20 drawn once across the intrinsic-alignment prior and
+hard-coded, plus a one-parameter-at-a-time family that names the TATT
+parameter driving a divergence (every other parameter stays at the
+fiducial), each implementation in its own subprocess. At every
+point the cfastpt data vector is the fiducial: the reported quantity
+is the $\Delta\chi^2$ of the FAST-PT vector against it, which is zero
+for identical vectors and grows quadratically with their difference.
+A comparison against the shipped data vector would measure the slope
+of the distance to the data instead of the numerics. The pass limit
+is 30. A second FAST-PT evaluation with the fastpt settings pushed
+repeats the measurement as an advisory, so the part of the deviation
+carried by the FAST-PT default grid shows next to the pass quantity.
+
+#### Running the comparison <a name="run_cfastpt_fastpt"></a>
+
+We assume users are in the Conda cocoa environment from a previous
+`conda activate cocoa` command, that the shell is bash, and that the
+current folder is the cocoa main folder `cocoa/Cocoa`.
+
+**Step :one:**: activate the private Python environment by sourcing
+the script `start_cocoa.sh`
+
+    source start_cocoa.sh
+
+**Step :two:**: run the comparison at the default camb/cosmolike
+settings
+
+    python -m pytest ./projects/lsst_y1/tests/test_fastpt.py
+
+**Step :three:**: repeat it at the pushed camb/cosmolike settings
+
+    python -m pytest ./projects/lsst_y1/tests/test_fastpt.py --high=1
+
+> [!NOTE]
+> `--high=1`: applies the pushed camb/cosmolike settings of the
+> accuracy checks to every block of test 15 (tests 9 and 10 do not
+> read it). The full comparison is both invocations.
 
 ### Advisory checks (`test_emul2.py`, E1-E4) <a name="advisory_checks"></a>
 

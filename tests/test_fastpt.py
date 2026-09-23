@@ -1,4 +1,4 @@
-"""Unit tests 9-10: the TATT terms computed with python FAST-PT.
+"""Unit tests 9, 10, and 15: the TATT terms computed with python FAST-PT.
 
 Cosmolike offers two implementations of the perturbation-theory
 integrals that the TATT intrinsic-alignment model needs: cfastpt, a C
@@ -8,23 +8,48 @@ used through the fastpt theory block (`IA_code: 1`). The two
 implementations compute the same integrals with different numerics,
 so their chi2 values at the same point differ by a small amount.
 
-Each test evaluates the frozen TATT point with FASTPT and:
+Tests 9 and 10 evaluate the frozen TATT point with FASTPT and:
 
-  - compares the chi2 against its own frozen FASTPT reference within
+  - compare the chi2 against its own frozen FASTPT reference within
     CHI2_TOLERANCE (0.2) of its own frozen reference, the same
     pass rule as tests 1-8;
-  - prints the FASTPT-minus-CFASTPT difference next to the frozen
+  - print the FASTPT-minus-CFASTPT difference next to the frozen
     value of that difference, so a numerics change in either
     implementation is visible at a glance.
 
   9. example1 (cosmic shear), TATT with LSST_A2_1 = 0.05,
      LSST_BTA_1 = 0.05, LSST_A2_2 = -1.51541.
  10. example2 (3x2pt), same TATT point.
+ 15. example1 (cosmic shear): the SAME 30 hard-coded points across
+     the intrinsic-alignment prior (FASTPT_COMPARISON_POINTS;
+     cosmology fixed at the frozen fiducial) evaluated three times -
+     with cfastpt, with FASTPT at the fastpt block's shipped
+     defaults (FASTPT_LOW_SETTINGS, hard-coded), and with FASTPT at
+     the pushed FAST-PT grid (FASTPT_HIGH_SETTINGS). Every block
+     prints its theory vector at every point, and the CFASTPT vector
+     is the fiducial of that point: its own chi2 against it is zero
+     by construction, so the pass rule is the chi2 of the
+     FASTPT(low) vector against it (delta^T C^-1 delta, a pure
+     second-order deviation; a chi2 difference against the shipped
+     data would ride the slope instead). FASTPT(high)'s deviation is
+     printed as the advisory FAST-PT grid response. Each
+     configuration runs in its own subprocess, so no cache survives
+     from one block to the next; inside a block the shared cosmology
+     makes CAMB run once and the 30 points cheap.
 
 To run (from the Cocoa/ folder, cocoa environment active,
 start_cocoa.sh sourced):
 
     python -m pytest ./projects/lsst_y1/tests
+
+Test 15 repeats at the pushed numerical settings of the low-vs-high
+accuracy checks (HIGH_ACCURACY_LIKELIHOOD and
+HIGH_ACCURACY_CAMB_EXTRA_ARGS, applied to every block) when the
+--high=1 option is given; the full comparison is one run without the
+option and one with it, so the 30 points go through the FASTPT side
+four times (fastpt low and high, under each camb/cosmolike setting):
+
+    python -m pytest ./projects/lsst_y1/tests/test_fastpt.py --high=1
 """
 
 import os
@@ -105,6 +130,50 @@ class TestFastptTatt(unittest.TestCase):
         self._run_fastpt_case(
             10, "example2", "example2 (3x2pt, TATT+FASTPT) chi2 "
             "vs frozen reference")
+
+
+class TestCfastptVsFastptSweep(unittest.TestCase):
+    """Test 15, the direct CFASTPT-vs-FASTPT comparison.
+
+    setUpClass runs once before the test: it moves to ROOTDIR and
+    verifies every frozen file against the SHA-256 manifest. No
+    frozen reference chi2 is loaded: this test compares the two
+    implementations against each other, so the frozen state only
+    supplies the configuration and the data files.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        u.require_cocoa_environment()
+        u.verify_frozen()
+
+    def test_x15_cfastpt_vs_fastpt_sweep(self):
+        """Cosmic shear: cfastpt and FASTPT agree at 30 IA points.
+
+        The method name carries the x prefix only so unittest's
+        alphabetical ordering runs it after tests 9 and 10.
+        """
+        # the conftest copies the --high command line option into this
+        # variable; .get with the "0" default keeps a run outside
+        # pytest (plain `python test_fastpt.py`) on the default
+        # settings unless the variable is exported by hand
+        high = os.environ.get("COCOA_FASTPT_HIGH", "0") == "1"
+        setting = "high accuracy" if high else "default settings"
+        (chi2_cfastpt, chi2_fastpt_low, chi2_fastpt_high,
+         dchi2_low, dchi2_high) = u.cfastpt_vs_fastpt_chi2s(
+            "example1", high=high)
+        largest = u.report_fastpt_comparison(
+            15,
+            f"example1 (cosmic shear, TATT, camb/cosmolike {setting}): "
+            "CFASTPT vs FASTPT at 30 hard-coded points",
+            chi2_cfastpt, chi2_fastpt_low, chi2_fastpt_high,
+            dchi2_low, dchi2_high, u.FASTPT_COMPARISON_TOLERANCE)
+        self.assertLess(
+            largest, u.FASTPT_COMPARISON_TOLERANCE,
+            msg="max chi2 of the FASTPT(low)-vs-CFASTPT data-vector "
+                f"difference = {largest:.6f} over the comparison "
+                f"points ({setting}); limit "
+                f"{u.FASTPT_COMPARISON_TOLERANCE}")
 
 
 # __name__ is "__main__" only when this file runs directly as a
