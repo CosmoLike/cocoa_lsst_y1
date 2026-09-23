@@ -1,4 +1,4 @@
-"""Unit tests 9, 10, and 15: the TATT terms computed with python FAST-PT.
+"""Unit tests 9, 10, 15, and 16: the TATT terms computed with python FAST-PT.
 
 Cosmolike offers two implementations of the perturbation-theory
 integrals that the TATT intrinsic-alignment model needs: cfastpt, a C
@@ -36,14 +36,22 @@ Tests 9 and 10 evaluate the frozen TATT point with FASTPT and:
      configuration runs in its own subprocess, so no cache survives
      from one block to the next; inside a block the shared cosmology
      makes CAMB run once and the 30 points cheap.
+ 16. example2 (3x2pt): the same three-block sweep as test 15 on the
+     3x2pt likelihood, so the TATT terms are also scored inside
+     galaxy-galaxy lensing and under the 3x2pt covariance. The
+     frozen configuration fixes the one-loop bias amplitudes
+     (LSST_B2_*) at zero, so the one-loop galaxy-bias tables both
+     implementations compute multiply by zero here: this sweep
+     compares the intrinsic-alignment tables only, on the wider
+     data vector.
 
 To run (from the Cocoa/ folder, cocoa environment active,
 start_cocoa.sh sourced):
 
     python -m pytest ./projects/lsst_y1/tests
 
-Test 15 repeats at the pushed numerical settings of the low-vs-high
-accuracy checks (HIGH_ACCURACY_LIKELIHOOD and
+Tests 15 and 16 repeat at the pushed numerical settings of the
+low-vs-high accuracy checks (HIGH_ACCURACY_LIKELIHOOD and
 HIGH_ACCURACY_CAMB_EXTRA_ARGS, applied to every block) when the
 --high=1 option is given; the full comparison is one run without the
 option and one with it, so the 30 points go through the FASTPT side
@@ -133,11 +141,11 @@ class TestFastptTatt(unittest.TestCase):
 
 
 class TestCfastptVsFastptSweep(unittest.TestCase):
-    """Test 15, the direct CFASTPT-vs-FASTPT comparison.
+    """Tests 15-16, the direct CFASTPT-vs-FASTPT comparison.
 
-    setUpClass runs once before the test: it moves to ROOTDIR and
+    setUpClass runs once before the tests: it moves to ROOTDIR and
     verifies every frozen file against the SHA-256 manifest. No
-    frozen reference chi2 is loaded: this test compares the two
+    frozen reference chi2 is loaded: these tests compare the two
     implementations against each other, so the frozen state only
     supplies the configuration and the data files.
     """
@@ -165,6 +173,34 @@ class TestCfastptVsFastptSweep(unittest.TestCase):
         largest = u.report_fastpt_comparison(
             15,
             f"example1 (cosmic shear, TATT, camb/cosmolike {setting}): "
+            "CFASTPT vs FASTPT at 30 hard-coded points",
+            chi2_cfastpt, chi2_fastpt_low, chi2_fastpt_high,
+            dchi2_low, dchi2_high, u.FASTPT_COMPARISON_TOLERANCE)
+        self.assertLess(
+            largest, u.FASTPT_COMPARISON_TOLERANCE,
+            msg="max chi2 of the FASTPT(low)-vs-CFASTPT data-vector "
+                f"difference = {largest:.6f} over the comparison "
+                f"points ({setting}); limit "
+                f"{u.FASTPT_COMPARISON_TOLERANCE}")
+
+    def test_x16_cfastpt_vs_fastpt_sweep_3x2pt(self):
+        """3x2pt: cfastpt and FASTPT agree at the same 30 IA points.
+
+        Test 15 on example2: the same three blocks, the same points,
+        the same pass rule, with the TATT terms now entering
+        galaxy-galaxy lensing as well and the difference weighted by
+        the 3x2pt masked inverse covariance. The method name carries
+        the x prefix only so unittest's alphabetical ordering runs it
+        after test 15.
+        """
+        high = os.environ.get("COCOA_FASTPT_HIGH", "0") == "1"
+        setting = "high accuracy" if high else "default settings"
+        (chi2_cfastpt, chi2_fastpt_low, chi2_fastpt_high,
+         dchi2_low, dchi2_high) = u.cfastpt_vs_fastpt_chi2s(
+            "example2", high=high)
+        largest = u.report_fastpt_comparison(
+            16,
+            f"example2 (3x2pt, TATT, camb/cosmolike {setting}): "
             "CFASTPT vs FASTPT at 30 hard-coded points",
             chi2_cfastpt, chi2_fastpt_low, chi2_fastpt_high,
             dchi2_low, dchi2_high, u.FASTPT_COMPARISON_TOLERANCE)

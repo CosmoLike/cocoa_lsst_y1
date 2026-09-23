@@ -92,15 +92,16 @@ The test files and the configurations they cover:
 | 13 | `test_example2_2x2pt.py` | 2x2pt (`lsst_y1.combo_2x2pt`: the 3x2pt configuration reduced to galaxy clustering plus galaxy-galaxy lensing); IA modeling: TATT | $\Delta\chi^2$ against the stored reference at the fiducial point |
 | 14 | `test_example2_2x2pt.py` | 2x2pt (`lsst_y1.combo_2x2pt`: the 3x2pt configuration reduced to galaxy clustering plus galaxy-galaxy lensing); IA modeling: TATT | race condition (OpenMP threading): fiducial alone vs after nine other cosmologies |
 | 15 | `test_fastpt.py` | cosmic shear; IA modeling: TATT; the C cfastpt (`IA_code: 0`) vs the python FAST-PT package (`IA_code: 1`) at 30 fixed points (20 across the intrinsic-alignment prior plus a one-parameter-at-a-time family), cosmology at the fiducial | $\Delta\chi^2$ of the FAST-PT data vector against the cfastpt data vector at the same point; the cfastpt vector is that point's fiducial, so agreement means zero |
+| 16 | `test_fastpt.py` | 3x2pt; IA modeling: TATT; the same comparison as test 15 on the 3x2pt likelihood (`lsst_y1.combo_3x2pt`) | the same pass rule as test 15, with the data-vector difference weighted by the 3x2pt masked inverse covariance |
 
-### The CFASTPT vs FASTPT comparison (`test_fastpt.py`, test 15) <a name="cfastpt_fastpt"></a>
+### The CFASTPT vs FASTPT comparison (`test_fastpt.py`, tests 15-16) <a name="cfastpt_fastpt"></a>
 
 Cosmolike computes the TATT perturbation-theory integrals with two
 implementations: cfastpt, the C code built into the interface
 (`IA_code: 0`), and the python FAST-PT package through the fastpt
-theory block (`IA_code: 1`). Test 15 evaluates both at 30
-fixed points across the intrinsic-alignment prior and checks
-their agreement.
+theory block (`IA_code: 1`). Both are evaluated at 30 fixed points
+across the intrinsic-alignment prior and checked for agreement:
+test 15 on cosmic shear, test 16 on the 3x2pt likelihood.
 
 At every point the cfastpt data vector is the fiducial: the reported
 quantity is the $\Delta\chi^2$ of the FAST-PT vector against it,
@@ -113,6 +114,13 @@ converged two-grid configuration, and the pass limit is 0.2. A
 second FAST-PT evaluation at doubled boosts repeats the measurement
 as an advisory, so the residual grid response of the defaults shows
 next to the pass quantity.
+
+In test 16 the TATT terms also enter galaxy-galaxy lensing, and the
+difference is weighted by the 3x2pt masked inverse covariance. The
+frozen configuration fixes the one-loop bias amplitudes
+(`LSST_B2_*`) at zero, so the one-loop galaxy-bias tables both
+implementations compute multiply by zero: the sweep scores the
+intrinsic-alignment tables alone, on the wider data vector.
 
 #### Why the defaults are the converged configuration <a name="fastpt_minimum"></a>
 
@@ -149,6 +157,22 @@ splined table removes the interpolation error at almost no cost.
 
 ![The 30 comparison points, colored by the per-point difference](cfastpt_vs_fastpt_points.png)
 
+The same sweep on the 3x2pt likelihood (test 16, 2026-09-23)
+measures max $\Delta\chi^2 = 0.00018$ at the defaults and
+$0.00008$ at the pushed camb/cosmolike settings, smaller than
+cosmic shear's 0.0082 at the same points under the 3x2pt masked
+covariance.
+
+A b2-activated variant of the sweep (2026-09-23, exploratory, not a
+shipped test: `LSST_B2_* = 1.0` fixed in BOTH implementations, every
+other setting the frozen 3x2pt contract) measures the one-loop
+galaxy-bias tables the frozen configuration turns off: max
+$\Delta\chi^2 = 0.044$, with a floor of 0.013 at the IA-off null
+where only the bias tables differ. Doubling the FAST-PT boosts moves
+nothing (0.044408 to 0.044394), so this is a density-independent
+numerics difference between the two bias implementations, well
+inside the 0.2 limit.
+
 > [!NOTE]
 > The fastpt defaults hold this accuracy on their own; raising the
 > boosts is a convergence test, not a need. cfastpt (`IA_code: 0`)
@@ -176,8 +200,8 @@ settings
 
 > [!NOTE]
 > `--high=1`: applies the pushed camb/cosmolike settings of the
-> accuracy checks to every block of test 15 (tests 9 and 10 do not
-> read it). The full comparison is both invocations.
+> accuracy checks to every block of tests 15 and 16 (tests 9 and 10
+> do not read it). The full comparison is both invocations.
 
 ### Advisory checks (`test_emul2.py`, E1-E4) <a name="advisory_checks"></a>
 

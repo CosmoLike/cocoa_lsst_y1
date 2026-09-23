@@ -353,7 +353,7 @@ FASTPT_COMPARISON_POINTS = [
      "LSST_BTA_1": 2.0},
 ]
 
-# Pass limit of test 15 on the covariance-weighted difference of the
+# Pass limit of tests 15-16 on the covariance-weighted difference of the
 # two implementations: at each comparison point both blocks print
 # their theory data vector, and the tested number is
 # delta^T C^-1 delta with delta = dv(FASTPT low) - dv(CFASTPT) and
@@ -1513,7 +1513,7 @@ def _load_datavector(path):
 def _fastpt_comparison_block(example, fastpt, high, fastpt_settings=None,
                              label=None, vectors_dir=None,
                              reference_label=None):
-    """The 20-point sweep on ONE model: the worker half of test 15.
+    """The 30-point sweep on ONE model: the worker half of tests 15-16.
 
     Builds the frozen TATT configuration with one perturbation-theory
     implementation selected (IA_code 0 = cfastpt, the C code inside
@@ -1553,7 +1553,7 @@ def _fastpt_comparison_block(example, fastpt, high, fastpt_settings=None,
 
     Arguments:
       example = a key of EXAMPLES; the cosmic-shear sweep uses
-                "example1".
+                "example1", the 3x2pt sweep "example2".
       fastpt  = False evaluates with cfastpt (IA_code 0), True with
                 python FAST-PT (IA_code 1).
       high    = False keeps the frozen default settings; True applies
@@ -1770,7 +1770,7 @@ def _run_fastpt_comparison_worker(example, fastpt, high, fastpt_settings,
 def cfastpt_vs_fastpt_chi2s(example, high=False):
     """The comparison-point quantities under the three configurations.
 
-    Test 15's machinery: the same 30 hard-coded intrinsic-alignment
+    Tests 15-16's machinery: the same 30 hard-coded intrinsic-alignment
     points (FASTPT_COMPARISON_POINTS) evaluated three times with
     everything else identical -
 
@@ -1796,7 +1796,7 @@ def cfastpt_vs_fastpt_chi2s(example, high=False):
 
     Arguments:
       example = a key of EXAMPLES; the cosmic-shear comparison uses
-                "example1".
+                "example1", the 3x2pt comparison "example2".
       high    = False compares at the frozen default camb/cosmolike
                 settings; True repeats all three blocks with the
                 HIGH_ACCURACY settings (the --high=1 command line
