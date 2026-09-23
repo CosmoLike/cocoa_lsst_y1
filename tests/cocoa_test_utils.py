@@ -369,10 +369,10 @@ FASTPT_COMPARISON_POINTS = [
 # The value 0.2 is the house comfort band of the reference tests,
 # reachable because FASTPT_LOW_SETTINGS carries the converged
 # FAST-PT grid (decision record, 2026-09-22: max delta chi2 over the
-# comparison points 0.125 at grid boost 80; at the fastpt block's
-# shipped boost 1 the deviation reached 21.4, almost all of it
-# FAST-PT default-grid error, shrinking as a power law with the
-# boost - 3.2 at 10, 1.2 at 20, 0.39 at 40).
+# comparison points 0.125 at grid boost 80; the default fastpt
+# settings, validated on the restricted prior region of the
+# fiducial-point tests, reach 21.4 across the entire prior, shrinking
+# as a power law with the boost - 3.2 at 10, 1.2 at 20, 0.39 at 40).
 FASTPT_COMPARISON_TOLERANCE = 0.2
 
 # The python FAST-PT side has numerical settings of its own, read by
@@ -1127,8 +1127,8 @@ def load_frozen_info(example, tatt, fastpt=False, high_accuracy=False,
                 extra_args overrides) applied on top of the frozen
                 configuration; single_model_chi2 builds this pair
                 from one ACCURACY_KNOBS entry.
-      fastpt_extra_args = None leaves the fastpt block on its shipped
-                defaults; a dictionary (FASTPT_LOW_SETTINGS or
+      fastpt_extra_args = None leaves the fastpt block on its own
+                default settings; a dictionary (FASTPT_LOW_SETTINGS or
                 FASTPT_HIGH_SETTINGS) becomes the block's extra_args.
                 Only meaningful with fastpt=True.
 

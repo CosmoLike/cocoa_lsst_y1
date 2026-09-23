@@ -118,15 +118,17 @@ of the recommended settings shows next to the pass quantity.
 
 #### Why the recommended minimum is `accuracyboost: 80` <a name="fastpt_minimum"></a>
 
-This is a decision record (2026-09-22, this check's own sweep). At
-the fastpt block's shipped grid the two implementations disagree by
-up to $\Delta\chi^2 = 21$ across the intrinsic-alignment prior. The
-disagreement falls as a power law with the FAST-PT grid boost, with
-no plateau, and crosses the 0.2 band at 80:
+This is a decision record (2026-09-22, this check's own sweep).
+The default fastpt settings were validated on a restricted region of
+the TATT prior, where the two implementations agree closely (the
+fiducial-point regression tests 9 and 10); across the entire prior
+volume they disagree by up to $\Delta\chi^2 = 21$. The disagreement
+falls as a power law with the FAST-PT grid boost, with no plateau,
+and crosses the 0.2 band at 80:
 
 | FAST-PT grid boost | max $\Delta\chi^2$ | median $\Delta\chi^2$ | cost per cosmology |
 |---|---|---|---|
-| 1 (shipped default) | 21.40 | 3.49 | 1.05 s |
+| 1 (default settings) | 21.40 | 3.49 | 1.05 s |
 | 10 | 3.21 | 0.52 | 1.17 s |
 | 20 | 1.17 | 0.18 | 1.22 s |
 | 40 | 0.385 | 0.055 | 1.77 s |
@@ -138,7 +140,7 @@ no plateau, and crosses the 0.2 band at 80:
 The one-parameter family localizes the divergence in the FAST-PT
 convolution integrals; the linear tidal-alignment term needs no
 convolution and agrees at the numerical floor. $\Delta\chi^2$ at
-the shipped grid, parameters not listed at zero:
+the default settings, parameters not listed at zero:
 
 | activated parameters | $\Delta\chi^2$ |
 |---|---|
@@ -154,7 +156,7 @@ the shipped grid, parameters not listed at zero:
 > [!Warning]
 > Do not lower the fastpt `accuracyboost` below 80 in a TATT
 > analysis with `IA_code: 1`: the tidal-torquing and $b_{\rm TA}$
-> convolution terms are under-resolved at the shipped grid.
+> convolution terms need the raised grid at large amplitudes.
 > Production analyses use cfastpt (`IA_code: 0`), the converged and
 > faster reference.
 

@@ -151,6 +151,16 @@ and
           cobaya-run ./projects/lsst_y1/EXAMPLE_MCMC1.yaml -f
 
 
+# Table of contents <a name="table_of_contents"></a>
+
+1. [Running Cosmolike projects (Basic instructions)](#running_cosmolike_projects)
+2. [Baryonic feedback on EXAMPLE_EVALUATE1](#lsst_y1_baryonic_feedback)
+3. [Running ML emulators](#cobaya_base_code_examples_emul)
+4. [Running Hybrid Cosmolike-ML emulators](#cobaya_base_code_examples_emul2)
+5. [Running Fisher](#lsst_examples_fisher)
+6. [Unit tests](#unit_tests)
+7. [FAST-PT accuracy for TATT (`IA_code: 1`)](#fastpt_accuracy)
+
 # Baryonic feedback on EXAMPLE_EVALUATE1 <a name="lsst_y1_baryonic_feedback"></a>
 
 `EXAMPLE_EVALUATE1.yaml` can apply an external baryonic feedback suppression to the
@@ -718,7 +728,7 @@ Details on the matter power spectrum emulator designs will be presented in the [
 
 
 
-# Unit tests
+# Unit tests <a name="unit_tests"></a>
 
 The `tests/` folder holds unit tests for the likelihoods of this
 project: they compare each likelihood against stored reference
@@ -755,7 +765,7 @@ are quoted here: rerun the checks to measure them on the current
 code, and see [tests/README.md](tests/README.md) for each check,
 the settings raised, and what each setting controls.
 
-## FAST-PT accuracy for TATT (`IA_code: 1`) <a name="fastpt_accuracy"></a>
+# FAST-PT accuracy for TATT (`IA_code: 1`) <a name="fastpt_accuracy"></a>
 
 Cosmolike computes the TATT perturbation-theory integrals with two
 implementations: cfastpt, the C code inside the compiled interface
@@ -767,15 +777,17 @@ $\Delta\chi^2$ is the $\chi^2$ of the FAST-PT vector against the
 cfastpt vector through this project's masked inverse covariance,
 zero for identical predictions.
 
-At FAST-PT's shipped grid the implementations disagree by up to
-$\Delta\chi^2 = 21$ across the prior. The
-disagreement is FAST-PT grid error: it falls as a power law with the
-fastpt `accuracyboost` and crosses the 0.2 band at 80,
-the minimum the example yamls recommend.
+The default fastpt settings were validated on a restricted region
+of the TATT prior, where the two implementations agree closely (the
+fiducial-point regression tests); across the entire prior volume
+they disagree by up to $\Delta\chi^2 = 21$. The
+disagreement falls as a power law with the fastpt `accuracyboost`,
+so accuracy over the full prior is a settings choice: the 0.2 band
+is reached at 80, the minimum the example yamls recommend.
 
 | FAST-PT grid boost | max $\Delta\chi^2$ | median $\Delta\chi^2$ | cost per cosmology |
 |---|---|---|---|
-| 1 (shipped default) | 21.40 | 3.49 | 1.05 s |
+| 1 (default settings) | 21.40 | 3.49 | 1.05 s |
 | 10 | 3.21 | 0.52 | 1.17 s |
 | 20 | 1.17 | 0.18 | 1.22 s |
 | 40 | 0.385 | 0.055 | 1.77 s |
@@ -787,8 +799,8 @@ the minimum the example yamls recommend.
 > [!Warning]
 > Do not lower the fastpt `accuracyboost` below 80 in a
 > TATT analysis with `IA_code: 1`: the tidal-torquing and
-> $b_{\rm TA}$ convolution terms are under-resolved at the shipped
-> grid.
+> $b_{\rm TA}$ convolution terms need the raised grid at large
+> intrinsic-alignment amplitudes.
 
 > [!NOTE]
 > Production TATT analyses use cfastpt (`IA_code: 0`): it is the
