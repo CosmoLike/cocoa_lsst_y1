@@ -124,7 +124,8 @@ import tempfile
 #   tolerances          REQUIRED_OMP_THREADS, CHI2_TOLERANCE, RACE_TOLERANCE
 #   TATT                TATT_POINT, TATT_DATASET
 #   FASTPT sweep        FASTPT_COMPARISON_POINTS,
-#                       FASTPT_COMPARISON_TOLERANCE
+#                       FASTPT_COMPARISON_TOLERANCE, FASTPT_MASK_DATASETS
+#   Halofit vs EE2      NONLINEAR_COMPARISON_POINTS
 #   configurations      EXAMPLES
 #   race perturbations  RACE_PERTURBATIONS
 #   accuracy knobs      HIGH_ACCURACY_LIKELIHOOD,
@@ -227,6 +228,50 @@ TATT_POINT = {
 # chi2 band the reference tests allow. Against its own data vector
 # the TATT chi2 sits at the minimum, where it is stable.
 TATT_DATASET = "tatt_lsst_y1.dataset"
+
+# The comparison sweeps (tests 15-17) can rerun under a different
+# scale-cut mask (the --mask option): each entry names a frozen TATT
+# dataset descriptor identical to TATT_DATASET except for its
+# mask_file line. "frozen" is the M1 mask of the frozen contract
+# (959 of the 1,560 data points kept); M2-M5 cut progressively more
+# points (854, 749, 659, 569), M6 cuts fewer (1,378), and "ones"
+# keeps every point (no scale cuts), the strictest comparison: the
+# small angular scales the shipped masks remove are exactly where
+# the perturbation-theory tables matter most.
+FASTPT_MASK_DATASETS = {
+    "frozen": TATT_DATASET,
+    "M2": "tatt_lsst_y1_M2.dataset",
+    "M3": "tatt_lsst_y1_M3.dataset",
+    "M4": "tatt_lsst_y1_M4.dataset",
+    "M5": "tatt_lsst_y1_M5.dataset",
+    "M6": "tatt_lsst_y1_M6.dataset",
+    "ones": "tatt_lsst_y1_ones.dataset",
+}
+
+# ---- Halofit vs EE2 comparison points ---------------------------------------
+
+# Advisory checks NL1-NL2 evaluate the SAME ten cosmologies with the two
+# nonlinear-P(k) sources the likelihood can consume (EuclidEmulator2,
+# non_linear_emul: 1, and CAMB's Takahashi halofit,
+# non_linear_emul: 2, the frozen contract's setting) and compares the
+# data vectors. The points are hard-coded draws: drawn ONCE,
+# uniformly in omegam [0.26, 0.38], ns [0.93, 0.99], and As_1e9
+# [1.8, 2.4] with numpy.random.default_rng(20260923) - inside both
+# the sampled priors and EE2's training box - and written out here so
+# every run evaluates exactly these cosmologies. Every other
+# parameter keeps its frozen fiducial value.
+NONLINEAR_COMPARISON_POINTS = [
+    {"omegam": 0.378775, "ns": 0.961148, "As_1e9": 2.311486},
+    {"omegam": 0.285929, "ns": 0.948020, "As_1e9": 2.395017},
+    {"omegam": 0.264959, "ns": 0.937756, "As_1e9": 1.960748},
+    {"omegam": 0.351034, "ns": 0.972406, "As_1e9": 1.905972},
+    {"omegam": 0.374796, "ns": 0.956464, "As_1e9": 2.191216},
+    {"omegam": 0.355271, "ns": 0.978809, "As_1e9": 1.844406},
+    {"omegam": 0.299391, "ns": 0.985365, "As_1e9": 2.345031},
+    {"omegam": 0.338220, "ns": 0.953241, "As_1e9": 2.074333},
+    {"omegam": 0.377881, "ns": 0.930398, "As_1e9": 2.193133},
+    {"omegam": 0.291721, "ns": 0.965774, "As_1e9": 2.088667},
+]
 
 # ---- CFASTPT vs FASTPT comparison points ------------------------------------
 
@@ -353,7 +398,7 @@ FASTPT_COMPARISON_POINTS = [
      "LSST_BTA_1": 2.0},
 ]
 
-# Pass limit of test 15 on the covariance-weighted difference of the
+# Pass limit of tests 15-17 on the covariance-weighted difference of the
 # two implementations: at each comparison point both blocks print
 # their theory data vector, and the tested number is
 # delta^T C^-1 delta with delta = dv(FASTPT low) - dv(CFASTPT) and
@@ -1512,8 +1557,8 @@ def _load_datavector(path):
 
 def _fastpt_comparison_block(example, fastpt, high, fastpt_settings=None,
                              label=None, vectors_dir=None,
-                             reference_label=None):
-    """The 20-point sweep on ONE model: the worker half of test 15.
+                             reference_label=None, mask="frozen"):
+    """The 30-point sweep on ONE model: the worker half of tests 15-17.
 
     Builds the frozen TATT configuration with one perturbation-theory
     implementation selected (IA_code 0 = cfastpt, the C code inside
@@ -1553,7 +1598,8 @@ def _fastpt_comparison_block(example, fastpt, high, fastpt_settings=None,
 
     Arguments:
       example = a key of EXAMPLES; the cosmic-shear sweep uses
-                "example1".
+                "example1", the 3x2pt sweep "example2", the 2x2pt sweep
+                "example2_2x2pt".
       fastpt  = False evaluates with cfastpt (IA_code 0), True with
                 python FAST-PT (IA_code 1).
       high    = False keeps the frozen default settings; True applies
@@ -1571,6 +1617,17 @@ def _fastpt_comparison_block(example, fastpt, high, fastpt_settings=None,
       reference_label = None to only print vectors (the reference
                 block itself), or the label of the block to measure
                 against.
+      mask    = a FASTPT_MASK_DATASETS key: "frozen" (the default)
+                keeps the frozen contract's M1 mask; the other keys
+                swap the TATT dataset for the variant whose mask_file
+                is that scale-cut mask, changing which data points
+                the masked inverse covariance weights. Under a
+                non-frozen mask the shipped TATT data vector does
+                not apply (it was generated under the frozen mask),
+                so the block regenerates the baseline: the CFASTPT
+                fiducial vector under the chosen mask becomes the
+                sweep's data vector and every reported chi2 is
+                measured against it, from a zero baseline.
 
     Returns:
       {"chi2s": the per-point chi2 list against the shipped data
@@ -1600,8 +1657,8 @@ def _fastpt_comparison_block(example, fastpt, high, fastpt_settings=None,
         # low and high tables differ in
         code += f"(boost {fastpt_settings['accuracyboost']:g})"
     setting = "high accuracy" if high else "default settings"
-    print(f"  building model ({example}, TATT, {code}, {setting}) ...",
-          flush=True)
+    print(f"  building model ({example}, TATT, {code}, {setting}, "
+          f"mask {mask}) ...", flush=True)
     info = load_frozen_info(example, tatt=True, fastpt=fastpt,
                             high_accuracy=high,
                             fastpt_extra_args=fastpt_settings)
@@ -1610,6 +1667,10 @@ def _fastpt_comparison_block(example, fastpt, high, fastpt_settings=None,
     current_path = os.path.join(vectors_dir,
                                 f"{label}_current.modelvector")
     likelihood_block = info["likelihood"][EXAMPLES[example]["likelihood"]]
+    # the mask choice is a TATT dataset variant: same data vector and
+    # covariance, only the mask_file line differs (for "frozen" this
+    # reassigns the same TATT_DATASET load_frozen_info already set)
+    likelihood_block["data_file"] = FASTPT_MASK_DATASETS[mask]
     likelihood_block["print_datavector"] = True
     likelihood_block["print_datavector_file"] = current_path
     model = make_model(info)
@@ -1617,6 +1678,46 @@ def _fastpt_comparison_block(example, fastpt, high, fastpt_settings=None,
     # sampled-parameter name check every test shares
     base = build_point(model, example, tatt=True)
     n_points = len(FASTPT_COMPARISON_POINTS)
+    fiducial_truth = None
+    if mask != "frozen":
+        # Under a non-frozen mask the shipped TATT data vector does
+        # not apply: it was generated under the frozen contract's
+        # mask, so rows this mask newly unmasks would be compared
+        # against zeros and the chi2 against it would be meaningless.
+        # The baseline is regenerated instead, the same construction
+        # the accuracy checks use when they change cosmology: the
+        # fiducial TATT point is evaluated first, and the CFASTPT
+        # block's printed vector at it becomes the data vector of the
+        # whole sweep, so the reported chi2 starts from a zero
+        # baseline (CFASTPT at the fiducial scores exactly zero).
+        # The fastpt blocks read the cfastpt fiducial from
+        # vectors_dir, where the cfastpt block (always first) left
+        # it.
+        started = time.perf_counter()
+        evaluate_chi2(model, base, cached=True)
+        elapsed = time.perf_counter() - started
+        if not os.path.isfile(current_path):
+            raise RuntimeError(
+                f"{code} fiducial: the evaluation printed no data "
+                f"vector at {current_path}")
+        os.replace(current_path,
+                   os.path.join(vectors_dir,
+                                f"{label}_fiducial.modelvector"))
+        # the compiled interface was initialized by the likelihood
+        # build above; its masked inverse covariance carries the
+        # chosen mask
+        import cosmolike_lsst_y1_interface as ci
+
+        icov_fid = np.array(ci.get_inv_cov_masked())
+        # "cfastpt" is the label the driver gives the reference
+        # block, which always runs first, so this file exists for
+        # every block (the cfastpt block reads its own)
+        fiducial_truth = _load_datavector(
+            os.path.join(vectors_dir, "cfastpt_fiducial.modelvector"))
+        print(f"  {code} fiducial under mask {mask}: baseline "
+              f"regenerated ({elapsed:.2f} s); the chi2 below is "
+              "measured against the CFASTPT fiducial vector",
+              flush=True)
     chi2s = []
     eval_seconds = []
     # enumerate pairs each point with a counter; start=1 makes the
@@ -1637,7 +1738,6 @@ def _fastpt_comparison_block(example, fastpt, high, fastpt_settings=None,
         # next point
         chi2 = evaluate_chi2(model, {**base, **ia_values}, cached=True)
         elapsed = time.perf_counter() - started
-        chi2s.append(chi2)
         eval_seconds.append(elapsed)
         if not os.path.isfile(current_path):
             raise RuntimeError(
@@ -1651,6 +1751,19 @@ def _fastpt_comparison_block(example, fastpt, high, fastpt_settings=None,
         os.replace(current_path,
                    os.path.join(vectors_dir,
                                 f"{label}_point{i:02d}.modelvector"))
+        if fiducial_truth is not None:
+            # the reported chi2 is measured against the regenerated
+            # baseline: the quadratic form of this point's printed
+            # vector against the CFASTPT fiducial vector, which IS
+            # the chi2 against a dataset whose data vector is that
+            # fiducial (the likelihood's own chi2 rides the stale
+            # frozen-mask data vector and is discarded)
+            own = _load_datavector(
+                os.path.join(vectors_dir,
+                             f"{label}_point{i:02d}.modelvector"))
+            delta = own - fiducial_truth
+            chi2 = float(delta @ icov_fid @ delta)
+        chi2s.append(chi2)
         print(f"  {code} point {i:2d}/{n_points}: chi2 = {chi2:.6f}"
               f"   ({elapsed:.2f} s)", flush=True)
     # the first evaluation carries the one-time work (CAMB plus this
@@ -1692,7 +1805,8 @@ def _fastpt_comparison_block(example, fastpt, high, fastpt_settings=None,
 
 
 def _run_fastpt_comparison_worker(example, fastpt, high, fastpt_settings,
-                                  label, vectors_dir, reference_label):
+                                  label, vectors_dir, reference_label,
+                                  mask="frozen"):
     """Run one _fastpt_comparison_block in a fresh python subprocess.
 
     A fresh process is the cache flush: cobaya's component caches,
@@ -1711,8 +1825,8 @@ def _run_fastpt_comparison_worker(example, fastpt, high, fastpt_settings,
 
     Arguments:
       example, fastpt, high, fastpt_settings, label, vectors_dir,
-      reference_label = forwarded to _fastpt_comparison_block (see
-                there).
+      reference_label, mask = forwarded to _fastpt_comparison_block
+                (see there).
 
     Returns:
       the block's {"chi2s": ..., "dchi2_vs_reference": ...} result.
@@ -1745,7 +1859,7 @@ def _run_fastpt_comparison_worker(example, fastpt, high, fastpt_settings,
         f"fastpt={fastpt!r}, high={high!r}, "
         f"fastpt_settings={fastpt_settings!r}, "
         f"label={label!r}, vectors_dir={vectors_dir!r}, "
-        f"reference_label={reference_label!r})\n"
+        f"reference_label={reference_label!r}, mask={mask!r})\n"
         f"with open({out_path!r}, 'w') as f:\n"
         "    json.dump(result, f)\n"
     )
@@ -1767,10 +1881,10 @@ def _run_fastpt_comparison_worker(example, fastpt, high, fastpt_settings,
     return result
 
 
-def cfastpt_vs_fastpt_chi2s(example, high=False):
+def cfastpt_vs_fastpt_chi2s(example, high=False, mask="frozen"):
     """The comparison-point quantities under the three configurations.
 
-    Test 15's machinery: the same 30 hard-coded intrinsic-alignment
+    Tests 15-17's machinery: the same 30 hard-coded intrinsic-alignment
     points (FASTPT_COMPARISON_POINTS) evaluated three times with
     everything else identical -
 
@@ -1796,7 +1910,8 @@ def cfastpt_vs_fastpt_chi2s(example, high=False):
 
     Arguments:
       example = a key of EXAMPLES; the cosmic-shear comparison uses
-                "example1".
+                "example1", the 3x2pt comparison "example2", the 2x2pt
+                comparison "example2_2x2pt".
       high    = False compares at the frozen default camb/cosmolike
                 settings; True repeats all three blocks with the
                 HIGH_ACCURACY settings (the --high=1 command line
@@ -1804,6 +1919,11 @@ def cfastpt_vs_fastpt_chi2s(example, high=False):
                 30 points therefore go through the FASTPT side four
                 times: fastpt low and high, under each camb/cosmolike
                 setting.
+      mask    = a FASTPT_MASK_DATASETS key, applied to all three
+                blocks: "frozen" (the default) keeps the frozen
+                contract's M1 mask, "M2".."M6" select the other
+                shipped scale cuts, and "ones" keeps every data
+                point (the --mask command line option of the tests).
 
     Returns:
       (chi2_cfastpt, chi2_fastpt_low, chi2_fastpt_high, dchi2_low,
@@ -1817,17 +1937,17 @@ def cfastpt_vs_fastpt_chi2s(example, high=False):
         cfastpt = _run_fastpt_comparison_worker(
             example, fastpt=False, high=high, fastpt_settings=None,
             label="cfastpt", vectors_dir=vectors_dir,
-            reference_label=None)
+            reference_label=None, mask=mask)
         fastpt_low = _run_fastpt_comparison_worker(
             example, fastpt=True, high=high,
             fastpt_settings=FASTPT_LOW_SETTINGS,
             label="fastpt_low", vectors_dir=vectors_dir,
-            reference_label="cfastpt")
+            reference_label="cfastpt", mask=mask)
         fastpt_high = _run_fastpt_comparison_worker(
             example, fastpt=True, high=high,
             fastpt_settings=FASTPT_HIGH_SETTINGS,
             label="fastpt_high", vectors_dir=vectors_dir,
-            reference_label="cfastpt")
+            reference_label="cfastpt", mask=mask)
     finally:
         # the shared vectors die with the sweep, whether it finished
         # or an exception is on its way out
@@ -1835,6 +1955,492 @@ def cfastpt_vs_fastpt_chi2s(example, high=False):
     return (cfastpt["chi2s"], fastpt_low["chi2s"], fastpt_high["chi2s"],
             fastpt_low["dchi2_vs_reference"],
             fastpt_high["dchi2_vs_reference"])
+
+
+def _nonlinear_comparison_block(example, emul, label=None,
+                                vectors_dir=None, reference_label=None,
+                                mask="frozen"):
+    """The ten-cosmology sweep on ONE nonlinear-P(k) source (NL1-NL2).
+
+    Builds the frozen NLA configuration with one nonlinear-P(k)
+    source selected (non_linear_emul 1 = EuclidEmulator2, 2 = CAMB's
+    Takahashi halofit) and evaluates every
+    NONLINEAR_COMPARISON_POINTS entry on it. Each evaluation prints
+    its theory data vector into vectors_dir, and a block given a
+    reference_label measures itself against the vectors a previous
+    block left there: at every cosmology it computes
+
+        delta chi2 = delta^T C^-1 delta,
+        delta = dv(this block) - dv(reference block),
+
+    with C^-1 the masked inverse covariance of the chosen mask. The
+    reference block's own chi2 against its vector is zero by
+    construction, so the number IS the chi2 the Halofit vector would
+    score against a dataset whose data vector is the EE2 prediction
+    at the same cosmology: a zero-baseline measurement at every
+    point. Each cosmology carries its own regenerated fiducial, so
+    no stored data vector enters the metric anywhere.
+
+    Runs inside a FRESH python process
+    (_run_nonlinear_comparison_worker): cobaya's caches, CAMB's
+    state, and the C globals of the compiled interface die with the
+    process, so nothing computed under the other P(k) source
+    survives into this block. Unlike the FASTPT sweep, every point
+    changes the cosmology, so each evaluation pays a CAMB run; ten
+    points stay cheap.
+
+    Arguments:
+      example = a key of EXAMPLES; NL1 uses "example1" (cosmic
+                shear), NL2 "example2" (3x2pt).
+      emul    = the likelihood's non_linear_emul: 1 evaluates with
+                EuclidEmulator2, 2 with CAMB's Takahashi halofit.
+      label   = the file-name tag of this block's printed vectors
+                ("ee2", "halofit").
+      vectors_dir = the directory the per-cosmology vectors are
+                printed into, shared by the two blocks of one sweep.
+      reference_label = None to only print vectors (the reference
+                block), or the label of the block to measure
+                against.
+      mask    = a FASTPT_MASK_DATASETS key; the dataset variant
+                carries the scale-cut mask (and the covariance) the
+                difference is weighted with. The data vector the
+                variant names is never read by this check's metric,
+                so no baseline regeneration is needed.
+
+    Returns:
+      {"dchi2_vs_reference": the per-cosmology delta^T C^-1 delta
+      list, or None for the reference block, "eval_seconds": the
+      per-cosmology wall-clock seconds}.
+
+    Raises:
+      ValueError when a comparison-point parameter is not sampled by
+      the model; RuntimeError when an evaluation did not print its
+      vector or the vector/covariance shapes disagree.
+    """
+    import time
+
+    import numpy as np
+
+    require_cocoa_environment()
+    code = "EE2" if emul == 1 else "HALOFIT"
+    print(f"  building model ({example}, NLA, {code}, mask {mask}) ...",
+          flush=True)
+    info = load_frozen_info(example, tatt=False)
+    likelihood_block = info["likelihood"][EXAMPLES[example]["likelihood"]]
+    likelihood_block["non_linear_emul"] = emul
+    # the mask choice rides the TATT dataset variants: same
+    # covariance, only the mask_file line differs; the data vector
+    # they name plays no role in this check's metric
+    likelihood_block["data_file"] = FASTPT_MASK_DATASETS[mask]
+    current_path = os.path.join(vectors_dir,
+                                f"{label}_current.modelvector")
+    likelihood_block["print_datavector"] = True
+    likelihood_block["print_datavector_file"] = current_path
+    model = make_model(info)
+    base = build_point(model, example, tatt=False)
+    n_points = len(NONLINEAR_COMPARISON_POINTS)
+    eval_seconds = []
+    for i, cosmology in enumerate(NONLINEAR_COMPARISON_POINTS, start=1):
+        for name in cosmology:
+            if name not in base:
+                raise ValueError(
+                    f"comparison parameter {name} is not sampled by "
+                    f"{example}; the parameterization changed since "
+                    "NONLINEAR_COMPARISON_POINTS was drawn")
+        started = time.perf_counter()
+        # the chi2 against the dataset's stored vector is discarded:
+        # the evaluation's purpose is the printed theory vector
+        evaluate_chi2(model, {**base, **cosmology}, cached=True)
+        elapsed = time.perf_counter() - started
+        eval_seconds.append(elapsed)
+        if not os.path.isfile(current_path):
+            raise RuntimeError(
+                f"{code} cosmology {i}: the evaluation printed no "
+                f"data vector at {current_path} (did "
+                "print_datavector's path handling change?)")
+        os.replace(current_path,
+                   os.path.join(vectors_dir,
+                                f"{label}_point{i:02d}.modelvector"))
+        print(f"  {code} cosmology {i:2d}/{n_points} evaluated "
+              f"({elapsed:.2f} s)", flush=True)
+    if reference_label is None:
+        return {"dchi2_vs_reference": None,
+                "eval_seconds": eval_seconds}
+    # the compiled interface was initialized by the likelihood build
+    # above, so the masked inverse covariance of the chosen mask is
+    # available here
+    import cosmolike_lsst_y1_interface as ci
+
+    icov = np.array(ci.get_inv_cov_masked())
+    dchi2s = []
+    for i in range(1, n_points + 1):
+        own = _load_datavector(
+            os.path.join(vectors_dir, f"{label}_point{i:02d}.modelvector"))
+        ref = _load_datavector(
+            os.path.join(vectors_dir,
+                         f"{reference_label}_point{i:02d}.modelvector"))
+        if own.shape != ref.shape or icov.shape[0] != own.shape[0]:
+            raise RuntimeError(
+                f"cosmology {i}: vector/covariance shapes disagree "
+                f"({own.shape}, {ref.shape}, {icov.shape})")
+        delta = own - ref
+        dchi2s.append(float(delta @ icov @ delta))
+    return {"dchi2_vs_reference": dchi2s, "eval_seconds": eval_seconds}
+
+
+def _run_nonlinear_comparison_worker(example, emul, label, vectors_dir,
+                                     reference_label, mask):
+    """Run one _nonlinear_comparison_block in a fresh python subprocess.
+
+    The same isolation mechanism as _run_fastpt_comparison_worker
+    (see there): a fresh process is the cache flush, the child
+    inherits this process's environment, pins OMP_NUM_THREADS before
+    its first import, and writes its result as json into a temporary
+    file the parent reads back.
+
+    Arguments:
+      example, emul, label, vectors_dir, reference_label, mask =
+                forwarded to _nonlinear_comparison_block (see there).
+
+    Returns:
+      the block's result dictionary.
+
+    Raises:
+      subprocess.CalledProcessError when the worker fails (its
+      traceback already streamed to the terminal).
+    """
+    import subprocess
+    import sys
+
+    workdir = tempfile.mkdtemp(prefix="cocoa_nonlinear_compare_")
+    out_path = os.path.join(workdir, "result.json")
+    child_code = (
+        "import os\n"
+        f"os.environ['OMP_NUM_THREADS'] = {REQUIRED_OMP_THREADS!r}\n"
+        "import json\n"
+        "import sys\n"
+        f"sys.path.insert(0, {TESTS_DIR!r})\n"
+        "import cocoa_test_utils as u\n"
+        f"result = u._nonlinear_comparison_block({example!r}, "
+        f"emul={emul!r}, label={label!r}, vectors_dir={vectors_dir!r}, "
+        f"reference_label={reference_label!r}, mask={mask!r})\n"
+        f"with open({out_path!r}, 'w') as f:\n"
+        "    json.dump(result, f)\n"
+    )
+    try:
+        subprocess.run([sys.executable, "-c", child_code], check=True)
+        with open(out_path) as f:
+            result = json.load(f)
+    finally:
+        shutil.rmtree(workdir, ignore_errors=True)
+    return result
+
+
+def halofit_vs_ee2_dchi2s(example, mask="frozen"):
+    """The per-cosmology Halofit-vs-EE2 differences (NL1-NL2).
+
+    The ten hard-coded cosmologies (NONLINEAR_COMPARISON_POINTS)
+    evaluated twice with everything else identical:
+
+      1. EuclidEmulator2 (non_linear_emul 1), the reference: its
+         printed data vector at each cosmology becomes the fiducial
+         the Halofit block is measured against;
+      2. CAMB's Takahashi halofit (non_linear_emul 2, the frozen
+         contract's setting).
+
+    Block 2 returns, at every cosmology, the chi2 of its data-vector
+    difference against block 1 (delta^T C^-1 delta under the chosen
+    mask). The check is advisory: the numbers say how much of the
+    statistical error budget the Halofit-vs-emulator difference
+    consumes under those scale cuts. Each block runs in its own
+    subprocess; the per-cosmology vectors travel through one shared
+    temporary directory that dies with this call.
+
+    Arguments:
+      example = a key of EXAMPLES; NL1 uses "example1", NL2
+                "example2".
+      mask    = a FASTPT_MASK_DATASETS key (the --mask command line
+                option of the tests).
+
+    Returns:
+      the per-cosmology delta^T C^-1 delta list, index-aligned with
+      NONLINEAR_COMPARISON_POINTS.
+    """
+    vectors_dir = tempfile.mkdtemp(prefix="cocoa_nonlinear_vectors_")
+    try:
+        _run_nonlinear_comparison_worker(
+            example, emul=1, label="ee2", vectors_dir=vectors_dir,
+            reference_label=None, mask=mask)
+        halofit = _run_nonlinear_comparison_worker(
+            example, emul=2, label="halofit", vectors_dir=vectors_dir,
+            reference_label="ee2", mask=mask)
+    finally:
+        shutil.rmtree(vectors_dir, ignore_errors=True)
+    return halofit["dchi2_vs_reference"]
+
+
+def report_nonlinear_comparison(label, dchi2s):
+    """Print the Halofit-vs-EE2 sweep as a readable block (advisory).
+
+    One row per cosmology with its drawn parameters and the chi2 of
+    the Halofit vector against the EE2 vector, then the max and the
+    median. There is no pass limit: the caller only checks that
+    every cosmology produced a number.
+
+    Arguments:
+      label  = one line naming the example, probe, and mask.
+      dchi2s = the per-cosmology list from halofit_vs_ee2_dchi2s.
+
+    Returns:
+      nothing; the report goes to stdout.
+    """
+    import numpy as np
+
+    print(f"\n==== {label} ====", flush=True)
+    for i, (cosmology, d) in enumerate(
+            zip(NONLINEAR_COMPARISON_POINTS, dchi2s), start=1):
+        print(f"  cosmology {i:2d}: omegam = {cosmology['omegam']:.6f}"
+              f"  ns = {cosmology['ns']:.6f}"
+              f"  As_1e9 = {cosmology['As_1e9']:.6f}"
+              f"   dchi2(HALOFIT vs EE2) = {d:.4f}", flush=True)
+    print(f"  max dchi2    = {max(dchi2s):.4f}   (advisory; no pass "
+          "limit)", flush=True)
+    print(f"  median dchi2 = {float(np.median(dchi2s)):.4f}",
+          flush=True)
+
+
+# ---- the EE2 modifications check (test 18) ----------------------------------
+
+# The commit of vivianmiranda/EuclidEmulator2 BEFORE the Cocoa
+# modifications (the commented-out EE2_GIT_COMMIT alternative in
+# set_installation_options.sh). Test 18 builds it side by side and
+# scores the installed, modified EE2 against it.
+EE2_ORIGINAL_COMMIT = "ff59f6683069417f6b4d2fb5d59197044d424445"
+
+# The compatibility patch the original needs to run inside Cocoa at
+# all, injected into the original-EE2 worker before the model builds:
+#   - the original has no get_boost2 (the Cocoa addition that takes a
+#     pre-built PyEuclidEmulator), so the adapter maps it onto the
+#     original get_boost, which builds its own emulator internally;
+#   - the original computes AT MOST 101 redshifts per call (its
+#     training-grid size) and silently overflows beyond that - the
+#     likelihood sends about 110 - so the adapter batches the
+#     redshifts in chunks of 100 and stacks the per-chunk results
+#     (the original returns a per-redshift dict, the likelihood
+#     expects a 2D array). The numerics inside each chunk are the
+#     original's, untouched.
+EE2_ORIGINAL_SHIM = """
+import numpy as _np
+_orig_get_boost = euclidemu2.get_boost
+def _get_boost2(cosmo_par_in, redshifts, ee2_obj, custom_kvec=None):
+    redshifts = _np.atleast_1d(_np.asarray(redshifts, dtype=float))
+    rows = []
+    k = None
+    for start in range(0, len(redshifts), 100):
+        k, b = _orig_get_boost(cosmo_par_in,
+                               redshifts[start:start + 100],
+                               custom_kvec)
+        if isinstance(b, dict):
+            rows.extend(_np.asarray(b[i]) for i in sorted(b))
+        else:
+            rows.extend(_np.asarray(b))
+    return k, _np.array(rows)
+euclidemu2.get_boost2 = _get_boost2
+"""
+
+
+def build_original_ee2(prefix_dir):
+    """Build the pre-modification EE2 into prefix_dir, offline.
+
+    Clones the LOCAL euclidemu2 checkout (no internet: the pinned
+    clone's history carries the original commit), checks out
+    EE2_ORIGINAL_COMMIT, and pip-installs it with the offline flags
+    the compile scripts use PLUS --ignore-installed: without that
+    flag pip uninstalls the same-name distribution from .local
+    before installing into the prefix, breaking the environment.
+
+    Arguments:
+      prefix_dir = the directory the build is installed under (a
+                temporary directory owned by the caller).
+
+    Returns:
+      the site-packages path inside prefix_dir, for PYTHONPATH.
+
+    Raises:
+      RuntimeError when the original commit is not present in the
+      local clone (a shallow checkout); the caller turns this into
+      a test skip rather than a failure.
+    """
+    import subprocess
+
+    clone_src = os.path.join(os.environ["ROOTDIR"], "external_modules",
+                             "code", "euclidemu2")
+    probe = subprocess.run(
+        ["git", "-C", clone_src, "cat-file", "-e", EE2_ORIGINAL_COMMIT],
+        capture_output=True)
+    if probe.returncode != 0:
+        raise RuntimeError(
+            f"the local euclidemu2 clone does not carry commit "
+            f"{EE2_ORIGINAL_COMMIT} (shallow checkout?)")
+    workdir = os.path.join(prefix_dir, "src")
+    subprocess.run(["git", "clone", "-q", clone_src, workdir],
+                   check=True)
+    subprocess.run(["git", "-C", workdir, "checkout", "-q",
+                    EE2_ORIGINAL_COMMIT], check=True)
+    env = dict(os.environ)
+    # the compile scripts export the compiler pair; pass it through
+    # the same way when present
+    if "CXX_COMPILER" in env:
+        env["CXX"] = env["CXX_COMPILER"]
+    if "C_COMPILER" in env:
+        env["CC"] = env["C_COMPILER"]
+    import sys
+
+    subprocess.run(
+        [sys.executable, "-m", "pip", "install", workdir,
+         "--no-dependencies", "--no-index", "--no-build-isolation",
+         "--ignore-installed", f"--prefix={prefix_dir}", "--quiet"],
+        check=True, env=env)
+    return os.path.join(
+        prefix_dir, "lib",
+        f"python{sys.version_info.major}.{sys.version_info.minor}",
+        "site-packages")
+
+
+def _ee2_comparison_block(example, label, vectors_dir, reference_label,
+                          original_site=None):
+    """The ten-cosmology sweep on ONE EE2 build (test 18's worker).
+
+    The same construction as the Halofit-vs-EE2 blocks: the frozen
+    NLA configuration with non_linear_emul: 1, evaluated at every
+    NONLINEAR_COMPARISON_POINTS entry with the printed data vector
+    per cosmology; a block given a reference_label reports the
+    per-cosmology delta^T C^-1 delta against the reference block's
+    vectors (the reference is the installed, modified EE2, so its
+    own chi2 against itself is zero by construction). The worker
+    asserts WHICH euclidemu2 binary it imported, so a path mistake
+    cannot silently compare a build against itself.
+
+    Arguments:
+      example = a key of EXAMPLES; test 18 uses "example1".
+      label   = the file-name tag of this block's printed vectors
+                ("cocoa", "original").
+      vectors_dir = the directory the per-cosmology vectors are
+                printed into, shared by the two blocks.
+      reference_label = None to only print vectors, or the label of
+                the block to measure against.
+      original_site = None for the installed build, or the
+                site-packages path of the original build (the worker
+                then expects euclidemu2 to resolve there; the caller
+                prepends it to the child's PYTHONPATH and the shim
+                is applied).
+
+    Returns:
+      {"dchi2_vs_reference": per-cosmology list or None}.
+    """
+    import subprocess
+    import sys
+
+    workdir = tempfile.mkdtemp(prefix="cocoa_ee2_check_")
+    out_path = os.path.join(workdir, "result.json")
+    expect = original_site if original_site else ".local"
+    shim = EE2_ORIGINAL_SHIM if original_site else ""
+    child_code = (
+        "import os\n"
+        f"os.environ['OMP_NUM_THREADS'] = {REQUIRED_OMP_THREADS!r}\n"
+        "import json\n"
+        "import sys\n"
+        f"sys.path.insert(0, {TESTS_DIR!r})\n"
+        "import euclidemu2\n"
+        f"assert {expect!r} in euclidemu2.__file__, euclidemu2.__file__\n"
+        "print('  euclidemu2 =', euclidemu2.__file__, flush=True)\n"
+        f"{shim}\n"
+        "import numpy as np\n"
+        "import cocoa_test_utils as u\n"
+        "u.require_cocoa_environment()\n"
+        f"info = u.load_frozen_info({example!r}, tatt=False)\n"
+        f"lb = info['likelihood'][u.EXAMPLES[{example!r}]['likelihood']]\n"
+        "lb['non_linear_emul'] = 1\n"
+        f"cur = os.path.join({vectors_dir!r}, {label!r}"
+        " + '_cur.modelvector')\n"
+        "lb['print_datavector'] = True\n"
+        "lb['print_datavector_file'] = cur\n"
+        "model = u.make_model(info)\n"
+        f"base = u.build_point(model, {example!r}, tatt=False)\n"
+        "for i, cosmo in enumerate(u.NONLINEAR_COMPARISON_POINTS, 1):\n"
+        "    u.evaluate_chi2(model, dict(base, **cosmo), cached=True)\n"
+        "    assert os.path.isfile(cur), 'no vector printed'\n"
+        f"    os.replace(cur, os.path.join({vectors_dir!r},\n"
+        f"        {label!r} + '_pt%02d.modelvector' % i))\n"
+        f"    print('  ' + {label!r} + ' cosmology %2d/10' % i,\n"
+        "          flush=True)\n"
+        "result = {}\n"
+        f"ref = {reference_label!r}\n"
+        "if ref is not None:\n"
+        "    import cosmolike_lsst_y1_interface as ci\n"
+        "    icov = np.array(ci.get_inv_cov_masked())\n"
+        "    dchi2s = []\n"
+        "    for i in range(1, 11):\n"
+        f"        own = u._load_datavector(os.path.join({vectors_dir!r},\n"
+        f"            {label!r} + '_pt%02d.modelvector' % i))\n"
+        f"        rv = u._load_datavector(os.path.join({vectors_dir!r},\n"
+        "            ref + '_pt%02d.modelvector' % i))\n"
+        "        assert own.shape == rv.shape == (icov.shape[0],)\n"
+        "        d = own - rv\n"
+        "        dchi2s.append(float(d @ icov @ d))\n"
+        "    result['dchi2_vs_reference'] = dchi2s\n"
+        f"with open({out_path!r}, 'w') as f:\n"
+        "    json.dump(result, f)\n"
+    )
+    env = dict(os.environ)
+    if original_site:
+        env["PYTHONPATH"] = (original_site + os.pathsep
+                             + env.get("PYTHONPATH", ""))
+    try:
+        subprocess.run([sys.executable, "-c", child_code], check=True,
+                       env=env)
+        with open(out_path) as f:
+            return json.load(f)
+    finally:
+        shutil.rmtree(workdir, ignore_errors=True)
+
+
+def ee2_original_vs_cocoa_dchi2s(example):
+    """The per-cosmology differences of the two EE2 builds (test 18).
+
+    Builds the pre-modification EE2 into a temporary prefix
+    (build_original_ee2), then runs the two blocks: the installed,
+    modified EE2 prints the reference vectors, and the original
+    (through the compatibility shim) is measured against them at
+    the ten shared cosmologies. Everything temporary dies with this
+    call; the installed environment is never touched
+    (--ignore-installed protects .local).
+
+    Arguments:
+      example = a key of EXAMPLES; test 18 uses "example1".
+
+    Returns:
+      the per-cosmology delta^T C^-1 delta list, index-aligned with
+      NONLINEAR_COMPARISON_POINTS.
+
+    Raises:
+      RuntimeError from build_original_ee2 when the original commit
+      is unavailable locally (the test turns this into a skip).
+    """
+    prefix_dir = tempfile.mkdtemp(prefix="cocoa_ee2_original_")
+    vectors_dir = tempfile.mkdtemp(prefix="cocoa_ee2_vectors_")
+    try:
+        print("  building the pre-modification EE2 "
+              f"({EE2_ORIGINAL_COMMIT[:7]}) ...", flush=True)
+        original_site = build_original_ee2(prefix_dir)
+        _ee2_comparison_block(example, "cocoa", vectors_dir, None)
+        original = _ee2_comparison_block(
+            example, "original", vectors_dir, "cocoa",
+            original_site=original_site)
+    finally:
+        shutil.rmtree(vectors_dir, ignore_errors=True)
+        shutil.rmtree(prefix_dir, ignore_errors=True)
+    return original["dchi2_vs_reference"]
 
 
 def _baryon_accuracy_delta_impl(baryon, knob=None):
@@ -2006,7 +2612,7 @@ def baryon_drift_chi2(baryon):
     return float(_baryon_drift_chi2_impl(baryon))
 
 
-def ten_in_a_row_chi2(example, tatt):
+def ten_in_a_row_chi2(example, tatt, ee2=False):
     """Race check: the fiducial evaluated fresh and as 10th of a row.
 
     On ONE model instance, in order: the fiducial point (the fresh
@@ -2020,6 +2626,11 @@ def ten_in_a_row_chi2(example, tatt):
     Arguments:
       example = "example1" or "example2" (a key of EXAMPLES).
       tatt    = True runs the TATT variant, False the NLA one.
+      ee2     = True sources the nonlinear P(k) from EuclidEmulator2
+                (non_linear_emul: 1) instead of the frozen setting
+                (CAMB's Takahashi halofit). EE2's own compute is
+                OpenMP-threaded, so this variant exercises its
+                threading inside the race sequence (test 19).
 
     Returns:
       (fresh, tenth): chi2 of the first fiducial evaluation and chi2
@@ -2027,10 +2638,15 @@ def ten_in_a_row_chi2(example, tatt):
     """
     # ternary: "TATT" when tatt is True, "NLA" otherwise
     ia_label = "TATT" if tatt else "NLA"
+    if ee2:
+        ia_label += "+EE2"
     print(f"  building model ({example}, {ia_label}) ...", flush=True)
     # one model instance for the whole sequence: sharing the instance
     # is the point, since leaked state lives inside it
     info = load_frozen_info(example, tatt)
+    if ee2:
+        info["likelihood"][EXAMPLES[example]["likelihood"]][
+            "non_linear_emul"] = 1
     model = make_model(info)
     point = build_point(model, example, tatt)
     # the fresh value: the fiducial evaluated before anything else
