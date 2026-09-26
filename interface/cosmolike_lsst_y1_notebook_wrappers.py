@@ -123,7 +123,14 @@ _CONFIG = {
     "IA_model": 0,
     "IA_redshift_evolution": 3,
     "IA_code": 0,               # 0 = C FASTPT (NLA always uses 0)
-    "bias_model": [0, 0, 0, 1, 0],
+    "bias_model": [0, 0, 0, 1, 0],    # n(z) photo-z conventions (mirror the likelihood yaml keys):
+    # interpolation 0 = cspline, 1 = linear, 2+ = Steffen monotone;
+    # z column 0 = Z_LOW (left bin edges), 1 = Z_MID (sample points)
+    "photoz_interpolation_type": 0,
+    "photoz_zmid_convention": 0,
+    # C-FAST-PT internal (convolution) grid / output grid; 1.0 = equal
+    "internal_accuracyboost": 1.0,
+
 }
 
 # filled by init_cosmolike: the HDF5 file with every hydro simulation
@@ -216,6 +223,11 @@ def init_cosmolike(CLprobe=None, with_data=False, lmax=None):
         ci.init_bias(bias_model=_CONFIG["bias_model"])
     ci.init_ntable_lmax(lmax=int(lmax))
     ci.init_accuracy_boost(1.0, int(1))
+    ci.init_photoz_conventions(
+        int(_CONFIG["photoz_interpolation_type"]),
+        int(_CONFIG["photoz_zmid_convention"]))
+    ci.init_fpt_internal_boost(
+        float(_CONFIG["internal_accuracyboost"]))
     return ini
 
 
@@ -277,6 +289,11 @@ def _set_state(omegam, omegab, H0, ns, As_1e9, w, w0pwa,
         0, CLIntegrationAccuracy + abs(3*(CLAccuracyBoost - 1.0)))
     ci.init_ntable_lmax(int(_CONFIG["lmax"] + 20000*(CLAccuracyBoost - 1)))
     ci.init_accuracy_boost(CLAccuracyBoost, int(CLIntegrationAccuracy))
+    ci.init_photoz_conventions(
+        int(_CONFIG["photoz_interpolation_type"]),
+        int(_CONFIG["photoz_zmid_convention"]))
+    ci.init_fpt_internal_boost(
+        float(_CONFIG["internal_accuracyboost"]))
     if binning is not None:
         ci.init_binning(int(binning[0]), binning[1], binning[2])
     if B1 is not None:
@@ -887,6 +904,11 @@ def compute_probes(sup=None, ell=None):
             lnPNL[i :: len(z_interp_2D)] += np.log(sup[z_val])
     ci.init_ntable_lmax(int(_CONFIG["lmax"]))
     ci.init_accuracy_boost(1.0, 0)
+    ci.init_photoz_conventions(
+        int(_CONFIG["photoz_interpolation_type"]),
+        int(_CONFIG["photoz_zmid_convention"]))
+    ci.init_fpt_internal_boost(
+        float(_CONFIG["internal_accuracyboost"]))
     ci.set_cosmology(omegam=omegam, H0=H0,
                      log10k_2D=log10k_interp_2D, z_2D=z_interp_2D,
                      lnP_linear=lnPL, lnP_nonlinear=lnPNL,

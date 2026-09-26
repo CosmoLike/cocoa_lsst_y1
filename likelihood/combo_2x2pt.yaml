@@ -1,7 +1,12 @@
 path: null
 data_file: lsst_y1_M1_GGL0.05.dataset
 accuracyboost: 1.0
+internal_accuracyboost: 1.0 # C-FAST-PT convolution grid / output grid
 integration_accuracy: 0
+# n(z) interpolation: 0 = cubic spline, 1 = linear, 2+ = Steffen (monotone)
+photoz_interpolation_type: 0
+# n(z) file z column: 0 = Z_LOW (left bin edges), 1 = Z_MID (sample points)
+photoz_zmid_convention: 0
 lmax: 60000 # lmax computed for real space correlation function
 kmax_boltzmann: 5.0
 speed: 1
