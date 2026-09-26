@@ -347,6 +347,23 @@ the script `start_cocoa.sh`
 
     python -m pytest ./projects/lsst_y1/tests/test_emul2.py
 
+### Scale-cut diagnostics (`test_scale_cut_diagnostics.py`) <a name="scale_cut_diagnostics"></a>
+
+The scale-cut diagnostics of 2011.06469 eq 17 — dlnC_ss/dlnk,
+dlnxi_pm/dlnk, and the response functions rf_C_ss and rf_xi — are
+notebook-facing functions with no role in the likelihood, so this
+test is their only automated coverage. It checks, in one process on
+the frozen TATT cosmic-shear fiducial, that every scalar and array
+overload returns finite values, that the scalar overloads agree with
+the matching array entries (they share the batch engines), and that
+the response functions behave as normalized cumulative fractions.
+
+- 2026-09-26: added with the cosmo2D_scuts batch (_work) refactor.
+  The low multipoles it pins (rf_C_ss at l = 3) were fatal before the
+  refactor: the retired exact-scalar branch underflowed k to 0 in its
+  normalization integrand and exited, which is what killed jupyter
+  kernels running the notebook derivative cells.
+
 ### Accuracy checks (`test_accuracy.py`, A1-A6) <a name="accuracy_checks"></a>
 
 First we change one accuracy parameter at a time on the 3x2pt NLA

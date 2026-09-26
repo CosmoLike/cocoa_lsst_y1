@@ -645,6 +645,142 @@ def get_chi2(omegam=omegam, omegab=omegab, H0=H0, ns=ns, As_1e9=As_1e9,
 
 # ----------------------------------------------------------------------
 # Fisher forecasting (cosmic shear)
+def dlnC_dlss_tomo_limber(k, ell, omegam=omegam, omegab=omegab, H0=H0,
+                          ns=ns, As_1e9=As_1e9, w=w, w0pwa=w0pwa,
+                          A1=None, A2=None, BTA=None,
+                          shear_photoz_bias=None, M=None,
+                          baryon_sims=None, AccuracyBoost=1.0,
+                          kmax=10.0, k_per_logint=10,
+                          CAMBAccuracyBoost=1.0, CLAccuracyBoost=1.0,
+                          CLIntegrationAccuracy=0,
+                          non_linear_emul=None, allsims=None):
+    """Response d ln C_ss / d ln k at wavenumbers k, multipoles ell.
+
+    Shear state as in C_ss_tomo_limber, then the interface's
+    response evaluation.
+
+    Returns:
+      array as ci.dlnC_ss_dlnk_tomo_limber returns it.
+    """
+    if non_linear_emul is None:
+        non_linear_emul = _CONFIG["non_linear_emul"]
+    M, shear_photoz_bias, A1, A2, BTA = _shear_defaults(
+        M, shear_photoz_bias, A1, A2, BTA)
+    _set_state(omegam, omegab, H0, ns, As_1e9, w, w0pwa,
+               AccuracyBoost, kmax, k_per_logint, CAMBAccuracyBoost,
+               CLAccuracyBoost, CLIntegrationAccuracy, non_linear_emul,
+               M=M, shear_photoz_bias=shear_photoz_bias,
+               A1=A1, A2=A2, BTA=BTA,
+               baryon_sims=baryon_sims, allsims_file=allsims)
+    return ci.dlnC_ss_dlnk_tomo_limber(k=k, l=ell)
+
+
+def dlnxi_dlnk_pm_tomo_limber(k, ntheta=None, theta_min_arcmin=None,
+                              theta_max_arcmin=None, omegam=omegam,
+                              omegab=omegab, H0=H0, ns=ns,
+                              As_1e9=As_1e9, w=w, w0pwa=w0pwa,
+                              A1=None, A2=None, BTA=None,
+                              shear_photoz_bias=None, M=None,
+                              baryon_sims=None, AccuracyBoost=1.0,
+                              kmax=10.0, k_per_logint=10,
+                              CAMBAccuracyBoost=1.0, CLAccuracyBoost=1.0,
+                              CLIntegrationAccuracy=0,
+                              non_linear_emul=None, allsims=None):
+    """Response d ln xi_pm / d ln k at wavenumbers k.
+
+    Shear state plus a re-binning, as in xi.
+
+    Returns:
+      (theta, dlnxip_dlnk, dlnxim_dlnk).
+    """
+    if ntheta is None:
+        ntheta = _CONFIG["ntheta"]
+    if theta_min_arcmin is None:
+        theta_min_arcmin = _CONFIG["theta_min_arcmin"]
+    if theta_max_arcmin is None:
+        theta_max_arcmin = _CONFIG["theta_max_arcmin"]
+    if non_linear_emul is None:
+        non_linear_emul = _CONFIG["non_linear_emul"]
+    M, shear_photoz_bias, A1, A2, BTA = _shear_defaults(
+        M, shear_photoz_bias, A1, A2, BTA)
+    _set_state(omegam, omegab, H0, ns, As_1e9, w, w0pwa,
+               AccuracyBoost, kmax, k_per_logint, CAMBAccuracyBoost,
+               CLAccuracyBoost, CLIntegrationAccuracy, non_linear_emul,
+               binning=(ntheta, theta_min_arcmin, theta_max_arcmin),
+               M=M, shear_photoz_bias=shear_photoz_bias,
+               A1=A1, A2=A2, BTA=BTA,
+               baryon_sims=baryon_sims, allsims_file=allsims)
+    (dlnxip_dlnk, dlnxim_dlnk) = ci.dlnxi_dlnk_pm_tomo_limber(k=k)
+    return (ci.get_binning_real_space(), dlnxip_dlnk, dlnxim_dlnk)
+
+
+def rf_C_ss_tomo_limber(k, ell, omegam=omegam, omegab=omegab, H0=H0,
+                        ns=ns, As_1e9=As_1e9, w=w, w0pwa=w0pwa,
+                        A1=None, A2=None, BTA=None,
+                        shear_photoz_bias=None, M=None,
+                        baryon_sims=None, AccuracyBoost=1.0,
+                        kmax=10.0, k_per_logint=10,
+                        CAMBAccuracyBoost=1.0, CLAccuracyBoost=1.0,
+                        CLIntegrationAccuracy=0,
+                        non_linear_emul=None, allsims=None):
+    """Cumulative response R(k_max) of C_ss.
+
+    Shear state as in C_ss_tomo_limber, then ci.rf_C_ss_tomo_limber.
+
+    Returns:
+      array as ci.rf_C_ss_tomo_limber returns it.
+    """
+    if non_linear_emul is None:
+        non_linear_emul = _CONFIG["non_linear_emul"]
+    M, shear_photoz_bias, A1, A2, BTA = _shear_defaults(
+        M, shear_photoz_bias, A1, A2, BTA)
+    _set_state(omegam, omegab, H0, ns, As_1e9, w, w0pwa,
+               AccuracyBoost, kmax, k_per_logint, CAMBAccuracyBoost,
+               CLAccuracyBoost, CLIntegrationAccuracy, non_linear_emul,
+               M=M, shear_photoz_bias=shear_photoz_bias,
+               A1=A1, A2=A2, BTA=BTA,
+               baryon_sims=baryon_sims, allsims_file=allsims)
+    return ci.rf_C_ss_tomo_limber(k=k, l=ell)
+
+
+def rf_xi_tomo_limber(k, ntheta=None, theta_min_arcmin=None,
+                      theta_max_arcmin=None, omegam=omegam,
+                      omegab=omegab, H0=H0, ns=ns, As_1e9=As_1e9,
+                      w=w, w0pwa=w0pwa, A1=None, A2=None, BTA=None,
+                      shear_photoz_bias=None, M=None,
+                      baryon_sims=None, AccuracyBoost=1.0, kmax=10.0,
+                      k_per_logint=10, CAMBAccuracyBoost=1.0,
+                      CLAccuracyBoost=1.0, CLIntegrationAccuracy=0,
+                      non_linear_emul=None, allsims=None):
+    """Cumulative response R(k_max) of xi_pm.
+
+    Shear state plus a re-binning, then ci.rf_xi_tomo_limber.
+
+    Returns:
+      (theta, rf_xip, rf_xim).
+    """
+    if ntheta is None:
+        ntheta = _CONFIG["ntheta"]
+    if theta_min_arcmin is None:
+        theta_min_arcmin = _CONFIG["theta_min_arcmin"]
+    if theta_max_arcmin is None:
+        theta_max_arcmin = _CONFIG["theta_max_arcmin"]
+    if non_linear_emul is None:
+        non_linear_emul = _CONFIG["non_linear_emul"]
+    M, shear_photoz_bias, A1, A2, BTA = _shear_defaults(
+        M, shear_photoz_bias, A1, A2, BTA)
+    _set_state(omegam, omegab, H0, ns, As_1e9, w, w0pwa,
+               AccuracyBoost, kmax, k_per_logint, CAMBAccuracyBoost,
+               CLAccuracyBoost, CLIntegrationAccuracy, non_linear_emul,
+               binning=(ntheta, theta_min_arcmin, theta_max_arcmin),
+               M=M, shear_photoz_bias=shear_photoz_bias,
+               A1=A1, A2=A2, BTA=BTA,
+               baryon_sims=baryon_sims, allsims_file=allsims)
+    (rf_xip, rf_xim) = ci.rf_xi_tomo_limber(k=k)
+    return (ci.get_binning_real_space(), rf_xip, rf_xim)
+
+
+
 # ----------------------------------------------------------------------
 # One flat parameter vector drives the Fisher machinery: the sampled
 # cosmology, the two NLA numbers, the eight source photo-z shifts,
