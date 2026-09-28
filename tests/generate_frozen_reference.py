@@ -387,6 +387,61 @@ def generate_baryon_datavector(label):
           f"lines); descriptor: {dataset_name}", flush=True)
 
 
+# The --mask reruns of the comparison sweeps read one frozen TATT
+# dataset descriptor per scale-cut mask: identical to the base TATT
+# descriptor except for its mask_file line (the entries of
+# cocoa_test_utils.FASTPT_MASK_DATASETS). variant -> (base, mask).
+TATT_MASK_VARIANTS = {
+    "tatt_lsst_y1_M2.dataset": ("tatt_lsst_y1.dataset", "lsst_y1_M2_GGLOLAP0.05.mask"),
+    "tatt_lsst_y1_M3.dataset": ("tatt_lsst_y1.dataset", "lsst_y1_M3_GGLOLAP0.05.mask"),
+    "tatt_lsst_y1_M4.dataset": ("tatt_lsst_y1.dataset", "lsst_y1_M4_GGLOLAP0.05.mask"),
+    "tatt_lsst_y1_M5.dataset": ("tatt_lsst_y1.dataset", "lsst_y1_M5_GGLOLAP0.05.mask"),
+    "tatt_lsst_y1_M6.dataset": ("tatt_lsst_y1.dataset", "lsst_y1_M6_GGLOLAP0.05.mask"),
+    "tatt_lsst_y1_ones.dataset": ("tatt_lsst_y1.dataset", "ones.mask"),
+}
+
+def generate_tatt_mask_datasets():
+    """Write the per-mask TATT dataset descriptors.
+
+    Each variant is the base TATT descriptor with only its mask_file
+    line retyped: the comparison sweeps read them through the --mask
+    option to evaluate the same generated vector under another
+    scale-cut mask. Pure text, no model evaluations, so the variants
+    regenerate in the --overwrite run and in the incremental
+    --tatt-masks mode alike.
+
+    Returns:
+      nothing; frozen/data/ gains one descriptor per variant.
+
+    Raises:
+      RuntimeError when a base descriptor does not contain exactly
+      one mask_file line.
+    """
+    data_dir = os.path.join(u.FROZEN_DIR, "data")
+    for variant, (base, mask) in TATT_MASK_VARIANTS.items():
+        with open(os.path.join(data_dir, base)) as f:
+            descriptor = f.read()
+        replaced = 0
+        out_lines = []
+        # keepends=True keeps the newline on every line, so joining
+        # the pieces rebuilds the file byte for byte and only the
+        # retyped line differs
+        for line in descriptor.splitlines(keepends=True):
+            if line.strip().startswith("mask_file"):
+                out_lines.append(f"mask_file = {mask}\n")
+                replaced += 1
+            else:
+                out_lines.append(line)
+        if replaced != 1:
+            raise RuntimeError(
+                f"{base}: expected exactly one mask_file line, "
+                f"found {replaced}")
+        with open(os.path.join(data_dir, variant), "w") as f:
+            f.write("".join(out_lines))
+        print(f"TATT mask variant: {variant} (mask_file = {mask})",
+              flush=True)
+
+
 def main():
     """Rebuild tests/frozen/ and the manifest from the current project.
 
@@ -403,6 +458,23 @@ def main():
       and the refusal reason are printed).
     """
     # `in` scans the argument list for the literal flag
+    if "--tatt-masks" in sys.argv:
+        # incremental: rewrite the per-mask TATT descriptors of the
+        # --mask comparison sweeps in an existing frozen state and
+        # re-pin the manifest; pure text, no model evaluations
+        u.require_cocoa_environment()
+        generate_tatt_mask_datasets()
+        manifest = {
+            "_comment": "SHA-256 of every file under tests/frozen/; "
+                        "verified by every test before evaluating "
+                        "anything.",
+            "files": u.compute_manifest(),
+        }
+        with open(u.MANIFEST_FILE, "w") as f:
+            json.dump(manifest, f, indent=2, sort_keys=True)
+            f.write("\n")
+        print(f"manifest: {len(manifest['files'])} files pinned")
+        return
     if "--baryons" in sys.argv:
         # incremental: add the per-method frozen baryon vectors of the
         # DRIFT tests to an existing frozen state and re-pin the
@@ -454,6 +526,8 @@ def main():
     # the TATT-generated data vector must exist before the reference
     # loop below: every TATT reference evaluates against it
     generate_tatt_datavector()
+
+    generate_tatt_mask_datasets()
 
     reference = {
         "_meta": {
