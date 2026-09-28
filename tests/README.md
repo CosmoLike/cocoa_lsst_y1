@@ -22,10 +22,11 @@ no pass/fail).
     8. [Baryonic feedback drift tests](#baryon_drift_tests)
     9. [The photo-z convention checks](#photoz_conventions)
     10. [The non-Limber galaxy-galaxy lensing check](#nonlimber_ggl)
+    11. [The non-Limber galaxy clustering check](#nonlimber_gg)
 3. [Appendix](#appendix)
     1. [FAQ: Do the tests keep their own data?](#frozen_copy)
     2. [FAQ: Why do the TATT tests use their own data vector?](#synthetic_vectors)
-    3. [FAQ: Why do six reference checks fail?](#gg_growth_fix)
+    3. [FAQ: Why do seven reference checks fail?](#gg_growth_fix)
     4. [FAQ: How can maintainers refresh the snapshot?](#refreeze)
 
 ## Running the tests <a name="run_tests"></a>
@@ -56,12 +57,12 @@ A full run performs about 115 likelihood evaluations and takes a
 few minutes. The test files force `OMP_NUM_THREADS=4` internally.
 
 > [!WARNING]
-> Six 3x2pt/2x2pt frozen-reference checks fail by design (tests 5,
-> 7, x10, x11, x13, and the first assertion of
-> `test_nonlimber_ggl.py`): the non-Limber galaxy clustering fix of
-> 2026-09-28 moves their $\chi^2$ by 1.43 to 1.52 above the frozen
+> Seven 3x2pt/2x2pt frozen-reference checks fail by design (tests 5,
+> 7, x10, x11, x13, and the last assertion of `test_nonlimber_ggl.py`
+> and of `test_nonlimber_gg.py`): the non-Limber galaxy clustering fix
+> of 2026-09-28 moves their $\chi^2$ by 1.43 to 1.52 above the frozen
 > references, which were not refrozen. See
-> [FAQ: Why do six reference checks fail?](#gg_growth_fix).
+> [FAQ: Why do seven reference checks fail?](#gg_growth_fix).
 
 ## The tests <a name="the_tests"></a>
 
@@ -615,9 +616,9 @@ default) uses the Limber approximation at every multipole; `0` takes
 the multipoles below $\ell = 150$ from the exact projection, computed
 by cosmolike's `C_gs_tomo` with the split of Fang, Krause, Eifler &
 MacCrann (arXiv:1911.11947): an FFTLog integral of the linear power
-spectrum plus, in Limber, what linear theory misses. Galaxy clustering
-always runs non-Limber in real space; galaxy-galaxy lensing defaults
-to Limber because its lensing kernel is broad.
+spectrum plus, in Limber, what linear theory misses. Galaxy-galaxy
+lensing defaults to Limber because its lensing kernel is broad; galaxy
+clustering has its own key, `adopt_limber_gg` (next section).
 
 The test evaluates the frozen 3x2pt fiducial with Limber,
 non-Limber, and Limber again in one process and reports
@@ -638,6 +639,33 @@ Measured on 2026-09-27:
   from pairs with the source bin in front of the lens bin, (3,2) and
   (4,3) with 0.38 and 0.20 (their signal is the intrinsic alignment
   of the sources times the lens density, two narrow kernels).
+
+### The non-Limber galaxy clustering check (`test_nonlimber_gg.py`) <a name="nonlimber_gg"></a>
+
+The likelihood yaml key `adopt_limber_gg` chooses how the galaxy
+clustering spectrum $C_\ell^{gg}$ is computed: `0` takes the
+multipoles below $\ell = 150$ from the exact projection (cosmolike's
+`C_cl_tomo`, the same FFTLog split as the galaxy-galaxy lensing check
+above), `1` uses the Limber approximation at every multipole; `0`
+(non-Limber) is this project's default. The lens galaxy redshift
+distributions are narrow, so the Limber approximation fails at low
+$\ell$ for the clustering auto spectra.
+
+The test evaluates the frozen 3x2pt fiducial with the default, the
+other setting, and the default again in one process and reports
+$\Delta\chi^2 = \delta^T C^{-1} \delta$, with $\delta$ the non-Limber
+minus the Limber data vector, and the contribution of each lens bin.
+The assertions are the frozen-reference check on the default
+evaluation, a dead-flag floor on $\Delta\chi^2$, that only clustering
+entries change, a bit-identical round trip back to the default, and
+agreement with the measured $\Delta\chi^2$ to 5%.
+
+Measured on 2026-09-28:
+
+- $\Delta\chi^2 = 148$ for the 3x2pt data vector, against 1.86 for
+  the same comparison in galaxy-galaxy lensing.
+- It grows with lens redshift: lens bins 4, 3, 2, 1, 0 contribute
+  56.4, 48.9, 27.2, 16.2, 4.0 (each bin's block alone).
 
 # Appendix <a name="appendix"></a>
 
@@ -675,7 +703,7 @@ sits away from its minimum, where it responds linearly to tiny
 numerical changes; at its own minimum the response is quadratic and
 the drift bounds stay meaningful.
 
-## :interrobang: FAQ: Why do six reference checks fail? <a name="gg_growth_fix"></a>
+## :interrobang: FAQ: Why do seven reference checks fail? <a name="gg_growth_fix"></a>
 
 The frozen references predate a fix (2026-09-28) to the non-Limber
 galaxy clustering spectrum $C_\ell^{gg}$, and were deliberately not
@@ -703,14 +731,15 @@ The fix changes $w(\theta)$ only; cosmic shear and galaxy-galaxy
 lensing are unchanged. Measured with the fix (2026-09-28):
 
 - 3x2pt NLA (test 5): $\chi^2 = 1.948$ against the reference 0.443
-  ($|\Delta\chi^2| = 1.50$, limit 0.2; the first assertion of
-  `test_nonlimber_ggl.py` evaluates the same model).
+  ($|\Delta\chi^2| = 1.50$, limit 0.2; the last assertion of
+  `test_nonlimber_ggl.py` and of `test_nonlimber_gg.py` checks the same
+  model).
 - 3x2pt TATT (test 7): 1.520 against 0; TATT with python FAST-PT
   (test x10): 1.520 against 0.0004.
 - 2x2pt NLA (test x11): 1.606 against 0.170 (1.44); 2x2pt TATT (test
   x13): 1.434 against 0.
 - The $w(\theta)$ change alone is $\delta^T C^{-1} \delta = 1.52$: the
-  expected $\chi^2$ shift is 1.43 to 1.52, and the six checks fail by
+  expected $\chi^2$ shift is 1.43 to 1.52, and the seven checks fail by
   exactly that amount.
 
 A refreeze (next FAQ) makes the new values the references.
