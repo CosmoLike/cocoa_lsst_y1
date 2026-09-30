@@ -550,6 +550,7 @@ HIGH_ACCURACY_LIKELIHOOD = {
     # check compares the default against 3; the one-at-a-time scan
     # keeps 5 as a deliberate stress knob
     "accuracyboost": 3.0,       # default 1.0
+    "internal_accuracyboost": 2.0, # default 1.0 (denser convolution grid)
     "integration_accuracy": 10,  # default 0
     "lmax": 200000,             # default 50000-65000
     "kmax_boltzmann": 40.0,     # default 5.0
@@ -669,6 +670,7 @@ def _baryon_dataset(label):
 ACCURACY_KNOBS = [
     ("accuracyboost 1->3", {"accuracyboost": 3.0}, {}),
     ("accuracyboost 1->5 (stress)", {"accuracyboost": 5.0}, {}),
+    ("internal_accuracyboost 1->2", {"internal_accuracyboost": 2.0}, {}),
     ("integration_accuracy 0->10", {"integration_accuracy": 10}, {}),
     ("lmax 50000->200000", {"lmax": 200000}, {}),
     ("kmax_boltzmann -> 40 + camb kmax -> 50",

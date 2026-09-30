@@ -20,10 +20,15 @@ no pass/fail).
     6. [The N-random-models check](#nmodels_check)
     7. [Baryonic feedback accuracy checks](#baryon_accuracy_checks)
     8. [Baryonic feedback drift tests](#baryon_drift_tests)
+    9. [The photo-z convention checks](#photoz_conventions)
+    10. [The non-Limber galaxy-galaxy lensing check](#nonlimber_ggl)
+    11. [The non-Limber galaxy clustering check](#nonlimber_gg)
+    12. [The sector-ladder cache check](#cache_ladder)
 3. [Appendix](#appendix)
     1. [FAQ: Do the tests keep their own data?](#frozen_copy)
     2. [FAQ: Why do the TATT tests use their own data vector?](#synthetic_vectors)
-    3. [FAQ: How can maintainers refresh the snapshot?](#refreeze)
+    3. [FAQ: Why were the references refrozen on 2026-09-28?](#gg_growth_fix)
+    4. [FAQ: How can maintainers refresh the snapshot?](#refreeze)
 
 ## Running the tests <a name="run_tests"></a>
 
@@ -49,7 +54,7 @@ per model build and per evaluation, then a report with the
 computed $\chi^2$, the stored reference, the difference, and the pass
 limit.
 
-A full run performs about 110 likelihood evaluations and takes a
+A full run performs about 207 likelihood evaluations and takes a
 few minutes. The test files force `OMP_NUM_THREADS=4` internally.
 
 ## The tests <a name="the_tests"></a>
@@ -346,6 +351,23 @@ the script `start_cocoa.sh`
 
     python -m pytest ./projects/lsst_y1/tests/test_emul2.py
 
+### Scale-cut diagnostics (`test_scale_cut_diagnostics.py`) <a name="scale_cut_diagnostics"></a>
+
+The scale-cut diagnostics of 2011.06469 eq 17 — dlnC_ss/dlnk,
+dlnxi_pm/dlnk, and the response functions rf_C_ss and rf_xi — are
+notebook-facing functions with no role in the likelihood, so this
+test is their only automated coverage. It checks, in one process on
+the frozen TATT cosmic-shear fiducial, that every scalar and array
+overload returns finite values, that the scalar overloads agree with
+the matching array entries (they share the batch engines), and that
+the response functions behave as normalized cumulative fractions.
+
+- 2026-09-26: added with the cosmo2D_scuts batch (_work) refactor.
+  The low multipoles it pins (rf_C_ss at l = 3) were fatal before the
+  refactor: the retired exact-scalar branch underflowed k to 0 in its
+  normalization integrand and exited, which is what killed jupyter
+  kernels running the notebook derivative cells.
+
 ### Accuracy checks (`test_accuracy.py`, A1-A6) <a name="accuracy_checks"></a>
 
 First we change one accuracy parameter at a time on the 3x2pt NLA
@@ -359,6 +381,7 @@ defaults at once:
 |---------|-----------|------------------|
 | `accuracyboost` (cosmolike) | 2 | sizes of cosmolike's internal lookup tables, including the dyadic z grid of the power-spectrum tables |
 | `integration_accuracy` (cosmolike) | 10 | extra refinement passes of cosmolike's numerical integrals |
+| `internal_accuracyboost` (cosmolike) | 2 | density of the C-FAST-PT convolution grid relative to the output table the likelihood interpolates; 1 is the legacy single-grid path |
 | `lmax` (cosmolike) | 200000 | highest multipole of the internal harmonic-space $C_\ell$ tables that cosmolike transforms into the real-space correlation functions; arcminute scales need very high $\ell$ |
 | `kmax_boltzmann` (cosmolike) | 40 | the k cutoff of the power spectrum the likelihood requests from CAMB |
 | `AccuracyBoost` (CAMB) | 2 | CAMB's overall accuracy multiplier: denser sampling in every internal CAMB grid, the most expensive setting |
@@ -370,6 +393,14 @@ tables: every coarser grid's nodes are a subset of every finer
 grid's, so a higher boost tightens the same interpolation instead of
 moving the nodes (the construction is commented in
 `likelihood/_cosmolike_prototype_base.py`).
+
+`internal_accuracyboost` scales only the C-FAST-PT convolution
+grid; the output table the likelihood interpolates is unchanged.
+
+- 2026-09-25: the 0.5 default is converged. The lsst_y1 scan
+  measured $\Delta^T C^{-1} \Delta \le 10^{-9}$ against the
+  single-grid path down to 0.27, and `internal_accuracyboost: 1`
+  recovers that path exactly.
 
 When several settings move the $\chi^2$, settle them in cost order:
 raise cosmolike `accuracyboost` first (cheap), then CAMB
@@ -529,6 +560,126 @@ the script `start_cocoa.sh`
 
     python -m pytest ./projects/lsst_y1/tests/test_baryons.py
 
+
+### The photo-z convention checks (`test_photoz_conventions.py`) <a name="photoz_conventions"></a>
+
+The likelihood exposes two runtime knobs for how the n(z) table files
+become the smooth distributions the Limber integrals consume, both
+declared in the likelihood yamls and both defaulting to the
+historical behavior: `photoz_interpolation_type` (0 = cubic spline,
+1 = linear, 2+ = Steffen monotone, which cannot overshoot below zero
+around a sharp feature in the table) and `photoz_zmid_convention`
+(0 = the z column of the n(z) file holds Z_LOW left bin edges, so
+the tabulated value belongs at the cell center z + dz/2; 1 = the
+column holds Z_MID sample points). The two z-column readings differ
+by a rigid dz/2 shift of every distribution.
+
+The test evaluates the frozen cosmic-shear fiducial under five
+settings in one process - the default, each alternative, and the
+default again - and measures every alternative against the default
+with the same second-order construction the CFASTPT sweep uses:
+$\Delta\chi^2 = \delta^T C^{-1} \delta$, with $\delta$ the
+data-vector difference and $C^{-1}$ the masked inverse covariance.
+The assertions are a dead-flag floor on each alternative (a stale
+n(z) cache would give exactly zero), the frozen-reference check on
+the default, and a bit-identical round trip back to the default (a
+cache that fails to rebuild on the way back would fail loudly).
+
+Measured on 2026-09-24:
+
+- default: $\chi^2 = 0.267263$ (the frozen reference exactly).
+- linear: $\Delta\chi^2 = 6.3\times10^{-4}$; Steffen:
+  $\Delta\chi^2 = 4.1\times10^{-5}$. Either interpolant change is far below
+  the survey's statistical precision.
+- Z_MID: $\Delta\chi^2 = 1.63$ - the half-bin z-column reading
+  is the one photo-z convention that matters at this precision.
+
+The figures below are regenerated by
+`generate_photoz_convention_figure.py`:
+
+![The Z_LOW vs Z_MID reading of the n(z) z column](photoz_zmid_dxi.png)
+
+![Linear and Steffen n(z) interpolation vs cubic spline](photoz_interp_dxi.png)
+
+### The non-Limber galaxy-galaxy lensing check (`test_nonlimber_ggl.py`) <a name="nonlimber_ggl"></a>
+
+The likelihood yaml key `adopt_limber_gs` chooses how the
+galaxy-galaxy lensing spectrum $C_\ell^{gs}$ is computed: `0` (the
+default) takes the multipoles below $\ell = 150$ from the exact
+projection, computed by cosmolike's `C_gs_tomo` with the split of
+Fang, Krause, Eifler & MacCrann (arXiv:1911.11947): an FFTLog integral
+of the linear power spectrum plus, in Limber, what linear theory
+misses; `1` uses the Limber approximation at every multipole. The
+exact projection is the default here because the measured
+$\Delta\chi^2$ below is too large to absorb; galaxy clustering has its
+own key, `adopt_limber_gg` (next section).
+
+The test evaluates the frozen 3x2pt fiducial with the default, the
+other setting, and the default again in one process and reports
+$\Delta\chi^2 = \delta^T C^{-1} \delta$, with $\delta$ the non-Limber
+minus the Limber data vector and $C^{-1}$ the masked inverse
+covariance: the $\chi^2$ the Limber model would score against a data
+set generated with non-Limber galaxy-galaxy lensing. It also prints
+the contribution of each lens-source pair. The assertions are a
+dead-flag floor on $\Delta\chi^2$, that only galaxy-galaxy lensing
+entries change, a bit-identical round trip back to the default,
+agreement with the measured $\Delta\chi^2$ to 5%, and, last, the
+frozen-reference check on the default evaluation.
+
+Measured on 2026-09-27:
+
+- $\Delta\chi^2 = 1.86$ for the 3x2pt data vector.
+- The largest contributions come from the pairs with lens bin = source
+  bin, (1,1), (0,0), (3,3), (2,2) with 0.64, 0.64, 0.42, 0.37, and
+  from pairs with the source bin in front of the lens bin, (3,2) and
+  (4,3) with 0.38 and 0.20 (their signal is the intrinsic alignment
+  of the sources times the lens density, two narrow kernels).
+
+### The non-Limber galaxy clustering check (`test_nonlimber_gg.py`) <a name="nonlimber_gg"></a>
+
+The likelihood yaml key `adopt_limber_gg` chooses how the galaxy
+clustering spectrum $C_\ell^{gg}$ is computed: `0` takes the
+multipoles below $\ell = 150$ from the exact projection (cosmolike's
+`C_cl_tomo`, the same FFTLog split as the galaxy-galaxy lensing check
+above), `1` uses the Limber approximation at every multipole; `0`
+(non-Limber) is this project's default. The lens galaxy redshift
+distributions are narrow, so the Limber approximation fails at low
+$\ell$ for the clustering auto spectra.
+
+The test evaluates the frozen 3x2pt fiducial with the default, the
+other setting, and the default again in one process and reports
+$\Delta\chi^2 = \delta^T C^{-1} \delta$, with $\delta$ the non-Limber
+minus the Limber data vector, and the contribution of each lens bin.
+The assertions are a dead-flag floor on $\Delta\chi^2$, that only
+clustering entries change, a bit-identical round trip back to the
+default, agreement with the measured $\Delta\chi^2$ to 5%, and, last,
+the frozen-reference check on the default evaluation.
+
+Measured on 2026-09-28:
+
+- $\Delta\chi^2 = 148$ for the 3x2pt data vector, against 1.86 for
+  the same comparison in galaxy-galaxy lensing.
+- It grows with lens redshift: lens bins 4, 3, 2, 1, 0 contribute
+  56.4, 48.9, 27.2, 16.2, 4.0 (each bin's block alone).
+
+
+### The sector-ladder cache check (`test_cache_consistency.py`) <a name="cache_ladder"></a>
+
+cosmolike caches every expensive stage behind its own key, and a
+partial-invalidation bug - one sector's update path leaving a stale
+static another sector consumes - produces wrong data vectors only in
+MIXED update sequences, which the per-point checks never exercise.
+The test walks a deterministic ladder in one process (three
+cosmology-only steps, then IA-only, source-photo-z, lens-photo-z and
+shear-calibration steps), evaluating after every step, then scrambles
+every sector at once and returns to the ladder's final point: the
+pipeline must reproduce the recorded data vector and $\chi^2$ bit for
+bit, and a second instance walking the mirrored sector order must
+land on the same vector. The shear-calibration steps must equal the
+analytic $(1+m_i)(1+m_j)$ block rescale to $10^{-12}$, a no-op update
+must change nothing, and both intrinsic-alignment models run (the
+TATT ladder exercises the FAST-PT rebuild machinery).
+
 # Appendix <a name="appendix"></a>
 
 ## :interrobang: FAQ: Do the tests keep their own data? <a name="frozen_copy"></a>
@@ -564,6 +715,50 @@ snapshot was created. Reason: against the shipped NLA-based vector the TATT $\ch
 sits away from its minimum, where it responds linearly to tiny
 numerical changes; at its own minimum the response is quadratic and
 the drift bounds stay meaningful.
+
+## :interrobang: FAQ: Why were the references refrozen on 2026-09-28? <a name="gg_growth_fix"></a>
+
+On 2026-09-28 the non-Limber galaxy clustering spectrum
+$C_\ell^{gg}$ was fixed, the shipped data vectors were regenerated
+with the fixed code, the galaxy-galaxy lensing default switched to
+non-Limber (`adopt_limber_gs: 0`), and the snapshot was refrozen.
+The bug: below $\ell = 150$ cosmolike's `C_cl_tomo` computes
+
+$$C_\ell = C_\ell^{\rm FFTLog}(P_{\rm lin}) + C_\ell^{\rm Limber}(P_\delta) - C_\ell^{\rm Limber}(P_{\rm lin}),$$
+
+an exact FFTLog projection of the linear power spectrum plus, in the
+Limber approximation, what linear theory misses. Where the Limber
+approximation holds (high $\ell$) the first and third terms must
+converge to the same number and cancel, leaving the Limber
+$C_\ell^{gg}$. The FFTLog term needs separable growth,
+$D(z_1) D(z_2) P_{\rm lin}(k, z=0)$, but the subtracted Limber term
+used CAMB's $P_{\rm lin}(k, z)$, whose growth depends on scale
+(massive neutrinos): the two differ by 0.7% at $z = 0.3$ and 1.6% at
+$z = 1$. The pair never cancelled. Every $C_\ell^{gg}$ below the switch
+to Limber carried a -0.85% to -1.6% offset, and the 1% early exit
+fired near $\ell = 50$, where the decaying non-Limber correction
+happened to cancel the offset, dropping a real 1.3% to 2.2%
+correction for the highest lens bins. With the fix the subtracted
+term uses $D(a)^2 P_{\rm lin}(k, z=0)$, and the two terms agree to
+0.02% to 0.17% at $\ell = 149$.
+
+The fix changes $w(\theta)$ only; cosmic shear and galaxy-galaxy
+lensing are unchanged. Against the pre-fix references, measured on
+2026-09-28 before the refreeze:
+
+- 3x2pt NLA (test 5): $\chi^2 = 1.948$ against the reference 0.443
+  ($|\Delta\chi^2| = 1.50$, limit 0.2).
+- 3x2pt TATT (test 7): 1.520 against 0; TATT with python FAST-PT
+  (test 10): 1.520 against 0.0004.
+- 2x2pt NLA (test 11): 1.606 against 0.170 (1.44); 2x2pt TATT (test
+  13): 1.434 against 0.
+- The $w(\theta)$ change alone was $\delta^T C^{-1} \delta = 1.52$:
+  seven reference checks failed by 1.43 to 1.52 until the refreeze.
+
+The refreeze (next FAQ) regenerated `data/lsst_y1_theory.modelvector`
+(NLA) and `data/lsst_y1_theory_TATT.modelvector` (TATT) at the frozen
+fiducial with the fixed code and the non-Limber ggl default, and made
+the new $\chi^2$ values the references.
 
 ## :interrobang: FAQ: How can maintainers refresh the snapshot? <a name="refreeze"></a>
 
