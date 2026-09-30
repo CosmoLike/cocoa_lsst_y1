@@ -274,7 +274,7 @@ def _set_state(omegam, omegab, H0, ns, As_1e9, w, w0pwa,
       nothing; the interface state is the result.
     """
     (log10k_interp_2D, z_interp_2D, lnPL, lnPNL,
-     G_growth, z_interp_1D, chi) = cnu.get_camb_cosmology(
+     G_growth, z_growth, z_interp_1D, chi) = cnu.get_camb_cosmology(
         omegam=omegam, omegab=omegab, H0=H0, ns=ns, As_1e9=As_1e9,
         w=w, w0pwa=w0pwa, mnu=mnu, AccuracyBoost=AccuracyBoost,
         kmax=kmax, k_per_logint=k_per_logint,
@@ -298,6 +298,9 @@ def _set_state(omegam, omegab, H0, ns, As_1e9, w, w0pwa,
         ci.init_binning(int(binning[0]), binning[1], binning[2])
     if B1 is not None:
         ci.init_bias(bias_model=_CONFIG["bias_model"])
+    # the growth table has its own z grid (z_growth, the dense 1D grid
+    # cut at the last z_2D node), handed over as z_G, as the likelihood
+    # does
     ci.set_cosmology(omegam=omegam,
                      H0=H0,
                      log10k_2D=log10k_interp_2D,
@@ -305,6 +308,7 @@ def _set_state(omegam, omegab, H0, ns, As_1e9, w, w0pwa,
                      lnP_linear=lnPL,
                      lnP_nonlinear=lnPNL,
                      G=G_growth,
+                     z_G=z_growth,
                      z_1D=z_interp_1D,
                      chi=chi)
     if M is not None:
@@ -1027,7 +1031,7 @@ def compute_probes(sup=None, ell=None):
     if ell is None:
         ell = np.arange(25., 3000., 15.)
     (log10k_interp_2D, z_interp_2D, lnPL, lnPNL,
-     G_growth, z_interp_1D, chi) = cnu.get_camb_cosmology(
+     G_growth, z_growth, z_interp_1D, chi) = cnu.get_camb_cosmology(
         omegam=omegam, omegab=omegab, H0=H0, ns=ns, As_1e9=As_1e9,
         w=w, w0pwa=w0pwa, mnu=mnu, kmax=5.0, k_per_logint=10,
         CAMBAccuracyBoost=1.0,
@@ -1048,7 +1052,8 @@ def compute_probes(sup=None, ell=None):
     ci.set_cosmology(omegam=omegam, H0=H0,
                      log10k_2D=log10k_interp_2D, z_2D=z_interp_2D,
                      lnP_linear=lnPL, lnP_nonlinear=lnPNL,
-                     G=G_growth, z_1D=z_interp_1D, chi=chi)
+                     G=G_growth, z_G=z_growth,
+                     z_1D=z_interp_1D, chi=chi)
     ci.set_nuisance_shear_calib(M=M_FID)
     ci.set_nuisance_shear_photoz(bias=SHEAR_PHOTOZ_FID)
     ci.set_nuisance_clustering_photoz(bias=LENS_PHOTOZ_FID)
