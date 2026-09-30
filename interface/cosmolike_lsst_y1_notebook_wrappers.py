@@ -222,12 +222,18 @@ def init_cosmolike(CLprobe=None, with_data=False, lmax=None):
     if CLprobe is not None and CLprobe != "xi":
         ci.init_bias(bias_model=_CONFIG["bias_model"])
     ci.init_ntable_lmax(lmax=int(lmax))
-    ci.init_accuracy_boost(1.0, int(1))
     ci.init_photoz_conventions(
         int(_CONFIG["photoz_interpolation_type"]),
         int(_CONFIG["photoz_zmid_convention"]))
+    # init_fpt_internal_boost comes first, as in the likelihood: this is
+    # normally the first init_accuracy_boost of the process, which stores
+    # the C-FAST-PT internal grid fraction (internal_accuracyboost) it
+    # finds as the base every later call multiplies by the boost; called
+    # the other way round, the base would be the C default 0.5 that
+    # initial_setup restores
     ci.init_fpt_internal_boost(
         float(_CONFIG["internal_accuracyboost"]))
+    ci.init_accuracy_boost(1.0, int(1))
     return ini
 
 
@@ -288,12 +294,17 @@ def _set_state(omegam, omegab, H0, ns, As_1e9, w, w0pwa,
     CLIntegrationAccuracy = max(
         0, CLIntegrationAccuracy + abs(3*(CLAccuracyBoost - 1.0)))
     ci.init_ntable_lmax(int(_CONFIG["lmax"] + 20000*(CLAccuracyBoost - 1)))
-    ci.init_accuracy_boost(CLAccuracyBoost, int(CLIntegrationAccuracy))
     ci.init_photoz_conventions(
         int(_CONFIG["photoz_interpolation_type"]),
         int(_CONFIG["photoz_zmid_convention"]))
+    # init_fpt_internal_boost comes first, as in the likelihood:
+    # init_accuracy_boost sets the C-FAST-PT internal grid fraction
+    # (internal_accuracyboost) to base x CLAccuracyBoost, where base is
+    # the fraction it found at its first call in the process; a fraction
+    # set after init_accuracy_boost would discard the boost
     ci.init_fpt_internal_boost(
         float(_CONFIG["internal_accuracyboost"]))
+    ci.init_accuracy_boost(CLAccuracyBoost, int(CLIntegrationAccuracy))
     if binning is not None:
         ci.init_binning(int(binning[0]), binning[1], binning[2])
     if B1 is not None:
@@ -1043,12 +1054,16 @@ def compute_probes(sup=None, ell=None):
             # the flattened table, the layout set_cosmology expects
             lnPNL[i :: len(z_interp_2D)] += np.log(sup[z_val])
     ci.init_ntable_lmax(int(_CONFIG["lmax"]))
-    ci.init_accuracy_boost(1.0, 0)
     ci.init_photoz_conventions(
         int(_CONFIG["photoz_interpolation_type"]),
         int(_CONFIG["photoz_zmid_convention"]))
+    # init_fpt_internal_boost comes first, as in the likelihood and in
+    # _set_state, so the C-FAST-PT internal grid fraction is the
+    # configured one even when this is the first init_accuracy_boost of
+    # the process
     ci.init_fpt_internal_boost(
         float(_CONFIG["internal_accuracyboost"]))
+    ci.init_accuracy_boost(1.0, 0)
     ci.set_cosmology(omegam=omegam, H0=H0,
                      log10k_2D=log10k_interp_2D, z_2D=z_interp_2D,
                      lnP_linear=lnPL, lnP_nonlinear=lnPNL,
