@@ -626,13 +626,14 @@ entries change, a bit-identical round trip back to the default,
 agreement with the measured $\Delta\chi^2$ to 5%, and, last, the
 frozen-reference check on the default evaluation.
 
-Measured on 2026-09-27:
+Measured on 2026-10-01:
 
-- $\Delta\chi^2 = 1.86$ for the 3x2pt data vector.
+- $\Delta\chi^2 = 1.90$ for the 3x2pt data vector (1.86 on
+  2026-09-27).
 - The largest contributions come from the pairs with lens bin = source
-  bin, (1,1), (0,0), (3,3), (2,2) with 0.64, 0.64, 0.42, 0.37, and
+  bin, (1,1), (0,0), (3,3), (2,2) with 0.66, 0.65, 0.43, 0.38, and
   from pairs with the source bin in front of the lens bin, (3,2) and
-  (4,3) with 0.38 and 0.20 (their signal is the intrinsic alignment
+  (4,3) with 0.39 and 0.21 (their signal is the intrinsic alignment
   of the sources times the lens density, two narrow kernels).
 
 ### The non-Limber galaxy clustering check (`test_nonlimber_gg.py`) <a name="nonlimber_gg"></a>
@@ -655,12 +656,14 @@ clustering entries change, a bit-identical round trip back to the
 default, agreement with the measured $\Delta\chi^2$ to 5%, and, last,
 the frozen-reference check on the default evaluation.
 
-Measured on 2026-09-28:
+Measured on 2026-10-01:
 
-- $\Delta\chi^2 = 148$ for the 3x2pt data vector, against 1.86 for
+- $\Delta\chi^2 = 152$ for the 3x2pt data vector, against 1.90 for
   the same comparison in galaxy-galaxy lensing.
 - It grows with lens redshift: lens bins 4, 3, 2, 1, 0 contribute
-  56.4, 48.9, 27.2, 16.2, 4.0 (each bin's block alone).
+  57.9, 50.1, 27.7, 16.6, 4.1 (each bin's block alone).
+- 148 on 2026-09-28; the core and likelihood changes since moved it
+  by 2.5% (not separated).
 
 
 ### The sector-ladder cache check (`test_cache_consistency.py`) <a name="cache_ladder"></a>
