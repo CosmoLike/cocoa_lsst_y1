@@ -2,6 +2,10 @@ path: null
 data_file: lsst_y1_M1_GGL0.05.dataset
 accuracyboost: 1.0
 internal_accuracyboost: 1.0 # C-FAST-PT convolution grid / output grid
+# refinements on top of accuracyboost (which multiplies them too):
+# the non-Limber FFTLog chi grid, and the z nodes of the P(k) tables
+nonlimber_accuracyboost: 1.0
+pk_z_refinement: 1
 integration_accuracy: 0
 # n(z) interpolation: 0 = cubic spline, 1 = linear, 2+ = Steffen (monotone)
 photoz_interpolation_type: 0
