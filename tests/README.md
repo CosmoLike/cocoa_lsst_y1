@@ -24,6 +24,7 @@ no pass/fail).
     10. [The non-Limber galaxy-galaxy lensing check](#nonlimber_ggl)
     11. [The non-Limber galaxy clustering check](#nonlimber_gg)
     12. [The sector-ladder cache check](#cache_ladder)
+    13. [The covariance primitive checks](#covariance_primitives)
 3. [Appendix](#appendix)
     1. [FAQ: Do the tests keep their own data?](#frozen_copy)
     2. [FAQ: Why do the TATT tests use their own data vector?](#synthetic_vectors)
@@ -682,6 +683,25 @@ land on the same vector. The shear-calibration steps must equal the
 analytic $(1+m_i)(1+m_j)$ block rescale to $10^{-12}$, a no-op update
 must change nothing, and both intrinsic-alignment models run (the
 TATT ladder exercises the FAST-PT rebuild machinery).
+
+### The covariance primitive checks (`test_covariance_primitives.py`) <a name="covariance_primitives"></a>
+
+These opt-in tests exercise the new isolated covariance C functions against
+independent NumPy/mpmath calculations: all Gaussian field pairs, exact
+integer-band mode counts, angular projection, analytic shape/shot noise,
+and spherical pair geometry. They also check padding, repeated calls, and
+agreement across one, four and eight OpenMP threads.
+
+The reference code lives outside git in `test/covariance_reference/`.
+Set `COSMOLIKE_COVARIANCE_REFERENCE` to that directory and
+`COSMOLIKE_COVARIANCE_LIBRARY` to its compiled primitive library; otherwise
+the suite reports a skip. The
+[covariance module README](../../../external_modules/code/cosmolike_core/cosmolike/covariances/README.md)
+gives the isolated build and run commands.
+
+These checks validate algebra on supplied inputs. They do not validate a
+survey's spectra, choose covariance accuracy settings, or replace the
+likelihood's frozen covariance.
 
 # Appendix <a name="appendix"></a>
 
