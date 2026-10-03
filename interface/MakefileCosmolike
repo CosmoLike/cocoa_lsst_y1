@@ -178,6 +178,7 @@ CSOURCES += \
 		${ROOTDIR}/external_modules/code/cosmolike/radial_weights.c \
 		${ROOTDIR}/external_modules/code/cosmolike/redshift_spline.c \
 		${ROOTDIR}/external_modules/code/cosmolike/structs.c \
+		${ROOTDIR}/external_modules/code/cosmolike/covariances/spectra_cov.c \
 		${ROOTDIR}/external_modules/code/cosmolike/pt_cfastpt.c \
 
 OBJECTC += \
@@ -195,19 +196,22 @@ OBJECTC += \
 		./radial_weights.o \
 		./redshift_spline.o \
 		./structs.o \
+		./spectra_cov.o \
 		./pt_cfastpt.o
 
 CPPSOURCES += \
 		${ROOTDIR}/external_modules/code/cosmolike/generic_interface.cpp \
 		${ROOTDIR}/external_modules/code/cosmolike/cosmo2D_wrapper.cpp \
 		${ROOTDIR}/external_modules/code/cosmolike/cosmo2D_scuts_wrapper.cpp \
-		${ROOTDIR}/external_modules/code/cosmolike/halo_wrapper.cpp
+		${ROOTDIR}/external_modules/code/cosmolike/halo_wrapper.cpp \
+		${ROOTDIR}/external_modules/code/cosmolike/covariances/generic_interface_cov.cpp
 
 OBJECTCPP += \
 		./generic_interface.o \
 		./cosmo2D_wrapper.o \
 		./cosmo2D_scuts_wrapper.o \
-		./halo_wrapper.o
+		./halo_wrapper.o \
+		./generic_interface_cov.o
 
 $(OBJECTC): $(CSOURCES)
 	$(CC) $(CFLAGS) -fPIC -c $(CSOURCES)
