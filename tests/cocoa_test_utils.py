@@ -2486,15 +2486,19 @@ def _baryon_accuracy_delta_impl(baryon, knob=None):
     likelihood_block = info["likelihood"][cfg["likelihood"]]
     workdir = tempfile.mkdtemp(prefix="cocoa_baryon_model_")
     try:
-        # the likelihood joins path + filename for EVERY file a
-        # descriptor names, so the temporary directory must look like
-        # a complete data folder: symlink each frozen data file in
-        for name in sorted(os.listdir(frozen_data_dir)):
-            os.symlink(os.path.join(frozen_data_dir, name),
-                       os.path.join(workdir, name))
         slug = baryon.replace(" ", "_")
         vector_name = f"baryon_{slug}.modelvector"
         descriptor_name = f"baryon_{slug}.dataset"
+        # the likelihood joins path + filename for EVERY file a
+        # descriptor names, so the temporary directory must look like
+        # a complete data folder: symlink each frozen data file in,
+        # except the vector and descriptor this function writes (a
+        # write through a symlink would overwrite the frozen copy)
+        for name in sorted(os.listdir(frozen_data_dir)):
+            if name in (vector_name, descriptor_name):
+                continue
+            os.symlink(os.path.join(frozen_data_dir, name),
+                       os.path.join(workdir, name))
         vector_path = os.path.join(workdir, vector_name)
         # the default model's evaluation writes the theory vector;
         # its chi2 (against the frozen no-feedback data) plays no role
