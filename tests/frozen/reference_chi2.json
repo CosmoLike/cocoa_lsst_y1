@@ -1,19 +1,19 @@
 {
   "_meta": {
     "chi2_tolerance": 0.2,
-    "generated_utc": "2026-10-01T16:41:09Z",
+    "generated_utc": "2026-10-03T15:59:34Z",
     "omp_num_threads": "4"
   },
-  "emul2_example1_nla": 0.29032062776985323,
-  "emul2_example2_nla": 1.058201981516262,
-  "example1_fastpt_minus_cfastpt": -0.004814086694502715,
-  "example1_nla": 0.01215010071543712,
-  "example1_tatt": 0.011949206029785636,
-  "example1_tatt_fastpt": 0.007135119335282921,
-  "example2_2x2pt_nla": 0.2543381274717861,
-  "example2_2x2pt_tatt": 1.167144583143824e-12,
-  "example2_fastpt_minus_cfastpt": 0.0004019969293499319,
-  "example2_nla": 0.26608492681280344,
-  "example2_tatt": 2.7228784433506256e-12,
-  "example2_tatt_fastpt": 0.0004019969320728104
+  "emul2_example1_nla": 0.2852799047912554,
+  "emul2_example2_nla": 1.0301547547480743,
+  "example1_fastpt_minus_cfastpt": -0.004802256914695995,
+  "example1_nla": 0.023705928404497645,
+  "example1_tatt": 0.011953501626625753,
+  "example1_tatt_fastpt": 0.007151244711929758,
+  "example2_2x2pt_nla": 0.24433443589941875,
+  "example2_2x2pt_tatt": 5.948961614870478e-13,
+  "example2_fastpt_minus_cfastpt": 0.0004104131122775799,
+  "example2_nla": 0.26304371910875834,
+  "example2_tatt": 2.0273900723966138e-12,
+  "example2_tatt_fastpt": 0.00041041311430497
 }
