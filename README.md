@@ -737,13 +737,13 @@ Basically, we apply standard neural network techniques to generalize the *syren-
 
 # Unit tests <a name="unit_tests"></a>
 
-The `tests/` folder holds unit tests for the likelihoods of this
+The `tests/data_vector/` folder holds unit tests for the likelihoods of this
 project: they compare each likelihood against stored reference
 values, check for race conditions from OpenMP threading, and measure
 the numerical error of the default accuracy settings, and the accuracy of the
 hybrid emulated pipelines. The
 tests read nothing from the live project;
-[tests/README.md](tests/README.md) describes every test, the tests'
+[data-vector test guide](tests/data_vector/README.md) describes every test, the tests'
 own data snapshot, and how to refresh it.
 
 We assume users are in the Conda cocoa environment from a previous
@@ -757,11 +757,11 @@ the script `start_cocoa.sh`
 
 **Step :two:**: run the tests of this project
 
-    python -m pytest ./projects/lsst_y1/tests
+    python -m pytest ./projects/lsst_y1/tests/data_vector
 
 ## Minimum accuracy parameters
 
-The advisory checks in `tests/test_accuracy.py` measure the
+The advisory checks in `tests/data_vector/test_accuracy.py` measure the
 numerical error of the default accuracy settings: each setting is
 raised one at a time on the 3x2pt configuration, so a large
 $\Delta\chi^2$ can be attributed to the setting causing it, and
@@ -771,5 +771,26 @@ Each check prints the $\Delta\chi^2$
 between the high-accuracy and the default evaluations, to compare
 against the 0.2 band the reference tests allow. No measured values
 are quoted here: rerun the checks to measure them on the current
-code, and see [tests/README.md](tests/README.md) for each check,
+code, and see [data-vector test guide](tests/data_vector/README.md) for each check,
 the settings raised, and what each setting controls.
+
+## Covariance notebook
+
+[EXAMPLE_EVALUATE_COVARIANCE.ipynb](EXAMPLE_EVALUATE_COVARIANCE.ipynb)
+computes and plots a small LSST Y1 Gaussian shear covariance and compares
+two numerical resolutions. [The covariance guide](covariance/README.md)
+explains its survey inputs, physical scope and shared Python tools.
+
+The covariance tests check construction, numerical integration and notebook
+helpers. We assume users have run `conda activate cocoa`, use Bash, and are
+in `cocoa/Cocoa`, with the project interface compiled.
+
+**Step :one:**: activate Cocoa's private Python environment.
+
+    source start_cocoa.sh
+
+**Step :two:**: run the covariance tests separately from the data-vector tests.
+
+    python -m pytest projects/lsst_y1/tests/covariance
+
+See [the test guide](tests/README.md) for the separate commands.

@@ -1,0 +1,282 @@
+# Table of contents
+
+1. [Overview](#overview)
+2. [Running the covariance notebook](#running)
+3. [Changing the covariance accuracy](#accuracy)
+4. [Reading the figures](#figures)
+5. [Running the tests](#tests)
+6. [Files](#files)
+7. [Appendix](#appendix)
+   1. [FAQ: Which survey does the example use?](#survey)
+   2. [FAQ: What does the Gaussian calculation include?](#gaussian)
+   3. [FAQ: How can users check convergence?](#convergence)
+   4. [FAQ: How can users reuse the calculation?](#reuse)
+
+# Overview <a name="overview"></a>
+
+[EXAMPLE_EVALUATE_COVARIANCE.ipynb](../EXAMPLE_EVALUATE_COVARIANCE.ipynb)
+computes the covariance of the cosmic-shear correlation functions
+$`\xi_+`$ and $`\xi_-`$ for one source bin. It uses this project's
+five lens and five source redshift distributions and includes the
+cross covariance between the two correlation functions.
+
+The notebook runs CAMB, builds the Gaussian covariance, repeats the
+calculation at higher accuracy, and plots the changes. Its matrix has
+52 rows: 26 angular bins for $`\xi_+`$, followed by 26 for $`\xi_-`$.
+It does not load or overwrite the likelihood's supplied covariance.
+
+> [!NOTE]
+> This example includes Gaussian covariance with Limber spectra,
+> full-sky angular-bin averages and spherical-cap pair noise.
+> It does not include super-sample covariance (SSC), connected
+> non-Gaussian covariance (cNG), or non-Limber corrections.
+> See [what the calculation includes](#gaussian).
+
+# Running the covariance notebook <a name="running"></a>
+
+We assume Cocoa and the LSST Y1 project are installed, users have run
+`conda activate cocoa`, the shell is Bash, and the current folder is
+`cocoa/Cocoa`. The notebook uses the Python environment activated by Cocoa.
+
+**Step :one:**: activate Cocoa's private Python environment.
+
+    source start_cocoa.sh
+
+**Step :two:**: compile the LSST Y1 interface, including the covariance components.
+
+    source ./projects/lsst_y1/scripts/compile_lsst_y1.sh
+
+**Step :three:**: start Jupyter.
+
+    jupyter notebook --no-browser --port=8888
+
+**Step :four:**: open the URL printed by Jupyter and select
+`projects/lsst_y1/EXAMPLE_EVALUATE_COVARIANCE.ipynb`.
+
+**Step :five:**: select **Kernel → Restart Kernel and Run All Cells**.
+
+The first calculation constructs the one-source Gaussian covariance.
+The following cells compare accuracy boosts 1, 2 and 4. The notebook
+prints matrix dimensions, positivity diagnostics and changes relative
+to the highest tested boost, then displays the figures.
+
+> [!NOTE]
+> The notebook assigns eight threads to CosmoLike's OpenMP loops and
+> one thread to BLAS. Change `ci.set_omp_threads(n=8)` in the notebook
+> if fewer cores are available. Run one calculation at a time when
+> measuring execution time.
+
+> [!TIP]
+> To inspect the forecast inputs before running CAMB, see
+> [which survey the example uses](#survey).
+
+# Changing the covariance accuracy <a name="accuracy"></a>
+
+We assume users have run `conda activate cocoa`, use Bash, and are in
+`cocoa/Cocoa`. The interface must already be compiled.
+
+**Step :one:**: activate Cocoa's private Python environment.
+
+    source start_cocoa.sh
+
+**Step :two:**: start Jupyter and open
+`projects/lsst_y1/EXAMPLE_EVALUATE_COVARIANCE.ipynb`.
+
+    jupyter notebook --no-browser --port=8888
+
+**Step :three:**: set the first calculation's accuracy in its configuration cell.
+
+```python
+settings = survey.configuration(accuracy_boost=1)
+```
+
+`accuracy_boost` is the single user control. Supported values are
+1, 2, 4 and 8. It raises the covariance's multipole cutoffs and radial,
+angular and lensing-window integration resolution together. It leaves
+CAMB and data-vector accuracy settings unchanged.
+
+**Step :four:**: choose which values to compare in the refinement cell.
+
+```python
+boosts = [1, 2, 4]
+```
+
+For the more expensive comparison, include boost 8:
+
+```python
+boosts = [1, 2, 4, 8]
+```
+
+**Step :five:**: restart the kernel and run all cells.
+
+The calculation keeps the cosmology, galaxy distributions, noise and
+angular bins fixed. Only the covariance accuracy changes. The highest
+boost in the comparison supplies the reference matrix for the difference
+plots and variance-ratio table.
+
+> [!NOTE]
+> A larger boost is a numerical resolution, not a guaranteed survey
+> accuracy. Boost 1 is a teaching example. Boost 8 uses more modes and
+> quadrature nodes and can require substantially more memory and time.
+> See [how to check convergence](#convergence).
+
+# Reading the figures <a name="figures"></a>
+
+| Figure | What it teaches |
+| --- | --- |
+| Split-triangle correlation matrix | Compare the initial calculation in the lower triangle with the highest tested boost in the upper triangle. Each matrix is normalized by its own diagonal. |
+| Gaussian component maps and histogram | See where signal/mixed-noise and pure pair noise contribute to the computed covariance. |
+| Angular standard deviations | Read the error on each correlation-function bin, $`\sqrt{C_{ii}}`$, for every tested boost. |
+| Angular error changes | Compare standard deviations with the reference, in percent. |
+| Covariance-change maps and histogram | Find changes in auto and cross blocks, normalized by the reference diagonal variances, in percent. |
+
+The correlation comparison follows the layout of
+[Friedrich et al. (2021), Fig. 6](https://arxiv.org/abs/2012.08568).
+The component maps and histogram adapt
+[Barreira, Krause & Schmidt (2018), Fig. 1](https://arxiv.org/abs/1807.04266).
+These figures display the notebook's calculation, not data from the papers.
+
+Negative correlations remain visible. A grey cell in an element-ratio
+map means its denominator is zero or too small for the selected cutoff.
+No plot clips eigenvalues or adjusts the covariance.
+
+# Running the tests <a name="tests"></a>
+
+We assume users have run `conda activate cocoa`, use Bash, and are in
+`cocoa/Cocoa`, with the LSST Y1 interface compiled.
+
+**Step :one:**: activate Cocoa's private Python environment.
+
+    source start_cocoa.sh
+
+**Step :two:**: run the covariance tests.
+
+    python -m pytest projects/lsst_y1/tests/covariance
+
+The tests check covariance algebra, quadrature, thread repeatability and
+the notebook helpers. The [covariance test guide](../tests/covariance/README.md)
+describes each check.
+
+For the ordinary data-vector tests, we again assume the activated Conda
+Cocoa environment, Bash, and the current folder `cocoa/Cocoa`.
+
+**Step :one:**: activate Cocoa's private Python environment.
+
+    source start_cocoa.sh
+
+**Step :two:**: run only the data-vector tests.
+
+    python -m pytest projects/lsst_y1/tests/data_vector
+
+These tests compare likelihood predictions with the stored references.
+The [data-vector test guide](../tests/data_vector/README.md) explains them.
+
+# Files <a name="files"></a>
+
+| File or folder | Purpose |
+| --- | --- |
+| [EXAMPLE_EVALUATE_COVARIANCE.ipynb](../EXAMPLE_EVALUATE_COVARIANCE.ipynb) | Run, refine and plot the cosmic-shear covariance. |
+| [lsst_y1_covariance.py](lsst_y1_covariance.py) | Specify survey inputs, initialize this project's interface and call the shared calculation. |
+| [Shared covariance package](../../../external_modules/code/cosmolike_core/cosmolike_notebook_utils/covariance/README.md) | Reuse integration preparation, Gaussian assembly, halo inputs, accuracy settings and diagnostics. |
+| [Shared plotting script](../../../external_modules/code/cosmolike_core/cosmolike_notebook_utils/plot_covariances.py) | Plot covariance arrays from any project. |
+| [Covariance C files](../../../external_modules/code/cosmolike_core/cosmolike/covariances/README.md) | Read the physics and each compiled component's role. |
+
+# Appendix <a name="appendix"></a>
+
+## FAQ: Which survey does the example use? <a name="survey"></a>
+
+The redshift files are `data/lsst_y1_lens.nz` and
+`data/lsst_y1_source.nz`, relative to the project. Each has five
+individually normalized bin distributions. Normalization describes the
+redshift shape, not the number of galaxies in that bin.
+
+The [LSST DESC Science Requirements Document](https://arxiv.org/abs/1809.01669)
+guides the example's total densities, area and per-component shape
+dispersion. The equal allocation among five bins is an explicit forecast
+assumption; it is not inferred from the normalized redshift columns.
+
+| Survey input | Example choice |
+| --- | --- |
+| Survey area | 12,300 square degrees |
+| Total lens density | 18 galaxies per square arcminute |
+| Lens density per bin | 3.6 galaxies per square arcminute |
+| Total source density | 10 galaxies per square arcminute |
+| Source density per bin | 2 galaxies per square arcminute |
+| Ellipticity dispersion per component | 0.26 |
+| Selected source bin | `source_bin: 0` (the first bin) |
+| Angular bins | 26 logarithmic bins from 2.5 to 900 arcminutes |
+| Neutrino mass | Zero |
+| Intrinsic alignment | Zero |
+| Photo-z shifts | Zero |
+| Magnification | Zero |
+
+The cosmology and remaining choices are written explicitly in
+`lsst_y1_covariance.py`. They define a forecast; they are not the
+parameters of the project's stored likelihood reference.
+
+## FAQ: What does the Gaussian calculation include? <a name="gaussian"></a>
+
+For Gaussian fields, a four-point expectation separates into products
+of two-point expectations. A covariance between measured spectra AB and
+CD therefore needs AC, BD, AD and BC spectra, even if those crossed pairs
+are excluded from the measured data vector. The example retains the
+complete field matrix before selecting its shear block.
+
+The signal uses nonlinear matter power and Limber projection. Spherical
+spin operators average the resulting angular spectra over each angular
+bin. The signal covariance uses the $`f_{\rm sky}`$ approximation.
+
+Pure white noise extends to arbitrarily high multipoles. The calculation
+replaces that infinite sum with the analytic pair-noise expression using
+a spherical-cap footprint. Signal and mixed signal-noise terms retain
+the finite multipole sum. A cap correction to noise pair counts does not
+make the signal covariance an exact treatment of an irregular footprint.
+
+SSC describes correlations induced by modes larger than the survey;
+cNG describes the connected four-point contribution inside it.
+Their component calculations are available in the shared code, but this
+notebook does not assemble them into a full survey covariance. See
+[Krause & Eifler](https://arxiv.org/abs/1601.05779) and
+[Takada & Hu](https://arxiv.org/abs/1302.6994) for the physical decomposition.
+
+## FAQ: How can users check convergence? <a name="convergence"></a>
+
+Compare successive boosts with the same physical inputs. The notebook
+prints the largest departure of the generalized covariance eigenvalues
+from one. They solve
+
+```math
+C_b v = \lambda C_{\rm ref} v.
+```
+
+The smallest and largest eigenvalues bound the variance ratio for any
+linear combination of measurements. This checks coupled directions that
+a diagonal comparison alone can miss. Raw largest covariance eigenvalues
+do not identify the most informative cosmological modes.
+
+Every total matrix must have nonnegative variance in every direction;
+an invertible total must be positive definite. A positive diagonal alone
+is insufficient. The notebook reports eigenvalues without repairing them.
+
+The reference boost is only the highest resolution tested. Establish its
+stability with further refinement, then assess marginalized parameter
+errors and the Fisher Figure of Merit for the intended survey. The
+likelihood's data-vector $`\lvert\Delta\chi^2\rvert<0.2`$ rule is not a
+covariance convergence requirement.
+
+## FAQ: How can users reuse the calculation? <a name="reuse"></a>
+
+A project supplies its own initialized interface, redshift files, survey
+numbers and physical choices. The shared Python package prepares arrays
+and asks the covariance C components to perform the integration and
+projection. Copy the small survey adapter, not those algorithms.
+
+Other project interfaces must link the same covariance sources before
+running these examples. Cluster observables need their own physical
+model; changing the number of galaxy bins does not create a cluster
+covariance.
+
+Rectangular projection inputs allow Python to request matrix subblocks.
+The C routines use OpenMP inside one process and never start MPI work.
+A future Python dispatcher can distribute those subblocks while keeping
+all cross correlations in the assembled matrix.
