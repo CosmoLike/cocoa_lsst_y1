@@ -204,6 +204,32 @@ class CovarianceSpectra(unittest.TestCase):
             with self.assertRaises(ValueError):
                 self.ci.covariance_limber_spectra(ell=ell, a_edges=edges, nquad=nquad)
 
+    def test_multipole_batches_preserve_every_spectrum(self):
+        """Batch boundaries and worker counts leave all radial sums unchanged."""
+        from cosmolike_notebook_utils.covariance.gaussian import limber_spectra
+
+        for linear in (False, True):
+            for include_rsd in (False, True):
+                self.ci.set_omp_threads(n=1)
+                expected = self.ci.covariance_limber_spectra(
+                    ell=self.ell, a_edges=self.edges, nquad=64, nwindow=1025,
+                    include_ia=True, include_rsd=include_rsd, linear=linear,
+                )
+                for threads in (1, 8):
+                    self.ci.set_omp_threads(n=threads)
+                    for batch_size in (1, 4, len(self.ell)+1):
+                        actual = limber_spectra(
+                            interface=self.ci, ell=self.ell, a_edges=self.edges,
+                            nquad=64, nwindow=1025, include_ia=True,
+                            include_rsd=include_rsd, linear=linear,
+                            batch_size=batch_size,
+                        )
+                        for name in ("spectra", "windows", "geometry"):
+                            np.testing.assert_array_equal(actual[name].view(np.uint64),
+                                                          expected[name].view(np.uint64))
+                        self.assertEqual(actual["nlens"], expected["nlens"])
+                        self.assertEqual(actual["nsource"], expected["nsource"])
+
 
 if __name__ == "__main__":
     unittest.main()
