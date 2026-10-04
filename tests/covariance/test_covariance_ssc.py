@@ -1,15 +1,12 @@
 """Check the mask normalization and supplied-response SSC calculation.
 
-The external NumPy/mpmath reference is independent of the compiled code.
+The independent NumPy/mpmath reference is independent of the compiled code.
 These checks validate mask and response algebra, including a correlated
 radial-kernel hook. They do not certify a halo response, nonlinear tidal
 model, non-Limber background calculation, or production survey accuracy.
 """
 
 import ctypes
-import importlib.util
-import os
-from pathlib import Path
 import unittest
 
 import numpy as np
@@ -34,20 +31,12 @@ class SuperSampleCovariance(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        """Load only explicitly supplied external reference and C library."""
-        reference = os.environ.get("COSMOLIKE_COVARIANCE_REFERENCE")
-        library = os.environ.get("COSMOLIKE_SSC_LIBRARY")
-        if not reference or not library:
-            raise unittest.SkipTest("set covariance reference and SSC library paths")
-        source = Path(reference)/"ssc_reference.py"
-        if not source.is_file() or not Path(library).is_file():
-            raise unittest.SkipTest("SSC reference or compiled library is absent")
-        specification = importlib.util.spec_from_file_location(
-            name="ssc_reference", location=source
-        )
-        cls.reference = importlib.util.module_from_spec(specification)
-        specification.loader.exec_module(cls.reference)
-        cls.library = ctypes.CDLL(library)
+        """Load only explicitly supplied independent reference and C library."""
+        import cosmolike_lsst_y1_interface as ci
+        from cosmolike_notebook_utils.covariance.reference import ssc_reference
+
+        cls.reference = ssc_reference
+        cls.library = ctypes.CDLL(ci.__file__)
         integer = ctypes.c_int
         real = ctypes.c_double
         pointer = ctypes.POINTER(real)
@@ -241,6 +230,47 @@ class SuperSampleCovariance(unittest.TestCase):
             correlation = covariance/np.outer(scale, scale)
             self.assertGreaterEqual(np.linalg.eigvalsh(correlation)[0], -1.e-12)
             self.assertLess(np.min(correlation), 0.0)
+
+    def test_subblocks_preserve_cross_correlations(self):
+        """Separate rectangular calls must reconstruct one common SSC matrix.
+
+        A Python survey driver may assign these blocks to different MPI
+        processes. The C projection receives ordinary arrays and uses only
+        OpenMP. Uneven block boundaries exercise the SIMD edge groups.
+        Cross blocks must be computed even if their catalogs differ.
+        """
+        generator = np.random.default_rng(seed=20261004)
+        response = generator.normal(size=(13, 31))
+        weights = generator.uniform(low=0.01, high=0.03, size=31)
+        expected = self.reference.project_limber(
+            response=response,
+            radial_weights=weights,
+            sigma2=np.ones(shape=31),
+        )
+        boundaries = (0, 3, 7, 13)
+        for threads in (1, 2, 4, 8):
+            self.library.omp_set_num_threads(threads)
+            complete = self.project(
+                left=response, right=response, weights=weights
+            )
+            assembled = np.full_like(a=complete, fill_value=np.nan)
+
+            # Both covariance indices need full coverage. Computing only
+            # matching diagonal blocks discards shared background modes.
+            for left in range(len(boundaries)-1):
+                rows = slice(boundaries[left], boundaries[left+1])
+                for right in range(len(boundaries)-1):
+                    columns = slice(boundaries[right], boundaries[right+1])
+                    assembled[rows, columns] = self.project(
+                        left=response[rows],
+                        right=response[columns],
+                        weights=weights,
+                    )
+            np.testing.assert_array_equal(x=assembled, y=complete)
+            np.testing.assert_allclose(
+                actual=assembled, desired=expected, rtol=2.e-13, atol=1.e-16
+            )
+            np.linalg.cholesky(a=assembled)
 
     def test_repetition_and_threads(self):
         """Odd shapes exercise SIMD tails; all outputs are bitwise repeatable."""

@@ -1,29 +1,17 @@
 """Validate covariance-owned all-pairs Limber spectra on shared survey inputs.
 
-Set COSMOLIKE_COVARIANCE_REFERENCE to the external covariance_reference
-folder after running its survey_inputs.py generator. These tests do not
-replace the shipped survey covariance or certify the unfinished SSC/cNG
-model. The independent reference receives the archived CAMB tables and
+Tests create a two-lens, two-source artificial survey and its CAMB tables
+in a temporary directory. This exposes overlapping lens bins independently
+of the LSST forecast configuration. The independent reference receives the archived CAMB tables and
 the C window samples; quadrature refinement is checked separately.
 """
 
 import ctypes
-import importlib.util
-import os
 from pathlib import Path
 import unittest
 
 import numpy as np
 
-
-def load_reference(name, directory):
-    """Load one explicitly named external reference module from directory."""
-    specification = importlib.util.spec_from_file_location(
-        name=name, location=directory/f"{name}.py"
-    )
-    module = importlib.util.module_from_spec(specification)
-    specification.loader.exec_module(module)
-    return module
 
 
 class CovarianceSpectra(unittest.TestCase):
@@ -32,17 +20,17 @@ class CovarianceSpectra(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         """Install the archived fiducial through the normal project setters."""
-        location = os.environ.get("COSMOLIKE_COVARIANCE_REFERENCE")
-        if not location:
-            raise unittest.SkipTest("set COSMOLIKE_COVARIANCE_REFERENCE")
-        directory = Path(location)
-        if not (directory/"inputs/camb.npz").is_file():
-            raise unittest.SkipTest("generate the external covariance survey inputs")
+        import tempfile
         import cosmolike_lsst_y1_interface as ci
+        from cosmolike_notebook_utils.covariance.reference import spectra_reference
+        import survey_inputs as setup
 
+        temporary = tempfile.TemporaryDirectory(prefix="cocoa_covariance_")
+        cls.addClassCleanup(temporary.cleanup)
+        directory = Path(temporary.name)
+        setup.create_inputs(directory=directory/"inputs")
         cls.ci = ci
-        cls.reference = load_reference(name="spectra_reference", directory=directory)
-        setup = load_reference(name="survey_inputs", directory=directory)
+        cls.reference = spectra_reference
         cls.configuration = setup.initialize(ci=ci, directory=directory/"inputs")
         cls.edges = setup.panel_edges(configuration=cls.configuration)
         with np.load(directory/"inputs/camb.npz") as archive:

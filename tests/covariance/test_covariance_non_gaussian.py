@@ -6,9 +6,6 @@ it does not certify that model's nonlinear calibration.
 """
 
 import ctypes
-import importlib.util
-import os
-from pathlib import Path
 import unittest
 
 import numpy as np
@@ -33,24 +30,16 @@ class NonGaussianCovariance(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        """Load explicitly supplied references and isolated production code."""
-        reference = os.environ.get("COSMOLIKE_COVARIANCE_REFERENCE")
-        library = os.environ.get("COSMOLIKE_NON_GAUSSIAN_LIBRARY")
-        if not reference or not library:
-            raise unittest.SkipTest("set covariance reference and non-Gaussian library")
-        directory = Path(reference)
-        cls.modules = {}
-        for name in ("cng_reference", "non_gaussian_reference"):
-            path = directory/f"{name}.py"
-            if not path.is_file():
-                raise unittest.SkipTest(f"external reference {name} is absent")
-            specification = importlib.util.spec_from_file_location(name=name, location=path)
-            module = importlib.util.module_from_spec(specification)
-            specification.loader.exec_module(module)
-            cls.modules[name] = module
-        if not Path(library).is_file():
-            raise unittest.SkipTest("isolated non-Gaussian library is absent")
-        cls.library = ctypes.CDLL(library)
+        """Load the repository references and project C symbols."""
+        import cosmolike_lsst_y1_interface as ci
+        from cosmolike_notebook_utils.covariance.reference import cng_reference
+        from cosmolike_notebook_utils.covariance.reference import non_gaussian_reference
+
+        cls.modules = {
+            "cng_reference": cng_reference,
+            "non_gaussian_reference": non_gaussian_reference,
+        }
+        cls.library = ctypes.CDLL(ci.__file__)
         integer = ctypes.c_int
         real = ctypes.c_double
         pointer = ctypes.POINTER(ctypes.POINTER(real))

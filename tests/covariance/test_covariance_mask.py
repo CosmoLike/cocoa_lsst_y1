@@ -1,9 +1,6 @@
 """Check mask-derived pair counts against direct spherical geometry."""
 
 import ctypes
-import importlib.util
-import os
-from pathlib import Path
 import unittest
 
 import numpy as np
@@ -23,23 +20,17 @@ class CovarianceMask(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        """Load the explicit external reference and isolated compiled libraries."""
-        directory = os.environ.get("COSMOLIKE_COVARIANCE_REFERENCE")
-        library = os.environ.get("COSMOLIKE_MASK_LIBRARY")
-        operators = os.environ.get("COSMOLIKE_OPERATORS_LIBRARY")
-        if not directory or not library or not operators:
-            raise unittest.SkipTest("set mask, operator and external-reference paths")
-        cls.references = {}
-        for name in ("mask_reference", "ssc_reference"):
-            source = Path(directory)/f"{name}.py"
-            if not source.is_file():
-                raise unittest.SkipTest(f"missing external {name}.py")
-            specification = importlib.util.spec_from_file_location(name=name, location=source)
-            module = importlib.util.module_from_spec(specification)
-            specification.loader.exec_module(module)
-            cls.references[name] = module
-        cls.library = ctypes.CDLL(library)
-        cls.operators = ctypes.CDLL(operators)
+        """Load the repository references and project C symbols."""
+        import cosmolike_lsst_y1_interface as ci
+        from cosmolike_notebook_utils.covariance.reference import mask_reference
+        from cosmolike_notebook_utils.covariance.reference import ssc_reference
+
+        cls.references = {
+            "mask_reference": mask_reference,
+            "ssc_reference": ssc_reference,
+        }
+        cls.library = ctypes.CDLL(ci.__file__)
+        cls.operators = cls.library
         integer = ctypes.c_int
         real = ctypes.c_double
         pointer = ctypes.POINTER(real)

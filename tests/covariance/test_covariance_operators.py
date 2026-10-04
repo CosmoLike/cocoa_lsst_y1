@@ -1,14 +1,11 @@
 """Independent checks of full-sky spin-bin and discrete Fourier operators.
 
-The external reference integrates Jacobi polynomials and independently
+The independent reference integrates Jacobi polynomials and independently
 checks their spin convention with high-precision factorial rotation sums.
 This test does not certify a survey covariance or its ell cutoff.
 """
 
 import ctypes
-import importlib.util
-import os
-from pathlib import Path
 import unittest
 
 import numpy as np
@@ -28,20 +25,12 @@ class CovarianceOperators(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        """Load an explicitly supplied isolated library and external reference."""
-        reference = os.environ.get("COSMOLIKE_COVARIANCE_REFERENCE")
-        library = os.environ.get("COSMOLIKE_OPERATORS_LIBRARY")
-        if not reference or not library:
-            raise unittest.SkipTest("set covariance reference and operator library paths")
-        source = Path(reference)/"operators_reference.py"
-        if not source.is_file() or not Path(library).is_file():
-            raise unittest.SkipTest("operator reference or library is absent")
-        specification = importlib.util.spec_from_file_location(
-            name="operators_reference", location=source
-        )
-        cls.reference = importlib.util.module_from_spec(specification)
-        specification.loader.exec_module(cls.reference)
-        cls.library = ctypes.CDLL(library)
+        """Load the project C symbols and independent reference."""
+        import cosmolike_lsst_y1_interface as ci
+        from cosmolike_notebook_utils.covariance.reference import operators_reference
+
+        cls.reference = operators_reference
+        cls.library = ctypes.CDLL(ci.__file__)
         integer = ctypes.c_int
         real_pointer = ctypes.POINTER(ctypes.c_double)
         integer_pointer = ctypes.POINTER(integer)

@@ -6,22 +6,11 @@ its own quadrature construction and moment contraction. These tests do
 not independently calibrate the halo fits or a massive-neutrino response.
 """
 
-import importlib.util
-import os
 from pathlib import Path
 import unittest
 
 import numpy as np
 
-
-def load_external(directory, name):
-    """Import one named external input/reference module from a resolved path."""
-    specification = importlib.util.spec_from_file_location(
-        name=name, location=directory/f"{name}.py"
-    )
-    module = importlib.util.module_from_spec(specification)
-    specification.loader.exec_module(module)
-    return module
 
 
 class HaloCovariance(unittest.TestCase):
@@ -30,25 +19,22 @@ class HaloCovariance(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         """Initialize the pinned massless input and explicitly selected library."""
-        reference = os.environ.get("COSMOLIKE_COVARIANCE_REFERENCE")
-        library = os.environ.get("COSMOLIKE_HALO_COVARIANCE_LIBRARY")
-        if not reference or not library:
-            raise unittest.SkipTest("set covariance reference and halo library paths")
-        directory = Path(reference)
-        for name in ("halo_inputs.py", "halo_reference.py", "inputs/camb.npz"):
-            if not (directory/name).is_file():
-                raise unittest.SkipTest(f"missing external covariance input {name}")
-        if not Path(library).is_file():
-            raise unittest.SkipTest("isolated halo covariance library is absent")
+        import tempfile
         import cosmolike_lsst_y1_interface as ci
+        from cosmolike_notebook_utils.covariance.reference import halo_reference
+        import survey_inputs as setup
 
+        temporary = tempfile.TemporaryDirectory(prefix="cocoa_covariance_")
+        cls.addClassCleanup(temporary.cleanup)
+        directory = Path(temporary.name)
+        setup.create_inputs(directory=directory/"inputs")
         cls.ci = ci
-        cls.reference = load_external(directory=directory, name="halo_reference")
-        setup = load_external(directory=directory, name="survey_inputs")
-        adapter = load_external(directory=directory, name="halo_inputs")
-        setup.initialize(ci=ci, directory=directory/"inputs")
-        cls.inputs = adapter.HaloInputs(project_library=ci.__file__,
-                                       covariance_library=library)
+        cls.reference = halo_reference
+        cls.configuration = setup.initialize(ci=ci, directory=directory/"inputs")
+        import halo_inputs as adapter
+        cls.inputs = adapter.HaloInputs(
+            project_library=ci.__file__, covariance_library=ci.__file__
+        )
         cls.original_threads = cls.inputs.core.omp_get_max_threads()
         cls.a = np.array([0.35, 0.7, 0.95])
         wave = np.array([0., 0.01, 0.1, 1., 10., 100., 300.])*2997.92458
@@ -59,6 +45,48 @@ class HaloCovariance(unittest.TestCase):
     def tearDownClass(cls):
         """Restore the caller's OpenMP setting after the reproducibility sweep."""
         cls.ci.set_omp_threads(cls.original_threads)
+
+    def test_public_notebook_halo_components(self):
+        """Public owned arrays preserve moments and assemble finite responses.
+
+        The C moment sums already have an independent NumPy oracle below.
+        This check exercises the C++ shapes and the shared Python batching,
+        including finite-difference responses and all angular halo terms.
+        """
+        from cosmolike_notebook_utils import covariance as cov
+
+        single, moments = self.inputs.compute(
+            a=self.a, k=self.k, edges=self.edges, nquad=64
+        )
+        public = self.ci.covariance_halo_moments(
+            a=self.a, k=self.k, lnm_edges=self.edges, nquad=64
+        )
+        np.testing.assert_array_equal(x=public[0], y=single)
+        np.testing.assert_array_equal(x=public[1], y=moments)
+
+        response = cov.halo_power_response(
+            interface=self.ci, a=self.a, k=self.k[:, 1:4],
+            lnm_edges=self.edges, accuracy_boost=1, mnu=0.0,
+        )
+        refined = cov.halo_power_response(
+            interface=self.ci, a=self.a, k=self.k[:, 1:4],
+            lnm_edges=self.edges, accuracy_boost=2, mnu=0.0,
+        )
+        self.assertEqual(response.shape, (3, 3))
+        self.assertTrue(np.all(np.isfinite(response)))
+        np.testing.assert_allclose(actual=response, desired=refined, rtol=5.e-4)
+
+        trispectrum = cov.halo_trispectrum(
+            interface=self.ci, a=0.7, k=self.k[1, 1:4],
+            lnm_edges=self.edges, accuracy_boost=1, mnu=0.0,
+        )
+        self.assertEqual(trispectrum["terms"].shape, (5, 6))
+        self.assertTrue(np.all(np.isfinite(trispectrum["terms"])))
+        with self.assertRaises(ValueError):
+            cov.halo_power_response(
+                interface=self.ci, a=self.a, k=self.k[:, 1:4],
+                lnm_edges=self.edges, accuracy_boost=1, mnu=0.06,
+            )
 
     def test_independent_mass_contraction(self):
         """Use NumPy GL nodes and independent sums of supplied physical samples."""
@@ -105,6 +133,37 @@ class HaloCovariance(unittest.TestCase):
         for role, exponent in enumerate((3, 3, 6, 6, 9)):
             np.testing.assert_allclose(original[1][role], result[1][role]/scale**exponent,
                                        rtol=1.e-13)
+
+    def test_small_batches_match_shared_tables(self):
+        """One scale factor and two k values retain the complete-table result.
+
+        These small calls expose loops with too few outer iterations for
+        eight workers. Changing their parallel layout must preserve every
+        mass sum and the completion at zero wavenumber.
+        """
+        self.ci.set_omp_threads(1)
+        single, moments = self.inputs.compute(
+            a=self.a, k=self.k, edges=self.edges, nquad=128
+        )
+        first, second = np.triu_indices(n=self.k.shape[1])
+        selected_pairs = np.flatnonzero(a=(first < 2) & (second < 2))
+        for threads in (1, 2, 4, 8):
+            self.ci.set_omp_threads(threads)
+            for row in range(len(self.a)):
+                actual_single, actual_moments = self.inputs.compute(
+                    a=self.a[row:row+1],
+                    k=self.k[row:row+1, :2],
+                    edges=self.edges,
+                    nquad=128,
+                )
+                expected_moments = moments[:, row:row+1, selected_pairs]
+                np.testing.assert_array_equal(
+                    x=actual_single,
+                    y=single[row:row+1, :2],
+                )
+                np.testing.assert_array_equal(
+                    x=actual_moments, y=expected_moments
+                )
 
     def test_repeated_threads_and_state_refresh(self):
         """Repeat complete builds at 1/4/8 threads; no static covariance state."""

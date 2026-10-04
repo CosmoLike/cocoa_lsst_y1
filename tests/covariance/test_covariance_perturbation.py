@@ -1,14 +1,11 @@
 """Validate cNG tree-level angular averages before adding halo moments.
 
-The external reference enumerates Wick diagrams and the EdS recursion.
+The independent reference enumerates Wick diagrams and the EdS recursion.
 The C code uses reduced formulas, precomputed input powers and SIMDe.
 No halo or full covariance prediction is certified by these angular tests.
 """
 
 import ctypes
-import importlib.util
-import os
-from pathlib import Path
 import unittest
 
 import numpy as np
@@ -33,20 +30,12 @@ class PerturbationCovariance(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        """Load explicitly supplied external reference and isolated C library."""
-        reference = os.environ.get("COSMOLIKE_COVARIANCE_REFERENCE")
-        library = os.environ.get("COSMOLIKE_PERTURBATION_LIBRARY")
-        if not reference or not library:
-            raise unittest.SkipTest("set covariance reference and perturbation library")
-        source = Path(reference)/"cng_reference.py"
-        if not source.is_file() or not Path(library).is_file():
-            raise unittest.SkipTest("cNG reference or isolated library is absent")
-        specification = importlib.util.spec_from_file_location(
-            name="cng_reference", location=source
-        )
-        cls.reference = importlib.util.module_from_spec(specification)
-        specification.loader.exec_module(cls.reference)
-        cls.library = ctypes.CDLL(library)
+        """Load explicitly supplied independent reference and project C library."""
+        import cosmolike_lsst_y1_interface as ci
+        from cosmolike_notebook_utils.covariance.reference import cng_reference
+
+        cls.reference = cng_reference
+        cls.library = ctypes.CDLL(ci.__file__)
         integer = ctypes.c_int
         pointer = ctypes.POINTER(ctypes.c_double)
         rows = ctypes.POINTER(pointer)

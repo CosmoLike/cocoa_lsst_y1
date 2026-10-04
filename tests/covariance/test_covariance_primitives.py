@@ -1,19 +1,11 @@
 """Check the isolated covariance algebra before a survey driver is integrated.
 
-Set COSMOLIKE_COVARIANCE_REFERENCE to the external covariance_reference
-directory and COSMOLIKE_COVARIANCE_LIBRARY to a shared library compiled
-from cosmolike/covariances/gaussian_cov.c. The ordinary likelihood suite
-skips these checks when either path is absent. No data vector or covariance
-is refrozen. All C entry points exercised here are production primitives.
-
-The supplied positive-semidefinite field matrices test Gaussian algebra,
-catalog permutations, and projection; they are not cosmological spectra.
+The repository supplies independent NumPy and mpmath oracles. Tests call
+symbols from the normally built project interface, including padded output
+checks at the C boundary. No separate development library is required.
 """
 
 import ctypes
-import importlib.util
-import os
-from pathlib import Path
 import unittest
 
 import numpy as np
@@ -40,23 +32,12 @@ class CovariancePrimitives(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        """Load explicitly supplied reference and C library, or skip this class."""
-        reference_path = os.environ.get("COSMOLIKE_COVARIANCE_REFERENCE")
-        library_path = os.environ.get("COSMOLIKE_COVARIANCE_LIBRARY")
-        if not reference_path or not library_path:
-            raise unittest.SkipTest(
-                "set covariance reference and library paths to test primitives"
-            )
-        reference_file = Path(reference_path)/"gaussian_reference.py"
-        if not reference_file.is_file() or not Path(library_path).is_file():
-            raise unittest.SkipTest("covariance reference or compiled library is absent")
+        """Load the repository oracle and normally built project interface."""
+        import cosmolike_lsst_y1_interface as ci
+        from cosmolike_notebook_utils.covariance.reference import gaussian_reference
 
-        specification = importlib.util.spec_from_file_location(
-            name="gaussian_reference", location=reference_file
-        )
-        cls.reference = importlib.util.module_from_spec(specification)
-        specification.loader.exec_module(cls.reference)
-        cls.library = ctypes.CDLL(library_path)
+        cls.reference = gaussian_reference
+        cls.library = ctypes.CDLL(ci.__file__)
         double_pointer = ctypes.POINTER(ctypes.c_double)
         row_pointer = ctypes.POINTER(double_pointer)
         cls.library.gaussian_wick_cov.argtypes = [
