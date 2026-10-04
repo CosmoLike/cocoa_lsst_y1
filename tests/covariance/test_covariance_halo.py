@@ -88,6 +88,60 @@ class HaloCovariance(unittest.TestCase):
                 lnm_edges=self.edges, accuracy_boost=1, mnu=0.06,
             )
 
+    def test_i11_only_batches_preserve_mass_sums(self):
+        """Omitting pair moments preserves I11, including zero k and SIMD tails.
+
+        Response derivatives need nearby one-profile integrals only. Grouping
+        redshifts or wavenumbers must preserve their mass sums and unresolved
+        low-mass completion, regardless of which worker computes a row.
+        """
+        self.ci.set_omp_threads(1)
+        expected, unused = self.ci.covariance_halo_moments(
+            a=self.a, k=self.k, lnm_edges=self.edges, nquad=64
+        )
+        for threads in (1, 2, 4, 8):
+            self.ci.set_omp_threads(threads)
+            for count in (1, 2, 3, 7):
+                actual, omitted = self.ci.covariance_halo_moments(
+                    a=self.a, k=self.k[:, :count].copy(),
+                    lnm_edges=self.edges, nquad=64, pair_moments=False,
+                )
+                self.assertIsNone(omitted)
+                self.assertTrue(actual.flags.owndata)
+                np.testing.assert_array_equal(
+                    x=actual.view(np.uint64),
+                    y=expected[:, :count].view(np.uint64),
+                )
+
+    def test_response_endpoint_batching(self):
+        """The two derivative endpoints match separate three-point requests.
+
+        The central I11 value is not used by a centered logarithmic slope.
+        Compare retained endpoints after grouping them by redshift against
+        independent calls with a repeated redshift for each wavenumber.
+        """
+        shift = np.exp(np.array([-0.01, 0.0, 0.01]))
+        expected = np.empty((len(self.a), 6, 2))
+        self.ci.set_omp_threads(1)
+        for row, a in enumerate(self.a):
+            shifted = self.k[row, 1:, None]*shift
+            single, unused = self.ci.covariance_halo_moments(
+                a=np.full(6, a), k=shifted, lnm_edges=self.edges, nquad=64
+            )
+            expected[row] = single[:, [0, 2]]
+
+        endpoints = self.k[:, 1:, None]*shift[[0, 2]]
+        for threads in (1, 2, 4, 8):
+            self.ci.set_omp_threads(threads)
+            actual, unused = self.ci.covariance_halo_moments(
+                a=self.a, k=endpoints.reshape(len(self.a), -1),
+                lnm_edges=self.edges, nquad=64, pair_moments=False,
+            )
+            np.testing.assert_array_equal(
+                x=actual.reshape(expected.shape).view(np.uint64),
+                y=expected.view(np.uint64),
+            )
+
     def test_power_row_batch(self):
         """Batched reads preserve serial interpolation bits at every thread count."""
         wave = np.geomspace(0.001, 1.e6, 39).reshape(3, 13)
