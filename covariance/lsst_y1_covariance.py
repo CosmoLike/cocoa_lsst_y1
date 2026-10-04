@@ -17,18 +17,22 @@ from cosmolike_notebook_utils.covariance.forecast import (
 from cosmolike_notebook_utils import covariance as cov
 
 
-def configuration(accuracy_boost=1):
-    """Return resolved survey, cosmology and pilot-integration choices.
+def configuration(accuracy_boost=None, **accuracy_overrides):
+    """Return resolved survey, cosmology and YAML accuracy choices.
 
     Densities are equally allocated across the project's five bins. The
     SRD totals (18 lenses and 10 sources per arcmin^2) do not fix that
     allocation: the shipped n(z) columns are individually normalized.
     Arguments:
-        accuracy_boost = 1, 2, 4 or 8; raises covariance settings together.
+        accuracy_boost = None uses default.yaml; 1, 2, 4 or 8 refines it.
+        accuracy_overrides = named internal controls from default.yaml.
     Returns:
-        Fully resolved settings. Boost 1 is a pilot, not a certified FoM target.
+        Fully resolved settings, including the unboosted accuracy parameters.
     """
-    numerical = cov.covariance_accuracy(accuracy_boost=accuracy_boost)
+    numerical = cov.load_covariance_accuracy(
+        filename=Path(__file__).with_name("default.yaml"),
+        accuracy_boost=accuracy_boost, **accuracy_overrides,
+    )
     # Inclusive integer bands cover 30..4000 without gaps or overlap.
     band_edges = np.rint(np.geomspace(30, 4001, 16)).astype(np.int32)
     settings = {

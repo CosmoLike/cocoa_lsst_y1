@@ -6,6 +6,8 @@ artists and masked ratios can be inspected without opening a window.
 """
 
 import json
+from pathlib import Path
+import tempfile
 import unittest
 
 import matplotlib
@@ -33,7 +35,7 @@ class NotebookCovariance(unittest.TestCase):
         previous = cov.covariance_accuracy(accuracy_boost=1)
         for boost in (2, 4, 8):
             current = cov.covariance_accuracy(accuracy_boost=boost)
-            for key in ("ell_max", "mask_ell_max", "radial_nquad", "angle_nquad"):
+            for key in ("ell_max", "mask_ell_max", "core_accuracyboost"):
                 self.assertEqual(current[key], 2*previous[key])
             old_grid = previous["ng_ell"]
             new_grid = current["ng_ell"]
@@ -43,15 +45,78 @@ class NotebookCovariance(unittest.TestCase):
             new_steps = np.diff(np.log(new_grid+0.5))
             np.testing.assert_allclose(new_steps, old_steps[0]/2, rtol=1.e-12)
             self.assertEqual(current["nwindow"]-1, 2*(previous["nwindow"]-1))
-            self.assertLessEqual(current["angle_nquad"], 1024)
-            self.assertEqual(current["halo_mass_nquad"], 2*previous["halo_mass_nquad"])
-            self.assertEqual(current["tree_nquad"], 2*previous["tree_nquad"])
-            self.assertEqual(current["tree_npanel"], previous["tree_npanel"]+1)
+            for key in ("radial_nquad", "angle_nquad", "halo_mass_nquad", "tree_nquad"):
+                self.assertEqual(current[key], previous[key])
+            self.assertEqual(current["tree_npanel"], previous["tree_npanel"])
             self.assertEqual(current["response_step"], previous["response_step"]/2)
             previous = current
         for value in (0, 3, 16, 1.5):
             with self.assertRaises(ValueError):
                 cov.covariance_accuracy(accuracy_boost=value)
+
+    def test_global_boost_multiplies_internal_refinements(self):
+        """Project factors survive global refinement, including a factor three."""
+        internal = {
+            "ell_max": 75000,
+            "non_gaussian_accuracyboost": 3,
+            "window_accuracyboost": 3,
+            "core_accuracyboost": 3,
+            "integration_accuracy": 2,
+        }
+        base = cov.covariance_accuracy(accuracy_boost=1.0, **internal)
+        refined = cov.covariance_accuracy(accuracy_boost=2.0, **internal)
+        for name in ("radial_nquad", "angle_nquad", "halo_mass_nquad", "tree_nquad"):
+            self.assertEqual(base[name], 256)
+            self.assertEqual(refined[name], 256)
+        for name in ("ell_max", "mask_ell_max"):
+            self.assertEqual(refined[name], 2*base[name])
+        self.assertEqual(refined["nwindow"]-1, 2*(base["nwindow"]-1))
+        self.assertEqual(refined["response_step"], base["response_step"]/2)
+        self.assertEqual(refined["core_accuracyboost"], 2*base["core_accuracyboost"])
+        self.assertEqual(base["integration_accuracy"], 2)
+        self.assertEqual(refined["integration_accuracy"], 2)
+        self.assertEqual(refined["tree_npanel"], base["tree_npanel"])
+        np.testing.assert_array_equal(
+            base["ng_ell"], refined["ng_ell"][:2*len(base["ng_ell"]):2]
+        )
+        self.assertEqual(base["accuracy_parameters"], refined["accuracy_parameters"])
+
+    def test_yaml_accuracy_baseline_and_explicit_overrides(self):
+        """Changing just the global control retains the file's tuned baseline."""
+        with tempfile.TemporaryDirectory() as directory:
+            filename = Path(directory)/"default.yaml"
+            filename.write_text(
+                "accuracy_boost: 1\nell_max: 100000\n"
+                "non_gaussian_accuracyboost: 3\nwindow_accuracyboost: 2\n"
+                "integration_accuracy: 1\n"
+            )
+            base = cov.load_covariance_accuracy(filename=filename)
+            refined = cov.load_covariance_accuracy(filename=filename, accuracy_boost=2)
+            self.assertEqual(refined["radial_nquad"], base["radial_nquad"])
+            self.assertEqual(refined["angle_nquad"], base["angle_nquad"])
+            restored = cov.covariance_accuracy(
+                accuracy_boost=refined["accuracy_boost"],
+                **refined["accuracy_parameters"],
+            )
+            np.testing.assert_array_equal(restored["ng_ell"], refined["ng_ell"])
+            with self.assertRaises(TypeError):
+                cov.load_covariance_accuracy(filename=filename, radial_boost_typo=2)
+            with self.assertRaises(ValueError):
+                cov.load_covariance_accuracy(filename=filename, window_accuracyboost=0)
+
+    def test_integration_level_is_independent_of_global_boost(self):
+        """Every integrated sector follows the precomputed rule ladder only."""
+        for level, count in enumerate((96, 128, 256, 512, 1024)):
+            for boost in (1, 2, 4, 8):
+                settings = cov.covariance_accuracy(
+                    accuracy_boost=boost, integration_accuracy=level,
+                )
+                for name in ("radial_nquad", "angle_nquad", "halo_mass_nquad",
+                             "tree_nquad"):
+                    self.assertEqual(settings[name], count)
+        for level in (-1, 5, 0.5, True):
+            with self.assertRaises(ValueError):
+                cov.covariance_accuracy(integration_accuracy=level)
 
     def test_non_gaussian_grid_does_not_move_band_endpoints(self):
         """A fixed measured cutoff trims the table without stretching cells."""

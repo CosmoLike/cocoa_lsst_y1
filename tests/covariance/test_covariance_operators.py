@@ -9,6 +9,7 @@ import ctypes
 import unittest
 
 import numpy as np
+from scipy.special import eval_legendre
 
 
 def row_pointers(array):
@@ -132,6 +133,38 @@ class CovarianceOperators(unittest.TestCase):
         error = np.abs(coarse-fine)/normalization
         print(f"  spin-bin 256 -> 512 / mode density: {error.max():.9e}")
         self.assertLess(error.max(), 2.e-10)
+
+    def test_high_multipole_wide_bin_against_antiderivative(self):
+        """Resolve the widest LSST bin through ell=100000 independently of GL."""
+        edges = np.geomspace(2.5, 900.0, 27)[-2:]*np.pi/(180*60)
+        ell = np.arange(20000, 100001, 500)
+        lower, upper = np.cos(edges)
+        # Integrate P_ell(x) analytically between the two cosines. The
+        # antiderivative is (P_(ell+1)-P_(ell-1))/(2*ell+1); multiplying by
+        # the harmonic mode density cancels its denominator. These large
+        # angles avoid the small-angle endpoint cancellation of xi-.
+        expected = (
+            eval_legendre(ell+1, lower)-eval_legendre(ell-1, lower)
+            -eval_legendre(ell+1, upper)+eval_legendre(ell-1, upper)
+        )/(4*np.pi*(lower-upper))
+        for count in (64, 96, 128):
+            actual = self.angular(edges=edges, ell_max=100000, nquad=count)[3, 0, ell]
+            error = np.max(np.abs(actual-expected))/np.max(np.abs(expected))
+            self.assertLess(error, 1.e-6)
+
+    def test_precomputed_rule_floor_and_polynomial_integrals(self):
+        """Accept only tabulated rules >=64, checking their nodes and weights."""
+        import cosmolike_lsst_y1_interface as ci
+        for count in (64, 96, 128, 256, 512, 1024):
+            nodes, weights = ci.covariance_integration_rule(nquad=count)
+            self.assertTrue(np.all(np.diff(nodes) > 0.0))
+            self.assertTrue(np.all(weights > 0.0))
+            for degree in (0, 2, 10, 20):
+                integral = np.dot(weights, nodes**degree)
+                np.testing.assert_allclose(integral, 2/(degree+1), rtol=2.e-14)
+        for count in (16, 32, 65, 384, 2048):
+            with self.assertRaises(ValueError):
+                ci.covariance_integration_rule(nquad=count)
 
     def test_thread_and_geometry_roundtrip(self):
         """Bitwise outputs at 1/4/8 threads, with changed/restored angular bins."""
