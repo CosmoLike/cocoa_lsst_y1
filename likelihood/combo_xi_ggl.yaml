@@ -1,5 +1,6 @@
 path: null
 data_file: lsst_y1_M1_GGL0.05.dataset
+data_vector_file: null
 accuracyboost: 1.0
 internal_accuracyboost: 1.0 # C-FAST-PT convolution grid / output grid
 # refinements on top of accuracyboost (which multiplies them too):

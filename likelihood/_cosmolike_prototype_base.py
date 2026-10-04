@@ -50,7 +50,7 @@ class _cosmolike_prototype_base(DataSetLikelihood):
   def initialize(self, probe):
     ini = IniFile(os.path.normpath(os.path.join(self.path, self.data_file)))
     self.probe = probe
-    self.data_vector_file = ini.relativeFileName('data_file')
+    if self.data_vector_file is None: self.data_vector_file = ini.relativeFileName('data_file')
     self.cov_file = ini.relativeFileName('cov_file')
     self.mask_file = ini.relativeFileName('mask_file')
     self.lens_file = ini.relativeFileName('nz_lens_file')
