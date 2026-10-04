@@ -114,7 +114,10 @@ def test_connected_blocks_and_threads(one_probe, nbin, nnode):
             x=actual.view(np.uint64), y=expected.view(np.uint64)
         )
         np.testing.assert_array_equal(x=actual, y=actual.T)
-        assert actual.flags.owndata
+        # CARMA's capsule owns the returned Armadillo storage. NumPy's
+        # OWNDATA flag need not be set; independence is the contract.
+        assert not np.shares_memory(actual, window)
+        assert not np.shares_memory(actual, projected)
 
     # Later calls cannot change an already returned owned matrix.
     changed = ci.covariance_project_connected(

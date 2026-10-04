@@ -88,6 +88,16 @@ class HaloCovariance(unittest.TestCase):
                 lnm_edges=self.edges, accuracy_boost=1, mnu=0.06,
             )
 
+    def test_power_vector_and_matrix_axes(self):
+        """A singleton matrix axis stays a matrix; a vector stays 1D."""
+        wave = self.k[1, 1:4].copy()
+        vector = self.ci.covariance_power(a=0.7, k=wave, linear=True)
+        self.assertEqual(vector.shape, (3,))
+        for grid in (wave[None, :], wave[:, None]):
+            matrix = self.ci.covariance_power(a=0.7, k=grid, linear=True)
+            self.assertEqual(matrix.shape, grid.shape)
+            np.testing.assert_array_equal(matrix.ravel(), vector)
+
     def test_i11_only_batches_preserve_mass_sums(self):
         """Omitting pair moments preserves I11, including zero k and SIMD tails.
 
@@ -107,7 +117,7 @@ class HaloCovariance(unittest.TestCase):
                     lnm_edges=self.edges, nquad=64, pair_moments=False,
                 )
                 self.assertIsNone(omitted)
-                self.assertTrue(actual.flags.owndata)
+                self.assertFalse(np.shares_memory(actual, self.k))
                 np.testing.assert_array_equal(
                     x=actual.view(np.uint64),
                     y=expected[:, :count].view(np.uint64),

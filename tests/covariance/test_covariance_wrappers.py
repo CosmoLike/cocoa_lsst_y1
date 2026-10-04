@@ -149,3 +149,66 @@ def test_wrapper_rejects_invalid_shapes_and_fields():
         invalid[key] = value
         with pytest.raises(ValueError):
             ci.covariance_gaussian_fourier(**invalid)
+
+
+def notebook_layout(values, layout):
+    """Represent the same physical axes in common notebook array layouts."""
+    if layout == 'fortran':
+        return np.array(values, order='F', copy=True)
+    if layout == 'sliced':
+        shape = tuple(2*size for size in values.shape)
+        parent = np.zeros(shape=shape, dtype=values.dtype)
+        selection = tuple(slice(None, None, 2) for size in values.shape)
+        view = parent[selection]
+        view[...] = values
+        return view
+    result = np.array(values, order='C', copy=True)
+    if layout == 'readonly':
+        result.setflags(write=False)
+    return result
+
+
+@pytest.mark.parametrize('layout', ['c', 'fortran', 'sliced', 'readonly'])
+def test_armadillo_axes_and_input_ownership(layout):
+    """Conversions retain axes and leave both arrays and existing views intact."""
+    import cosmolike_lsst_y1_interface as ci
+
+    left = notebook_layout(np.arange(14.).reshape(2, 7), layout)
+    right = notebook_layout(np.arange(21.).reshape(3, 7)-4.0, layout)
+    weight = notebook_layout(np.linspace(0.1, 0.7, 7), layout)
+    old_left = left.copy()
+    left_view = left[:, ::2]
+    old_view = left_view.copy()
+    strides = left.strides
+    expected = (left*weight) @ right.T
+    actual = ci.covariance_project(left=left, right=right, weight=weight)
+    np.testing.assert_allclose(actual, expected, rtol=3.e-15, atol=1.e-14)
+    np.testing.assert_array_equal(left, old_left)
+    np.testing.assert_array_equal(left_view, old_view)
+    assert left.strides == strides
+    assert not np.shares_memory(actual, left)
+    assert not np.shares_memory(actual, right)
+
+    # A cube of 48 elements exercises Armadillo's small-cube storage.
+    # Its two transform axes differ from its three radial nodes.
+    rng = np.random.default_rng(seed=772)
+    matter = rng.normal(size=(4, 4, 3))
+    matter += matter.transpose(1, 0, 2).copy()
+    matter = notebook_layout(matter, layout)
+    windows = notebook_layout(rng.normal(size=(2, 3)), layout)
+    measure = notebook_layout(np.array([0.2, 0.5, 0.3]), layout)
+    probes = notebook_layout(np.array([0, 3], dtype=np.int32), layout)
+    saved_matter = matter.copy()
+    projected = ci.covariance_project_connected(
+        probes=probes, pair_window=windows, projected=matter, measure=measure,
+    )
+    expected = np.empty(shape=(2, 2))
+    for first in range(2):
+        for second in range(2):
+            expected[first, second] = np.sum(
+                windows[first]*windows[second]*measure
+                *matter[probes[first], probes[second]]
+            )
+    np.testing.assert_allclose(projected, expected, rtol=3.e-15, atol=1.e-15)
+    np.testing.assert_array_equal(matter, saved_matter)
+    assert not np.shares_memory(projected, matter)
