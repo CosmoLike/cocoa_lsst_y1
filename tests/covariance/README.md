@@ -26,6 +26,7 @@ We assume users have run `conda activate cocoa`, use Bash, and are in
 | `test_covariance_non_gaussian.py` | Halo trispectrum terms and background-density responses. |
 | `test_covariance_ssc.py` | Background fluctuations, mean subtraction and complete cross-block projection. |
 | `test_covariance_operators.py` | Full-sky angular-bin and integer-band operators. |
+| `test_likelihood_comparison.py` | Read the text and packed-triangle covariance formats; preserve signs and apply the same scale-cut indices to every component; reject retained Y null rows. |
 | `test_notebook_tools.py` | Owned-array Python calls, interpolation, mode diagnostics and plotting normalization. |
 | `test_covariance_mask.py` | Pair area for a supplied survey footprint. |
 | `test_covariance_fourier.py` | Complete bandpower G/SSC/cNG assembly, two-sided band rebinning, Fourier means and thread determinism. |
