@@ -20,13 +20,14 @@ We assume users have run `conda activate cocoa`, use Bash, and are in
 | --- | --- |
 | `test_covariance_primitives.py` | Gaussian field pairings, projection and analytic count/shape noise. |
 | `test_covariance_spectra.py` | All lens/source Limber cross spectra on common radial nodes. |
-| `test_covariance_halo.py` | Halo mass integrals, mass completion and small batched calls. |
+| `test_covariance_halo.py` | Halo mass integrals, mass completion, small batches and threaded power reads. |
 | `test_covariance_perturbation.py` | Angular averages of gravitational mode coupling. |
 | `test_covariance_non_gaussian.py` | Halo trispectrum terms and background-density responses. |
 | `test_covariance_ssc.py` | Background fluctuations, mean subtraction and complete cross-block projection. |
 | `test_covariance_operators.py` | Full-sky angular-bin and integer-band operators. |
 | `test_notebook_tools.py` | Owned-array Python calls, interpolation, mode diagnostics and plotting normalization. |
 | `test_covariance_mask.py` | Pair area for a supplied survey footprint. |
+| `test_covariance_survey.py` | Survey row layouts, compressed angular projection and complete cross-lens cNG assembly against independent NumPy sums. |
 
 The normally built LSST interface contains all tested C components. The
 independent references ship in `cosmolike_notebook_utils.covariance.reference`;

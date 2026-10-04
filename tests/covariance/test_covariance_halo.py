@@ -88,6 +88,20 @@ class HaloCovariance(unittest.TestCase):
                 lnm_edges=self.edges, accuracy_boost=1, mnu=0.06,
             )
 
+    def test_power_row_batch(self):
+        """Batched reads preserve serial interpolation bits at every thread count."""
+        wave = np.geomspace(0.001, 1.e6, 39).reshape(3, 13)
+        for linear in (True, False):
+            expected = self.ci.covariance_power(
+                a=0.7, k=wave.ravel(), linear=linear
+            ).reshape(wave.shape)
+            for threads in (1, 2, 4, 8):
+                self.ci.set_omp_threads(threads)
+                actual = self.ci.covariance_power(a=0.7, k=wave, linear=linear)
+                np.testing.assert_array_equal(
+                    actual.view(np.uint64), expected.view(np.uint64)
+                )
+
     def test_independent_mass_contraction(self):
         """Use NumPy GL nodes and independent sums of supplied physical samples."""
         actual = self.inputs.compute(a=self.a, k=self.k, edges=self.edges, nquad=64)
