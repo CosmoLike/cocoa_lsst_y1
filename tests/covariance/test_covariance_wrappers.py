@@ -22,7 +22,9 @@ def inputs():
     return spectra, noise, ell
 
 
-def test_realspace_wrapper_matches_blocks():
+@pytest.mark.parametrize("nobs", [1, 5])
+@pytest.mark.parametrize("nbin", [1, 3, 5, 20])
+def test_realspace_wrapper_matches_blocks(nobs, nbin):
     """The whole-matrix call preserves per-block arithmetic at every thread count."""
     import cosmolike_lsst_y1_interface as ci
 
@@ -33,15 +35,19 @@ def test_realspace_wrapper_matches_blocks():
         [2, 0, 2],
         [3, 1, 1],
         [3, 0, 0],
-    ], dtype=np.int32)
+    ], dtype=np.int32)[:nobs].copy()
     operators = ci.covariance_realspace_operator(
-        edges_rad=np.array([0.01, 0.02, 0.04, 0.08]),
+        edges_rad=np.geomspace(0.01, 0.08, nbin+1),
         ell_max=int(ell[-1]), nquad=64,
     )
     kernels = np.ascontiguousarray(operators[:, :, 2:])
-    pair_area = np.array([0.001, 0.004, 0.016])
+    pair_area = np.geomspace(0.001, 0.016, nbin)
     area_sr = 0.8
-    expected = np.empty((15, 15))
+    expected = np.empty((nobs*nbin, nobs*nbin))
+
+    # One observable exercises C's bin-level threading; several observables
+    # exercise whole-block threading. Bin counts cover full and partial
+    # four-bin SIMD tiles, including the ordinary survey's twenty bins.
     for first, (left_probe, a, b) in enumerate(rows):
         for second in range(first, len(rows)):
             right_probe, c, d = rows[second]
@@ -54,14 +60,14 @@ def test_realspace_wrapper_matches_blocks():
             )
             if first == second:
                 block = np.triu(block)+np.triu(block, 1).T
-            i = slice(first*3, (first+1)*3)
-            j = slice(second*3, (second+1)*3)
+            i = slice(first*nbin, (first+1)*nbin)
+            j = slice(second*nbin, (second+1)*nbin)
             expected[i, j] = block
             expected[j, i] = block.T
 
     baseline = None
     for threads in (1, 2, 4, 8):
-        ci.set_omp_threads(threads)
+        ci.set_omp_threads(n=threads)
         actual = ci.covariance_gaussian_real(
             spectra=spectra, noise=noise, rows=rows, operators=kernels,
             ell_min=2, area_sr=area_sr, pair_area_sr2=pair_area,
