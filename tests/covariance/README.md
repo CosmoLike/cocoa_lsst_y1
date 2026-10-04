@@ -28,6 +28,7 @@ We assume users have run `conda activate cocoa`, use Bash, and are in
 | `test_covariance_operators.py` | Full-sky angular-bin and integer-band operators. |
 | `test_notebook_tools.py` | Owned-array Python calls, interpolation, mode diagnostics and plotting normalization. |
 | `test_covariance_mask.py` | Pair area for a supplied survey footprint. |
+| `test_covariance_fourier.py` | Complete bandpower G/SSC/cNG assembly, two-sided band rebinning, Fourier means and thread determinism. |
 | `test_covariance_survey.py` | Survey row layouts, compressed angular projection and complete cross-lens cNG assembly against independent NumPy sums. |
 
 The normally built LSST interface contains all tested C components. The
