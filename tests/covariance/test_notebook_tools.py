@@ -163,6 +163,39 @@ class NotebookCovariance(unittest.TestCase):
         np.testing.assert_allclose(actual=comparison["generalized_eigenvalues"],
                                    desired=1.001)
 
+    def test_positivity_is_independent_of_observable_units(self):
+        """A unit change cannot create a mode or hide a real negative one."""
+        # This correlation has one eigenvalue 1.6 and three eigenvalues 0.8.
+        # Vastly different units imitate joint shear/count/cluster blocks;
+        # they also expose overflow in multiplying two variances first.
+        correlation = 0.8*np.eye(N=4)+0.2*np.ones(shape=(4, 4))
+        for deviation in (np.ones(shape=4),
+                          np.array([1.e-90, 1.e-30, 1.e30, 1.e90])):
+            matrix = deviation[:, None]*correlation*deviation[None, :]
+            saved = matrix.copy()
+            result = cov.covariance_modes(matrix=matrix)
+            self.assertTrue(result["positive_definite"])
+            np.testing.assert_allclose(
+                actual=result["correlation_eigenvalues"],
+                desired=[0.8, 0.8, 0.8, 1.6], rtol=2.e-14,
+            )
+            np.testing.assert_array_equal(x=matrix, y=saved)
+
+            # Correlation > 1 violates Cauchy-Schwarz. Rescaling must not
+            # turn this physically negative mode into an accepted matrix.
+            negative = correlation.copy()
+            negative[0, 1] = 1.2
+            negative[1, 0] = 1.2
+            matrix = deviation[:, None]*negative*deviation[None, :]
+            result = cov.covariance_modes(matrix=matrix)
+            self.assertFalse(result["positive_definite"])
+            self.assertLess(result["correlation_eigenvalues"][0], -0.19)
+
+        for diagonal in ([0., 1.], [-1., 1.]):
+            result = cov.covariance_modes(matrix=np.diag(v=diagonal))
+            self.assertFalse(result["positive_definite"])
+            self.assertIsNone(result["correlation_eigenvalues"])
+
     def test_plot_ratio_masks_and_returned_artists(self):
         """Undefined ratios stay masked; signed correlations and labels survive."""
         matrix = np.array([[2., -0.2], [-0.2, 1.]])
