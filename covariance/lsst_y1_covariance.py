@@ -10,7 +10,10 @@ from pathlib import Path
 
 import numpy as np
 
-from cosmolike_notebook_utils.camb_cosmology import get_camb_cosmology
+from cosmolike_notebook_utils.covariance.forecast import (
+    initialize_forecast,
+    compute_forecast,
+)
 from cosmolike_notebook_utils import covariance as cov
 
 
@@ -26,6 +29,8 @@ def configuration(accuracy_boost=1):
         Fully resolved settings. Boost 1 is a pilot, not a certified FoM target.
     """
     numerical = cov.covariance_accuracy(accuracy_boost=accuracy_boost)
+    # Inclusive integer bands cover 30..4000 without gaps or overlap.
+    band_edges = np.rint(np.geomspace(30, 4001, 16)).astype(np.int32)
     settings = {
         "cosmology": {
             "omegam": 0.3,
@@ -45,6 +50,14 @@ def configuration(accuracy_boost=1):
             "lens_potential_accuracy": 1.0,
             "halofit_version": "takahashi",
         },
+        "lens_file": "data/lsst_y1_lens.nz",
+        "source_file": "data/lsst_y1_source.nz",
+        "photoz_interpolation": 1,
+        "photoz_zmid": 1,
+        "excluded_gammat": [],
+        "band_first": band_edges[:-1],
+        "band_last": band_edges[1:]-1,
+        "lnm_edges": np.linspace(np.log(1.e6), np.log(1.e17), 9),
         "area_deg2": 12300.0,
         "lens_density_arcmin2": [3.6]*5,
         "source_density_arcmin2": [2.0]*5,
@@ -70,55 +83,25 @@ def initialize(interface, settings):
         Replaces the interface's global cosmology and nuisance state. The
         likelihood covariance, data vector and mask are never loaded.
     """
-    project = Path(__file__).resolve().parents[1]
-    lens_file = project/"data/lsst_y1_lens.nz"
-    source_file = project/"data/lsst_y1_source.nz"
-    if not lens_file.is_file() or not source_file.is_file():
-        raise FileNotFoundError("LSST Y1 lens/source n(z) files are required")
-    cosmology = settings["cosmology"]
-    # CAMB tables are built before mutating the interface. The tuple's order
-    # is the documented get_camb_cosmology / set_cosmology interchange format.
-    arrays = get_camb_cosmology(**cosmology)
-    names = (
-        "log10k_2D",
-        "z_2D",
-        "lnP_linear",
-        "lnP_nonlinear",
-        "G",
-        "z_G",
-        "z_1D",
-        "chi",
-        "omegan2",
-        "lnP_linear_cb",
+    return initialize_forecast(
+        interface=interface, settings=settings,
+        project=Path(__file__).resolve().parents[1],
     )
-    tables = dict(zip(names, arrays))
-    interface.initial_setup()
-    interface.init_probes(possible_probes="3x2pt")
-    interface.init_IA(ia_model=0, ia_redshift_evolution=2, ia_code=0)
-    interface.init_bias(bias_model=[0, 0, 0, 0, 0])
-    interface.init_photoz_conventions(interpolation_type=1, zmid_convention=1)
-    interface.init_cosmo_runmode(is_linear=False)
-    interface.init_redshift_distributions_from_files(
-        lens_multihisto_file=str(lens_file),
-        lens_ntomo=5,
-        source_multihisto_file=str(source_file),
-        source_ntomo=5,
+
+
+def compute(interface, settings, space="real", rows=None, progress=None):
+    """Return the LSST forecast with G, SSC, connected and total matrices.
+
+    Arguments: interface = initialized compiled project; settings = configuration();
+        space = "real" or "fourier"; rows = optional measured row subset;
+        progress = optional (stage, elapsed_seconds) callback.
+    Returns: shared forecast dict, including resolved settings and coordinates.
+    The full real layout has 1560 entries; Fourier has 675 entries.
+    """
+    return compute_forecast(
+        interface=interface, settings=settings, space=space, rows=rows,
+        progress=progress,
     )
-    interface.set_cosmology(
-        omegam=cosmology["omegam"],
-        omegab=cosmology["omegab"],
-        H0=cosmology["H0"],
-        **tables,
-    )
-    zero = [0.0]*5
-    interface.set_nuisance_bias(
-        B1=settings["bias"], B2=zero, B_MAG=zero, B3nl=zero, BK=zero
-    )
-    interface.set_nuisance_ia(A1=zero, A2=zero, B_TA=zero)
-    interface.set_nuisance_shear_photoz(bias=zero)
-    interface.set_nuisance_clustering_photoz(bias=zero)
-    interface.set_nuisance_shear_calib(M=zero)
-    return tables
 
 
 

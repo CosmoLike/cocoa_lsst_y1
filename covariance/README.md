@@ -8,28 +8,30 @@
 6. [Files](#files)
 7. [Appendix](#appendix)
    1. [FAQ: Which survey does the example use?](#survey)
-   2. [FAQ: What does the Gaussian calculation include?](#gaussian)
+   2. [FAQ: What does the calculation include?](#gaussian)
    3. [FAQ: How can users check convergence?](#convergence)
    4. [FAQ: How can users reuse the calculation?](#reuse)
 
 # Overview <a name="overview"></a>
 
 [EXAMPLE_EVALUATE_COVARIANCE.ipynb](../EXAMPLE_EVALUATE_COVARIANCE.ipynb)
-computes the covariance of the cosmic-shear correlation functions
-$`\xi_+`$ and $`\xi_-`$ for one source bin. It uses this project's
-five lens and five source redshift distributions and includes the
-cross covariance between the two correlation functions.
+computes real-space and Fourier-space galaxy/shear covariances with
+separate Gaussian (G), super-sample (SSC), connected non-Gaussian (cNG)
+and total matrices. The real-space vector contains cosmic shear,
+galaxy–galaxy lensing and galaxy clustering, using five lens and five
+source bins. The Fourier example contains E-mode shear, galaxy–shear
+and galaxy-density bandpowers.
 
-The notebook runs CAMB, builds the Gaussian covariance, repeats the
-calculation at higher accuracy, and plots the changes. Its matrix has
-52 rows: 26 angular bins for $`\xi_+`$, followed by 26 for $`\xi_-`$.
-It does not load or overwrite the likelihood's supplied covariance.
+The notebook runs CAMB once, computes both spaces at several accuracy
+boosts, reports positivity and refinement diagnostics, plots the physical
+components, and saves NumPy archives. It does not load the likelihood's
+supplied covariance.
 
 > [!NOTE]
-> This example includes Gaussian covariance with Limber spectra,
-> full-sky angular-bin averages and spherical-cap pair noise.
-> It does not include super-sample covariance (SSC), connected
-> non-Gaussian covariance (cNG), or non-Limber corrections.
+> The forecast uses massless neutrinos, linear galaxy bias, zero IA,
+> magnification and RSD, Limber spectra and a spherical-cap footprint.
+> It includes isotropic halo SSC and five halo cNG terms. These choices
+> need numerical and physical validation for the intended inference.
 > See [what the calculation includes](#gaussian).
 
 # Running the covariance notebook <a name="running"></a>
@@ -55,10 +57,18 @@ We assume Cocoa and the LSST Y1 project are installed, users have run
 
 **Step :five:**: select **Kernel → Restart Kernel and Run All Cells**.
 
-The first calculation constructs the one-source Gaussian covariance.
-The following cells compare accuracy boosts 1, 2 and 4. The notebook
-prints matrix dimensions, positivity diagnostics and changes relative
-to the highest tested boost, then displays the figures.
+The notebook computes the real-space and Fourier matrices for accuracy
+boosts 1 and 2. It prints matrix dimensions, positivity diagnostics and
+changes relative to the highest tested boost, then displays the figures.
+The final cell saves these files in `projects/lsst_y1/covariance/`:
+
+| Output | Contents |
+| --- | --- |
+| `forecast_real.npz` | Angular G, SSC, cNG, total, row map, means and resolved settings. |
+| `forecast_fourier.npz` | Fourier G, SSC, cNG, total, row map, means and resolved settings. |
+| `forecast_camb.npz` | CAMB tables used for the calculation. |
+
+Rerunning the final cell replaces these computed output files.
 
 > [!NOTE]
 > The notebook assigns eight threads to CosmoLike's OpenMP loops and
@@ -87,12 +97,14 @@ We assume users have run `conda activate cocoa`, use Bash, and are in
 **Step :three:**: set the first calculation's accuracy in its configuration cell.
 
 ```python
-settings = survey.configuration(accuracy_boost=1)
+boosts = [1, 2]
+settings = survey.configuration(accuracy_boost=boosts[0])
 ```
 
 `accuracy_boost` is the single user control. Supported values are
 1, 2, 4 and 8. It raises the covariance's multipole cutoffs and radial,
-angular and lensing-window integration resolution together. It leaves
+angular, halo and lensing-window integration resolution together. It also
+refines the non-Gaussian multipole table. It leaves
 CAMB and data-vector accuracy settings unchanged.
 
 **Step :four:**: choose which values to compare in the refinement cell.
@@ -109,8 +121,8 @@ boosts = [1, 2, 4, 8]
 
 **Step :five:**: restart the kernel and run all cells.
 
-The calculation keeps the cosmology, galaxy distributions, noise and
-angular bins fixed. Only the covariance accuracy changes. The highest
+The calculation keeps the cosmology, galaxy distributions, noise, angular
+bins and Fourier-band endpoints fixed. Only the covariance accuracy changes. The highest
 boost in the comparison supplies the reference matrix for the difference
 plots and variance-ratio table.
 
@@ -125,10 +137,9 @@ plots and variance-ratio table.
 | Figure | What it teaches |
 | --- | --- |
 | Split-triangle correlation matrix | Compare the initial calculation in the lower triangle with the highest tested boost in the upper triangle. Each matrix is normalized by its own diagonal. |
-| Gaussian component maps and histogram | See where signal/mixed-noise and pure pair noise contribute to the computed covariance. |
-| Angular standard deviations | Read the error on each correlation-function bin, $`\sqrt{C_{ii}}`$, for every tested boost. |
-| Angular error changes | Compare standard deviations with the reference, in percent. |
-| Covariance-change maps and histogram | Find changes in auto and cross blocks, normalized by the reference diagonal variances, in percent. |
+| G, SSC and cNG maps and histograms | Compare each component after normalization by the total diagonal variances. |
+| Error changes | Compare first-source-bin standard deviations with the reference, in percent, for angles and Fourier bands. |
+| Generalized-mode report | Bound variance changes over every linear combination of measurements. |
 
 The correlation comparison follows the layout of
 [Friedrich et al. (2021), Fig. 6](https://arxiv.org/abs/2012.08568).
@@ -175,7 +186,7 @@ The [data-vector test guide](../tests/data_vector/README.md) explains them.
 
 | File or folder | Purpose |
 | --- | --- |
-| [EXAMPLE_EVALUATE_COVARIANCE.ipynb](../EXAMPLE_EVALUATE_COVARIANCE.ipynb) | Run, refine and plot the cosmic-shear covariance. |
+| [EXAMPLE_EVALUATE_COVARIANCE.ipynb](../EXAMPLE_EVALUATE_COVARIANCE.ipynb) | Run, refine and plot real/Fourier G, SSC and cNG matrices. |
 | [lsst_y1_covariance.py](lsst_y1_covariance.py) | Specify survey inputs, initialize this project's interface and call the shared calculation. |
 | [Shared covariance package](../../../external_modules/code/cosmolike_core/cosmolike_notebook_utils/covariance/README.md) | Reuse integration preparation, Gaussian assembly, halo inputs, accuracy settings and diagnostics. |
 | [Shared plotting script](../../../external_modules/code/cosmolike_core/cosmolike_notebook_utils/plot_covariances.py) | Plot covariance arrays from any project. |
@@ -203,7 +214,9 @@ assumption; it is not inferred from the normalized redshift columns.
 | Total source density | 10 galaxies per square arcminute |
 | Source density per bin | 2 galaxies per square arcminute |
 | Ellipticity dispersion per component | 0.26 |
-| Selected source bin | `source_bin: 0` (the first bin) |
+| Full real-space vector | 1,560 entries: 60 observable rows, each with 26 angles |
+| Fourier vector | 675 entries: 45 observable rows, each with 15 bands |
+| Fourier bands | Integer multipoles 30 through 4,000, with mode-count weights |
 | Angular bins | 26 logarithmic bins from 2.5 to 900 arcminutes |
 | Neutrino mass | Zero |
 | Intrinsic alignment | Zero |
@@ -214,13 +227,13 @@ The cosmology and remaining choices are written explicitly in
 `lsst_y1_covariance.py`. They define a forecast; they are not the
 parameters of the project's stored likelihood reference.
 
-## FAQ: What does the Gaussian calculation include? <a name="gaussian"></a>
+## FAQ: What does the calculation include? <a name="gaussian"></a>
 
 For Gaussian fields, a four-point expectation separates into products
 of two-point expectations. A covariance between measured spectra AB and
 CD therefore needs AC, BD, AD and BC spectra, even if those crossed pairs
 are excluded from the measured data vector. The example retains the
-complete field matrix before selecting its shear block.
+complete field matrix before assembling the measured rows.
 
 The signal uses nonlinear matter power and Limber projection. Spherical
 spin operators average the resulting angular spectra over each angular
@@ -232,10 +245,18 @@ a spherical-cap footprint. Signal and mixed signal-noise terms retain
 the finite multipole sum. A cap correction to noise pair counts does not
 make the signal covariance an exact treatment of an irregular footprint.
 
+Fourier bandpowers include pure noise inside the finite band sum. They
+average the core spectra directly. Real-space means retain Cocoa's
+extra source-leg factor for matching its angular-transform convention.
+Each convention is applied consistently to G, SSC and cNG signal terms;
+white noise receives neither source conversion.
+
 SSC describes correlations induced by modes larger than the survey;
 cNG describes the connected four-point contribution inside it.
-Their component calculations are available in the shared code, but this
-notebook does not assemble them into a full survey covariance. See
+The notebook computes both terms for every measured cross block. SSC
+uses common shell responses before their weighted outer products; cNG
+uses the 1-halo, 2-halo (1+3), 2-halo (2+2), 3-halo and 4-halo terms.
+These are approximations, not a simulation calibration. See
 [Krause & Eifler](https://arxiv.org/abs/1601.05779) and
 [Takada & Hu](https://arxiv.org/abs/1302.6994) for the physical decomposition.
 

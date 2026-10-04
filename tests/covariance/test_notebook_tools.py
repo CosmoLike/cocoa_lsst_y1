@@ -5,6 +5,7 @@ Wick contractions. Figures are drawn with a noninteractive canvas so their
 artists and masked ratios can be inspected without opening a window.
 """
 
+import json
 import unittest
 
 import matplotlib
@@ -33,6 +34,7 @@ class NotebookCovariance(unittest.TestCase):
             current = cov.covariance_accuracy(accuracy_boost=boost)
             for key in ("ell_max", "mask_ell_max", "radial_nquad", "angle_nquad"):
                 self.assertEqual(current[key], 2*previous[key])
+            self.assertEqual(current["ng_ell_nodes"], 2*previous["ng_ell_nodes"])
             self.assertEqual(current["nwindow"]-1, 2*(previous["nwindow"]-1))
             self.assertLessEqual(current["angle_nquad"], 1024)
             self.assertEqual(current["halo_mass_nquad"], 2*previous["halo_mass_nquad"])
@@ -182,11 +184,50 @@ class NotebookCovariance(unittest.TestCase):
         figure, axes = plots.plot_covariance_diagonal(
             theta_arcmin=np.array([1., 2.]), covariances={"Test": matrix},
             panel_labels=["Shear"], covariance_ref=matrix, show=None,
+            coordinate_label=r"$\ell$",
         )
         figure.canvas.draw()
+        self.assertEqual(axes[0].get_xlabel(), r"$\ell$")
         np.testing.assert_array_equal(x=axes[0].lines[0].get_ydata(), y=0.0)
         with self.assertRaises(ValueError):
             plots.plot_correlation(covariance=np.diag([1., -1.]), show=None)
+
+
+def test_forecast_archive_preserves_arrays_and_resolved_settings(tmp_path):
+    """A saved forecast loads without pickle or substitution of current defaults."""
+    from cosmolike_notebook_utils.covariance.forecast import save_forecast
+
+    matrix = np.array([[2., -0.2], [-0.2, 1.]])
+    result = {
+        "gaussian": matrix,
+        "ssc": 0.2*matrix,
+        "cng": 0.1*matrix,
+        "total": 1.3*matrix,
+        "signal": np.array([[1., 2.]]),
+        "rows": np.array([[0, 1, 1]], dtype=np.int32),
+        "coordinate": np.array([10., 20.]),
+        "coordinate_label": r"$\ell$",
+        "geometry": np.ones((4, 3)),
+        "coarse_ell": np.array([2., 40.]),
+        "pair_area_sr2": np.empty(0),
+        "stages_s": {"total": 1.0},
+        "settings": {
+            "accuracy_boost": 2,
+            "band_first": np.array([5, 15], dtype=np.int32),
+            "cosmology": {"mnu": 0.0},
+            "space": "fourier",
+        },
+    }
+    output = tmp_path/"forecast.npz"
+    save_forecast(result=result, filename=output)
+    with np.load(output, allow_pickle=False) as saved:
+        for name in ("gaussian", "ssc", "cng", "total", "signal", "rows"):
+            np.testing.assert_array_equal(saved[name], result[name])
+        settings = json.loads(str(saved["settings_json"]))
+        assert settings["band_first"] == [5, 15]
+        assert settings["cosmology"]["mnu"] == 0.0
+        assert settings["space"] == "fourier"
+        assert settings["accuracy_boost"] == 2
 
 
 if __name__ == "__main__":

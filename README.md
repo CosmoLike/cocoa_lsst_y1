@@ -1,3 +1,13 @@
+# Table of contents <a name="table_of_contents"></a>
+
+1. [Running Cosmolike projects (Basic instructions)](#running_cosmolike_projects)
+2. [Baryonic feedback on EXAMPLE_EVALUATE1](#lsst_y1_baryonic_feedback)
+3. [Running ML emulators](#cobaya_base_code_examples_emul)
+4. [Running Hybrid Cosmolike-ML emulators](#cobaya_base_code_examples_emul2)
+5. [Running Fisher](#lsst_examples_fisher)
+6. [Unit tests](#unit_tests)
+7. [Computing covariances](#computing_covariances)
+
 # Running Cosmolike projects (Basic instructions) <a name="running_cosmolike_projects"></a> 
 
 From `Cocoa/Readme` instructions:
@@ -150,15 +160,6 @@ and
         mpirun -n 4 --oversubscribe \
           cobaya-run ./projects/lsst_y1/EXAMPLE_MCMC1.yaml -f
 
-
-# Table of contents <a name="table_of_contents"></a>
-
-1. [Running Cosmolike projects (Basic instructions)](#running_cosmolike_projects)
-2. [Baryonic feedback on EXAMPLE_EVALUATE1](#lsst_y1_baryonic_feedback)
-3. [Running ML emulators](#cobaya_base_code_examples_emul)
-4. [Running Hybrid Cosmolike-ML emulators](#cobaya_base_code_examples_emul2)
-5. [Running Fisher](#lsst_examples_fisher)
-6. [Unit tests](#unit_tests)
 
 # Baryonic feedback on EXAMPLE_EVALUATE1 <a name="lsst_y1_baryonic_feedback"></a>
 
@@ -774,23 +775,43 @@ are quoted here: rerun the checks to measure them on the current
 code, and see [data-vector test guide](tests/data_vector/README.md) for each check,
 the settings raised, and what each setting controls.
 
-## Covariance notebook
+# Computing covariances <a name="computing_covariances"></a>
 
 [EXAMPLE_EVALUATE_COVARIANCE.ipynb](EXAMPLE_EVALUATE_COVARIANCE.ipynb)
-computes and plots a small LSST Y1 Gaussian shear covariance and compares
-two numerical resolutions. [The covariance guide](covariance/README.md)
-explains its survey inputs, physical scope and shared Python tools.
+computes real-space and Fourier-space galaxy/shear covariances, with
+separate Gaussian, super-sample and connected components. It compares
+accuracy boosts, checks eigenvalues and plots the changes.
 
-The covariance tests check construction, numerical integration and notebook
-helpers. We assume users have run `conda activate cocoa`, use Bash, and are
-in `cocoa/Cocoa`, with the project interface compiled.
+We assume Cocoa and this project are installed, users have run
+`conda activate cocoa`, the shell is Bash, and the current folder is
+`cocoa/Cocoa`.
 
 **Step :one:**: activate Cocoa's private Python environment.
 
     source start_cocoa.sh
 
-**Step :two:**: run the covariance tests separately from the data-vector tests.
+**Step :two:**: compile the project interface.
 
-    python -m pytest projects/lsst_y1/tests/covariance
+    source ./projects/lsst_y1/scripts/compile_lsst_y1.sh
 
-See [the test guide](tests/README.md) for the separate commands.
+**Step :three:**: start Jupyter.
+
+    jupyter notebook --no-browser --port=8888
+
+**Step :four:**: open the printed URL and select
+`projects/lsst_y1/EXAMPLE_EVALUATE_COVARIANCE.ipynb`.
+
+**Step :five:**: inspect the survey settings, choose `boosts`, then select
+**Kernel → Restart Kernel and Run All Cells**.
+
+The final cell writes `covariance/forecast_real.npz`,
+`covariance/forecast_fourier.npz` and `covariance/forecast_camb.npz`.
+The [covariance guide](covariance/README.md) explains the settings, output
+arrays, physical approximations and separate covariance test command.
+
+> [!NOTE]
+> This is a massless-neutrino, Limber forecast with linear galaxy bias,
+> zero IA, magnification and RSD, and a spherical-cap footprint.
+> The notebook uses eight OpenMP threads and one BLAS thread.
+> A larger `accuracy_boost` refines integrations; it does not certify
+> parameter-error convergence or replace the likelihood's supplied matrix.
