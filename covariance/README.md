@@ -46,6 +46,7 @@ We assume Cocoa and the LSST Y1 project are installed, users have run
 
 **Step :two:**: compile the LSST Y1 interface, including the covariance components.
 
+    unset IGNORE_COSMOLIKE_LSST_Y1_CODE
     source ./projects/lsst_y1/scripts/compile_lsst_y1.sh
 
 **Step :three:**: start Jupyter.

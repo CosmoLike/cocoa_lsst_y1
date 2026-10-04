@@ -792,6 +792,7 @@ We assume Cocoa and this project are installed, users have run
 
 **Step :two:**: compile the project interface.
 
+    unset IGNORE_COSMOLIKE_LSST_Y1_CODE
     source ./projects/lsst_y1/scripts/compile_lsst_y1.sh
 
 **Step :three:**: start Jupyter.
