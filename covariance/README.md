@@ -41,6 +41,13 @@ The supplied matrix is read only for comparison; no likelihood files are changed
 
 # Running the covariance notebook <a name="running"></a>
 
+The default build omits covariance generation. Unset
+`IGNORE_COSMOLIKE_LSST_Y1_COVARIANCE` after activating Cocoa, then recompile
+as below. Likelihood evaluation with a supplied covariance remains available
+in either build. Restart the Jupyter kernel after a rebuild. To retain this
+choice across sessions, comment out the matching export in
+[`set_installation_options.sh`](../../../set_installation_options.sh).
+
 We assume Cocoa and the LSST Y1 project are installed, users have run
 `conda activate cocoa`, the shell is Bash, and the current folder is
 `cocoa/Cocoa`. The notebook uses the Python environment activated by Cocoa.
@@ -52,6 +59,7 @@ We assume Cocoa and the LSST Y1 project are installed, users have run
 **Step :two:**: compile the LSST Y1 interface, including the covariance components.
 
     unset IGNORE_COSMOLIKE_LSST_Y1_CODE
+    unset IGNORE_COSMOLIKE_LSST_Y1_COVARIANCE
     source ./projects/lsst_y1/scripts/compile_lsst_y1.sh
 
 **Step :three:**: start Jupyter.
@@ -182,7 +190,13 @@ We assume users have run `conda activate cocoa`, use Bash, and are in
 
     source start_cocoa.sh
 
-**Step :two:**: run the covariance tests.
+**Step :two:**: enable and compile the covariance interface.
+
+    unset IGNORE_COSMOLIKE_LSST_Y1_CODE
+    unset IGNORE_COSMOLIKE_LSST_Y1_COVARIANCE
+    source ./projects/lsst_y1/scripts/compile_lsst_y1.sh
+
+**Step :three:**: run the covariance tests.
 
     python -m pytest projects/lsst_y1/tests/covariance
 

@@ -1,5 +1,11 @@
 # Covariance tests
 
+These tests require the optional covariance build. Follow the
+[project build instructions](../../README.md#computing_covariances): unset
+`IGNORE_COSMOLIKE_LSST_Y1_COVARIANCE` after activating Cocoa and rebuild.
+With the default data-vector-only build this sector reports skips; the
+separate `tests/data_vector` suite remains available.
+
 These tests check covariance construction separately from the data-vector
 and likelihood tests in `../data_vector/`. A covariance describes the
 joint scatter of measurements; getting each predicted mean right does
