@@ -25,7 +25,7 @@ def test_band_rebinning_and_thread_determinism(tmp_path):
     settings = {
         "mnu": 0.0,
         "ell_max": 120,
-        "ng_ell_nodes": 16,
+        "ng_ell": np.geomspace(2.5, 120.5, 16)-0.5,
         "mask_ell_max": 128,
         "radial_nquad": 64,
         "angle_nquad": 64,

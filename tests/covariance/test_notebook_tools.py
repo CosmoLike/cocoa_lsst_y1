@@ -18,6 +18,7 @@ from cosmolike_notebook_utils import covariance as cov
 from cosmolike_notebook_utils import plot_covariances as plots
 from cosmolike_notebook_utils.covariance.reference import gaussian_reference
 from cosmolike_notebook_utils.covariance.reference import ssc_reference
+from cosmolike_notebook_utils.covariance.accuracy import non_gaussian_multipoles
 
 
 class NotebookCovariance(unittest.TestCase):
@@ -28,13 +29,19 @@ class NotebookCovariance(unittest.TestCase):
         plt.close("all")
 
     def test_single_accuracy_boost(self):
-        """Every boost raises all controls, retaining a nested window grid."""
+        """Refinement keeps every old interpolation node, even as cutoffs grow."""
         previous = cov.covariance_accuracy(accuracy_boost=1)
         for boost in (2, 4, 8):
             current = cov.covariance_accuracy(accuracy_boost=boost)
             for key in ("ell_max", "mask_ell_max", "radial_nquad", "angle_nquad"):
                 self.assertEqual(current[key], 2*previous[key])
-            self.assertEqual(current["ng_ell_nodes"], 2*previous["ng_ell_nodes"])
+            old_grid = previous["ng_ell"]
+            new_grid = current["ng_ell"]
+            np.testing.assert_array_equal(old_grid, new_grid[:2*len(old_grid):2])
+            self.assertGreaterEqual(new_grid[-1], current["ell_max"])
+            old_steps = np.diff(np.log(old_grid+0.5))
+            new_steps = np.diff(np.log(new_grid+0.5))
+            np.testing.assert_allclose(new_steps, old_steps[0]/2, rtol=1.e-12)
             self.assertEqual(current["nwindow"]-1, 2*(previous["nwindow"]-1))
             self.assertLessEqual(current["angle_nquad"], 1024)
             self.assertEqual(current["halo_mass_nquad"], 2*previous["halo_mass_nquad"])
@@ -45,6 +52,26 @@ class NotebookCovariance(unittest.TestCase):
         for value in (0, 3, 16, 1.5):
             with self.assertRaises(ValueError):
                 cov.covariance_accuracy(accuracy_boost=value)
+
+    def test_non_gaussian_grid_does_not_move_band_endpoints(self):
+        """A fixed measured cutoff trims the table without stretching cells."""
+        for boost in (1, 2, 4, 8):
+            settings = cov.covariance_accuracy(accuracy_boost=boost)
+            grid = settings["ng_ell"]
+            for cutoff in (2, 4000, settings["ell_max"]):
+                retained = non_gaussian_multipoles(samples=grid, ell_max=cutoff)
+                np.testing.assert_array_equal(retained, grid[:len(retained)])
+                self.assertGreaterEqual(retained[-1], cutoff)
+                self.assertGreaterEqual(len(retained), 2)
+                if cutoff > 2:
+                    self.assertLess(retained[-2], cutoff)
+                self.assertFalse(np.shares_memory(retained, grid))
+
+        for bad in ([2.0], [2., 3., np.nan], [2., 4., 3.], [2., 4., 10.]):
+            with self.assertRaises(ValueError):
+                non_gaussian_multipoles(samples=bad, ell_max=3)
+        with self.assertRaises(ValueError):
+            non_gaussian_multipoles(samples=[2., 3.], ell_max=4)
 
     def test_public_wick_and_rectangular_blocks(self):
         """Cross-bin spectra and mixed-noise terms match a separate contraction."""
