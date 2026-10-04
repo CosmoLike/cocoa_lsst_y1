@@ -219,7 +219,8 @@ CPPSOURCES += \
 		${ROOTDIR}/external_modules/code/cosmolike/cosmo2D_scuts_wrapper.cpp \
 		${ROOTDIR}/external_modules/code/cosmolike/halo_wrapper.cpp \
 		${ROOTDIR}/external_modules/code/cosmolike/covariances/generic_interface_cov.cpp \
-		${ROOTDIR}/external_modules/code/cosmolike/covariances/python_components_cov.cpp
+		${ROOTDIR}/external_modules/code/cosmolike/covariances/python_components_cov.cpp \
+		${ROOTDIR}/external_modules/code/cosmolike/covariances/covariance_wrapper_cov.cpp
 
 OBJECTCPP += \
 		./generic_interface.o \
@@ -227,7 +228,8 @@ OBJECTCPP += \
 		./cosmo2D_scuts_wrapper.o \
 		./halo_wrapper.o \
 		./generic_interface_cov.o \
-		./python_components_cov.o
+		./python_components_cov.o \
+		./covariance_wrapper_cov.o
 
 $(OBJECTC): $(CSOURCES)
 	$(CC) $(CFLAGS) -fPIC -c $(CSOURCES)
