@@ -135,35 +135,39 @@ class HaloCovariance(unittest.TestCase):
                                        rtol=1.e-13)
 
     def test_small_batches_match_shared_tables(self):
-        """One scale factor and two k values retain the complete-table result.
+        """Small k batches retain the corresponding complete-table moments.
 
         These small calls expose loops with too few outer iterations for
-        eight workers. Changing their parallel layout must preserve every
-        mass sum and the completion at zero wavenumber.
+        eight workers. One, two and three k rows exercise different mass
+        partitions, including an uneven split among workers. Every mass
+        sum and the completion at zero wavenumber must stay bitwise equal.
         """
         self.ci.set_omp_threads(1)
         single, moments = self.inputs.compute(
             a=self.a, k=self.k, edges=self.edges, nquad=128
         )
         first, second = np.triu_indices(n=self.k.shape[1])
-        selected_pairs = np.flatnonzero(a=(first < 2) & (second < 2))
         for threads in (1, 2, 4, 8):
             self.ci.set_omp_threads(threads)
-            for row in range(len(self.a)):
-                actual_single, actual_moments = self.inputs.compute(
-                    a=self.a[row:row+1],
-                    k=self.k[row:row+1, :2],
-                    edges=self.edges,
-                    nquad=128,
-                )
-                expected_moments = moments[:, row:row+1, selected_pairs]
-                np.testing.assert_array_equal(
-                    x=actual_single,
-                    y=single[row:row+1, :2],
-                )
-                np.testing.assert_array_equal(
-                    x=actual_moments, y=expected_moments
-                )
+            for nk in (1, 2, 3):
+                selected_pairs = np.flatnonzero(a=(first < nk) & (second < nk))
+                for row in range(len(self.a)):
+                    actual_single, actual_moments = self.inputs.compute(
+                        a=self.a[row:row+1],
+                        k=self.k[row:row+1, :nk],
+                        edges=self.edges,
+                        nquad=128,
+                    )
+                    expected_single = single[row:row+1, :nk]
+                    expected_moments = moments[:, row:row+1, selected_pairs]
+                    np.testing.assert_array_equal(
+                        x=actual_single.view(np.uint64),
+                        y=expected_single.view(np.uint64),
+                    )
+                    np.testing.assert_array_equal(
+                        x=actual_moments.view(np.uint64),
+                        y=expected_moments.view(np.uint64),
+                    )
 
     def test_repeated_threads_and_state_refresh(self):
         """Repeat complete builds at 1/4/8 threads; no static covariance state."""
