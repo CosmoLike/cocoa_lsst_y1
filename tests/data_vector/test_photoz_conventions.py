@@ -40,7 +40,7 @@ fails loudly here.
 To run (from the Cocoa/ folder, cocoa environment active,
 start_cocoa.sh sourced):
 
-    python -m pytest ./projects/lsst_y1/tests/test_photoz_conventions.py
+    python -m pytest ./projects/lsst_y1/tests/data_vector/test_photoz_conventions.py
 """
 
 import os
@@ -56,7 +56,8 @@ import unittest
 
 # The tests folder is not a package; put it on the import path so the
 # shared harness resolves no matter where pytest was launched from.
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.dirname(
+    os.path.abspath(__file__))))
 import cocoa_test_utils as u
 
 EXAMPLE = "example1"
