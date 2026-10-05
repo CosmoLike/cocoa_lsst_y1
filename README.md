@@ -10,6 +10,19 @@
 
 # Running Cosmolike projects (Basic instructions) <a name="running_cosmolike_projects"></a> 
 
+> [!WARNING]
+> **CLI for production; notebook wrappers for exploration.**
+>
+> Run production and HPC calculations from YAML through the optimized
+> `_interface` bindings. Notebook `_wrapper` APIs expose intermediate
+> quantities for exploration; copying and rearranging their arrays adds
+> overhead. Both routes call the same C kernels.
+>
+> In a matched **LSST Y1 covariance** test on an M2 Pro with eight threads,
+> the CLI averaged **68.34 s** (three runs); one wrapper run took **177.74 s**.
+> The CLI was **2.60× faster**, with bitwise-identical covariance components.
+> See [the production covariance CLI](#computing_covariances).
+
 > [!Warning]
 > CosmoLike supports the optimized strict-IEEE default build and
 > `COSMOLIKE_DEBUG_MODE`. The compiler mode `COSMOLIKE_AGGRESSIVE_MODE`
