@@ -106,3 +106,54 @@ def test_b_covariance_signs_and_noise_once():
     np.testing.assert_allclose(actual-baseline, expected, rtol=2.e-12, atol=1.e-25)
     zero_b = ci.covariance_gaussian_real(**kwargs, b_spectra=np.zeros_like(spectra_b))
     np.testing.assert_array_equal(zero_b, baseline)
+
+
+def test_gaussian_options_leave_ssc_cng_unchanged(survey):
+    """The full assembler changes only G when its Gaussian model is changed."""
+    from cosmolike_notebook_utils.covariance.accuracy import covariance_accuracy
+    from cosmolike_notebook_utils.covariance.forecast import gaussian_model
+    from cosmolike_notebook_utils.covariance.survey import realspace_covariance
+
+    edges, unused = survey
+    ci.set_nuisance_bias(
+        B1=[1.4, 1.8], B2=[0., 0.], B_MAG=[0., 0.],
+        B3nl=[0., 0.], BK=[0., 0.],
+    )
+    settings = covariance_accuracy(ell_max=64, mask_ell_max=64, ng_ell_intervals=3)
+    settings.update({
+        "mnu": 0.0,
+        "a_edges": edges,
+        "lnm_edges": np.linspace(np.log(1.e6), np.log(1.e17), 3),
+        "area_sr": 2.0,
+        "edges_rad": np.geomspace(0.001, 0.01, 4),
+        "nonlimber_lmax": 30,
+    })
+    rows = np.array([[0, 2, 2], [1, 2, 2], [2, 0, 2], [3, 0, 0]], dtype=np.int32)
+    noise = np.full(4, 1.e-7)
+    reference = None
+    choices = (
+        {"nonlimber": False, "ia": "none"},
+        {"nonlimber": True, "ia": "NLA", "A1": [0.6, 0.8]},
+        {"nonlimber": True, "ia": "TATT", "A1": [0.6, 0.8],
+         "A2": [0.4, -0.3], "B_TA": [0.7, 1.1]},
+    )
+    for choice in choices:
+        model = gaussian_model(gaussian=choice, nsource=2)
+        settings["gaussian"] = model
+        ci.init_IA(ia_model=1 if model["ia"] == "TATT" else 0,
+                   ia_redshift_evolution=2, ia_code=0)
+        ci.set_nuisance_ia(A1=model["A1"], A2=model["A2"], B_TA=model["B_TA"])
+        actual = realspace_covariance(
+            interface=ci.covariance, settings=settings, rows=rows, noise=noise,
+        )
+        if reference is None:
+            reference = actual
+        else:
+            np.testing.assert_array_equal(actual["ssc"], reference["ssc"])
+            np.testing.assert_array_equal(actual["cng"], reference["cng"])
+            np.testing.assert_array_equal(actual["ssc_normalization_signal"],
+                                          reference["ssc_normalization_signal"])
+            assert np.any(actual["gaussian"] != reference["gaussian"])
+        scale = np.sqrt(np.outer(np.diag(actual["total"]), np.diag(actual["total"])))
+        assert np.linalg.eigvalsh(actual["total"]/scale)[0] > 0.0
+    set_alignment(model=0)

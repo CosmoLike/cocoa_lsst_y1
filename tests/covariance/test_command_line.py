@@ -5,6 +5,7 @@ run. Tests keep malformed input from silently selecting a different model
 or a random prior point on an HPC job.
 """
 
+import os
 from pathlib import Path
 import sys
 
@@ -50,7 +51,7 @@ def test_fixed_cosmology_and_independent_boosts(tmp_path):
     assert settings["nwindow"] == 16384*3*2+1
     assert settings["radial_nquad"] == 128
     assert run["space"] == "real"
-    assert run["threads"] == 8
+    assert run["threads"] == int(os.environ["OMP_NUM_THREADS"])
 
 
 def test_evaluate_override_is_explicit(tmp_path):
@@ -84,6 +85,26 @@ def test_unsupported_physics_or_misspelled_options_fail(tmp_path):
     info = input_info()
     info["sampler"] = {"mcmc": {}}
     with pytest.raises(ValueError, match="sampler: evaluate"):
+        load_run_configuration(
+            filename=write_input(tmp_path=tmp_path, info=info), survey=survey,
+        )
+
+
+def test_gaussian_choices_and_environment_threads(tmp_path):
+    """Keep Gaussian physics and shell resource choices explicit in the YAML."""
+    info = input_info()
+    info["covariance"]["gaussian"] = {"nonlimber": True, "ia": "TATT", "A1": 0.6,
+                                       "A2": 0.2, "B_TA": 0.5}
+    info["covariance"]["accuracy_boost"] = 2
+    info["covariance"]["nonlimber_accuracyboost"] = 2
+    settings, unused = load_run_configuration(
+        filename=write_input(tmp_path=tmp_path, info=info), survey=survey,
+    )
+    assert settings["gaussian"]["A1"] == [0.6]*5
+    assert settings["nonlimber_nchi"] == 4096*2*2+1
+    assert settings["nonlimber_lmax"] == 2000
+    info["covariance"]["threads"] = 8
+    with pytest.raises(ValueError, match="OMP_NUM_THREADS"):
         load_run_configuration(
             filename=write_input(tmp_path=tmp_path, info=info), survey=survey,
         )

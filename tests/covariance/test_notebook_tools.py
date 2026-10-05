@@ -329,6 +329,7 @@ def test_forecast_archive_preserves_arrays_and_resolved_settings(tmp_path):
         "cng": 0.1*matrix,
         "total": 1.3*matrix,
         "signal": np.array([[1., 2.]]),
+        "ssc_normalization_signal": np.array([[0.9, 1.8]]),
         "rows": np.array([[0, 1, 1]], dtype=np.int32),
         "coordinate": np.array([10., 20.]),
         "coordinate_label": r"$\ell$",
@@ -346,13 +347,20 @@ def test_forecast_archive_preserves_arrays_and_resolved_settings(tmp_path):
     output = tmp_path/"forecast.npz"
     save_forecast(result=result, filename=output)
     with np.load(output, allow_pickle=False) as saved:
-        for name in ("gaussian", "ssc", "cng", "total", "signal", "rows"):
+        for name in ("gaussian", "ssc", "cng", "total", "signal", "rows",
+                     "ssc_normalization_signal"):
             np.testing.assert_array_equal(saved[name], result[name])
         settings = json.loads(str(saved["settings_json"]))
         assert settings["band_first"] == [5, 15]
         assert settings["cosmology"]["mnu"] == 0.0
         assert settings["space"] == "fourier"
         assert settings["accuracy_boost"] == 2
+
+    del result["ssc_normalization_signal"]
+    save_forecast(result=result, filename=output)
+    with np.load(output, allow_pickle=False) as saved:
+        np.testing.assert_array_equal(saved["ssc_normalization_signal"],
+                                      saved["signal"])
 
 
 if __name__ == "__main__":
