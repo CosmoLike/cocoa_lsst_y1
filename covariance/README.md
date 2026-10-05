@@ -86,11 +86,6 @@ positivity and plots the computed components and supplied total. Set
 
 Rerunning the final cell replaces these computed output files.
 
-The earlier Limber, zero-IA full real-space notebook example took **174.0 seconds** on an Apple
-M2 Pro with eight OpenMP threads. This single run included spectra, halo
-calculations, transforms and matrix assembly. Initial survey/CAMB setup,
-diagnostics, plots and file writing were outside the measured interval.
-
 > [!NOTE]
 > The notebook assigns eight threads to CosmoLike's OpenMP loops and
 > one thread to BLAS. Change `ci.set_omp_threads(n=8)` in the notebook
@@ -107,6 +102,16 @@ The Python runner computes the full galaxy–shear covariance in real space,
 using the optimized production interface. It saves G, SSC, cNG and their
 sum without plotting or opening a notebook. Numerical kernels and survey
 settings are shared with the notebook calculation.
+
+The supplied evaluate YAML constructs the full **1,560 × 1,560**
+galaxy/shear covariance in **68.34 seconds** on an Apple M2 Pro
+with eight OpenMP threads (mean of three fresh, sequential CLI runs
+on 2026-10-05). Gaussian clustering and galaxy–shear spectra include
+non-Limber corrections; the example uses zero IA.
+
+This interval includes first-use CosmoLike tables, spectra, halo
+calculations, transforms and complete G + SSC + cNG matrix assembly.
+Initial survey/CAMB setup, diagnostics and file writing are excluded.
 
 From Bash in `cocoa/Cocoa`, with `conda activate cocoa`:
 
