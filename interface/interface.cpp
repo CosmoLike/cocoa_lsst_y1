@@ -43,10 +43,19 @@ namespace py = pybind11;
 #include "cosmolike/cosmo2D_wrapper.hpp"
 #include "cosmolike/cosmo2D_scuts_wrapper.hpp"
 #include "cosmolike/halo_wrapper.hpp"
+#ifndef COSMOLIKE_NO_COVARIANCE
+#include "cosmolike/covariances/generic_interface_cov.hpp"
+#endif
 
 PYBIND11_MODULE(cosmolike_lsst_y1_interface, m)
 {
   cosmolike_interface::set_blas_single_threaded();
+#ifndef COSMOLIKE_NO_COVARIANCE
+  cosmolike_interface::bind_covariance(m);
+  m.attr("has_covariance") = true;
+#else
+  m.attr("has_covariance") = false;
+#endif
   m.doc() = "CosmoLike Interface for LSST-Y1 3x2pt Module";
 
   // --------------------------------------------------------------------

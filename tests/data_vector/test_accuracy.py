@@ -39,11 +39,11 @@ the COCOA_ACCURACY_NMODELS environment variable is a positive
 integer:
 
     COCOA_ACCURACY_NMODELS=10 python -m pytest \\
-        ./projects/lsst_y1/tests/test_accuracy.py -k nmodels
+        ./projects/lsst_y1/tests/data_vector/test_accuracy.py -k nmodels
 
 When this file runs as a script, --nmodels N sets the same option:
 
-    python ./projects/lsst_y1/tests/test_accuracy.py --nmodels 10
+    python ./projects/lsst_y1/tests/data_vector/test_accuracy.py --nmodels 10
 
 With the variable unset (or 0) the check prints how to enable it and
 passes without evaluating anything.
@@ -52,12 +52,12 @@ A high-accuracy evaluation takes minutes, not seconds: the whole file
 is far slower than the rest of the suite. To run only this file (from
 the Cocoa/ folder, cocoa environment active, start_cocoa.sh sourced):
 
-    python -m pytest ./projects/lsst_y1/tests/test_accuracy.py
+    python -m pytest ./projects/lsst_y1/tests/data_vector/test_accuracy.py
 
 and to run the rest of the suite without it:
 
     python -m pytest ./projects/lsst_y1/tests --ignore \\
-        ./projects/lsst_y1/tests/test_accuracy.py
+        ./projects/lsst_y1/tests/data_vector/test_accuracy.py
 """
 
 import os
@@ -74,7 +74,8 @@ import unittest
 # shared harness resolves no matter where pytest was launched from.
 # insert(0, ...) puts the folder FIRST in the search order, ahead of
 # every other place a same-named module could hide.
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.dirname(
+    os.path.abspath(__file__))))
 import cocoa_test_utils as u
 
 
@@ -183,7 +184,7 @@ class TestAccuracyAdvisory(unittest.TestCase):
         script:
 
             COCOA_ACCURACY_NMODELS=10 python -m pytest \\
-                ./projects/lsst_y1/tests/test_accuracy.py -k nmodels
+                ./projects/lsst_y1/tests/data_vector/test_accuracy.py -k nmodels
 
         The ax99 in the method name sorts this check after A1-A6
         (unittest runs methods in name order), so the cheap fiducial

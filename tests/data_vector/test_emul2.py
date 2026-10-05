@@ -35,7 +35,7 @@ availability.
 To run (from the Cocoa/ folder, cocoa environment active,
 start_cocoa.sh sourced):
 
-    python -m pytest ./projects/lsst_y1/tests/test_emul2.py
+    python -m pytest ./projects/lsst_y1/tests/data_vector/test_emul2.py
 """
 
 import os
@@ -51,7 +51,8 @@ import unittest
 # shared harness resolves no matter where pytest was launched from.
 # insert(0, ...) puts the folder FIRST in the search order, ahead of
 # every other place a same-named module could hide.
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.dirname(
+    os.path.abspath(__file__))))
 import cocoa_test_utils as u
 
 # The recommendation threshold on |emulator - exact| chi2. It equals

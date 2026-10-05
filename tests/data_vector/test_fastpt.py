@@ -54,7 +54,7 @@ Tests 9 and 10 evaluate the frozen TATT point with FASTPT and:
 To run (from the Cocoa/ folder, cocoa environment active,
 start_cocoa.sh sourced):
 
-    python -m pytest ./projects/lsst_y1/tests
+    python -m pytest ./projects/lsst_y1/tests/data_vector
 
 Tests 15-17 repeat at the pushed numerical settings of the
 low-vs-high accuracy checks (HIGH_ACCURACY_LIKELIHOOD and
@@ -63,7 +63,7 @@ HIGH_ACCURACY_CAMB_EXTRA_ARGS, applied to every block) when the
 option and one with it, so the 30 points go through the FASTPT side
 four times (fastpt low and high, under each camb/cosmolike setting):
 
-    python -m pytest ./projects/lsst_y1/tests/test_fastpt.py --high=1
+    python -m pytest ./projects/lsst_y1/tests/data_vector/test_fastpt.py --high=1
 
 Tests 15-17 also read the --mask option (see conftest.py and
 FASTPT_MASK_DATASETS): --mask=frozen (the default) keeps the M1
@@ -72,7 +72,7 @@ other shipped scale cuts, and --mask=ones keeps every data point
 (no scale cuts), the strictest comparison; the 0.2 pass rule
 applies unchanged:
 
-    python -m pytest ./projects/lsst_y1/tests/test_fastpt.py --mask=ones
+    python -m pytest ./projects/lsst_y1/tests/data_vector/test_fastpt.py --mask=ones
 """
 
 import os
@@ -88,7 +88,8 @@ import unittest
 # shared harness resolves no matter where pytest was launched from.
 # insert(0, ...) puts the folder FIRST in the search order, ahead of
 # every other place a same-named module could hide.
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.dirname(
+    os.path.abspath(__file__))))
 import cocoa_test_utils as u
 
 
