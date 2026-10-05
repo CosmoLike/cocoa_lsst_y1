@@ -111,7 +111,7 @@ sum without plotting or opening a notebook. Numerical kernels and survey
 settings are shared with the notebook calculation.
 
 The supplied evaluate YAML constructs the full **1,560 × 1,560**
-galaxy/shear covariance in **68.34 seconds** on an Apple M2 Pro
+galaxy/shear covariance in **50.23 seconds** on an Apple M2 Pro
 with eight OpenMP threads (mean of three fresh, sequential CLI runs
 on 2026-10-05). Gaussian clustering and galaxy–shear spectra include
 non-Limber corrections; the example uses zero IA.
