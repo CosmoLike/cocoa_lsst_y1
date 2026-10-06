@@ -21,6 +21,7 @@ class HaloCovariance(unittest.TestCase):
         """Initialize the pinned massless input and explicitly selected library."""
         import tempfile
         import cosmolike_lsst_y1_interface as ci
+        from cosmolike_notebook_utils import covariance as cov
         from cosmolike_notebook_utils.covariance.reference import halo_reference
         import survey_inputs as setup
 
@@ -39,7 +40,7 @@ class HaloCovariance(unittest.TestCase):
         cls.a = np.array([0.35, 0.7, 0.95])
         wave = np.array([0., 0.01, 0.1, 1., 10., 100., 300.])*2997.92458
         cls.k = np.tile(wave, (len(cls.a), 1))
-        cls.edges = np.linspace(np.log(1.e6), np.log(1.e17), 9)
+        cls.edges = cov.halo_mass_edges()
 
     @classmethod
     def tearDownClass(cls):
