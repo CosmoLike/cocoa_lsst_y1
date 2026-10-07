@@ -25,6 +25,7 @@ We assume users have run `conda activate cocoa`, use Bash, and are in
 | Test file | Calculation checked |
 | --- | --- |
 | `test_covariance_wrappers.py` | Whole real/Fourier Gaussian matrices, overlapping bands, array ownership and thread determinism. |
+| `test_power_refinement.py` | Natural-cubic preparation of linear, nonlinear and cb powers; nested grids and preservation of original inputs. |
 | `test_production.py` | Production/notebook agreement at one and eight threads, direct-array ownership and layout requirements. |
 | `test_command_line.py` | Cobaya YAML cosmology, explicit evaluate overrides, independent accuracy controls and unsupported-input errors. |
 | `test_covariance_primitives.py` | Gaussian field pairings, projection and analytic count/shape noise. |
