@@ -21,6 +21,7 @@ class HaloCovariance(unittest.TestCase):
         """Initialize the pinned massless input and explicitly selected library."""
         import tempfile
         import cosmolike_lsst_y1_interface as ci
+        from cosmolike_notebook_utils import covariance as cov
         from cosmolike_notebook_utils.covariance.reference import halo_reference
         import survey_inputs as setup
 
@@ -39,7 +40,7 @@ class HaloCovariance(unittest.TestCase):
         cls.a = np.array([0.35, 0.7, 0.95])
         wave = np.array([0., 0.01, 0.1, 1., 10., 100., 300.])*2997.92458
         cls.k = np.tile(wave, (len(cls.a), 1))
-        cls.edges = np.linspace(np.log(1.e6), np.log(1.e17), 9)
+        cls.edges = cov.halo_mass_edges()
 
     @classmethod
     def tearDownClass(cls):
@@ -168,11 +169,48 @@ class HaloCovariance(unittest.TestCase):
 
     def test_independent_mass_contraction(self):
         """Use NumPy GL nodes and independent sums of supplied physical samples."""
-        actual = self.inputs.compute(a=self.a, k=self.k, edges=self.edges, nquad=64)
-        samples = self.inputs.sample(a=self.a, k=self.k, edges=self.edges, nquad=64)
+        # Split the first panel to request ordinary finite integrals.
+        # This retains the strict contraction test across the deep domain;
+        # Wynn extrapolation has a separate convergence test below.
+        midpoint = (self.edges[0]+self.edges[1])/2
+        edges = np.sort(np.append(self.edges, midpoint))
+        actual = self.inputs.compute(a=self.a, k=self.k, edges=edges, nquad=64)
+        samples = self.inputs.sample(a=self.a, k=self.k, edges=edges, nquad=64)
         expected = self.reference.moments(**samples)
         for measured, reference in zip(actual, expected):
             np.testing.assert_allclose(measured, reference, rtol=2.e-11)
+
+    def test_wynn_tail_against_resolved_integral(self):
+        """Check extrapolation against deep finite sums, including zero k.
+
+        The control uses 256 nodes in every panel and the existing additive
+        completion. The default has 32-node tail panels and Wynn followed
+        by a small residual completion. These are different numerical
+        methods, so compare their convergence instead of demanding bits.
+        """
+        midpoint = (self.edges[0]+self.edges[1])/2
+        edges = np.sort(np.append(self.edges, midpoint))
+        expected = self.inputs.compute(
+            a=self.a, k=self.k, edges=edges, nquad=256,
+        )
+        for nquad in (96, 128, 256):
+            actual = self.inputs.compute(
+                a=self.a, k=self.k, edges=self.edges, nquad=nquad,
+            )
+            np.testing.assert_allclose(actual[0][:, 0], 1, rtol=0, atol=4.e-15)
+            # At k <= 10 h/Mpc the normal mass quadrature is converged.
+            # The existing high-k test separately refines oscillatory NFW
+            # profiles with 512/1024 nodes, leaving its tolerance intact.
+            np.testing.assert_allclose(actual[0][:, :5], expected[0][:, :5],
+                                       rtol=1.e-6, atol=0)
+            # Hold the upper quadrature fixed when checking the cheap
+            # tail's effect on pair moments. Otherwise differences in the
+            # resolved halo quadrature would obscure this test's purpose.
+            finite = self.inputs.compute(
+                a=self.a, k=self.k, edges=edges, nquad=nquad,
+            )
+            np.testing.assert_allclose(actual[1], finite[1],
+                                       rtol=2.e-11, atol=0)
 
     def test_unresolved_mass_and_diagonal_identity(self):
         """I11(0)=1 and the two I13 orderings agree for identical wavenumbers."""

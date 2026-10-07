@@ -30,6 +30,17 @@ class NotebookCovariance(unittest.TestCase):
         """Release figures so independent test runs do not accumulate canvases."""
         plt.close("all")
 
+    def test_low_mass_extension_preserves_upper_panels(self):
+        """Adding small halos must not move the established mass quadrature."""
+        edges = cov.halo_mass_edges()
+        self.assertEqual(len(edges), 22)
+        self.assertEqual(edges[0], np.log(1.e-40))
+        np.testing.assert_allclose(np.diff(edges[:12]), 4*np.log(10),
+                                   rtol=0, atol=2.e-14)
+        upper = np.linspace(start=np.log(1.e6), stop=np.log(1.e17), num=9)
+        np.testing.assert_array_equal(edges[13:], upper)
+        self.assertTrue(np.all(np.diff(edges) > 0.0))
+
     def test_single_accuracy_boost(self):
         """Refinement keeps every old interpolation node, even as cutoffs grow."""
         previous = cov.covariance_accuracy(accuracy_boost=1)
