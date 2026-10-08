@@ -1281,9 +1281,8 @@ def compute_probes(sup=None, ell=None):
     Returns:
       dict with ell, C_ss (the EE spectra), C_gs, theta [arcmin], xip,
       xim, gammat, dv, chi2, and the interpolation grids z_grid and
-      log10k_grid (log10 of k in h/Mpc, the unit of set_cosmology; the
-      notebooks feed both to get_baryon_suppression, which reads k in
-      1/Mpc).
+      log10k_grid (log10 of k in 1/Mpc, the unit get_baryon_suppression
+      takes; the notebooks feed both grids to that function).
     """
     if ell is None:
         ell = np.arange(25., 3000., 15.)
@@ -1339,4 +1338,8 @@ def compute_probes(sup=None, ell=None):
     return {"ell": ell, "C_ss": C_ss, "C_gs": C_gs,
             "theta": theta, "xip": xip, "xim": xim, "gammat": gt,
             "dv": dv, "chi2": chi2,
-            "z_grid": z_interp_2D, "log10k_grid": log10k_interp_2D}
+            "z_grid": z_interp_2D,
+            # get_baryon_suppression takes k in 1/Mpc, but the CAMB helper
+            # returns this grid in h/Mpc: convert here, at the one place
+            # that links the two, so S(k) is evaluated at the physical k.
+            "log10k_grid": log10k_interp_2D + np.log10(H0/100.0)}
