@@ -1,4 +1,11 @@
-"""Check file conventions and identical scale selection in notebook comparisons."""
+"""Check file conventions and identical scale selection in notebook comparisons.
+
+The notebooks compare a computed covariance with the one a likelihood
+reads (the cov_file of its ".dataset" file). read_likelihood_covariance
+reads the supported file formats; select_likelihood_entries keeps the
+same unmasked rows (the mask_file) in every covariance component, so the
+comparison is made on identical entries.
+"""
 
 import numpy as np
 import pytest
@@ -9,10 +16,17 @@ from cosmolike_notebook_utils.covariance.likelihood import (
 )
 
 
+# the four file formats: text rows (i, j, value); text rows (i, j,
+# Gaussian part, non-Gaussian part), summed on reading; ten-column text
+# rows with the two parts in columns 8 and 9; a packed .npy upper
+# triangle. pytest runs the test once per format; tmp_path is a fresh
+# temporary folder per run.
 @pytest.mark.parametrize("format", ["three", "four", "ten", "packed"])
 def test_supplied_formats_and_cuts(tmp_path, format):
     """All supported files preserve a negative cross and the same row cuts."""
     expected = np.array([[4., -1., 0.5], [-1., 9., 0.2], [0.5, 0.2, 16.]])
+    # np.triu_indices(n=3) lists the (row, column) indices of the upper
+    # triangle, diagonal included, row by row
     first, second = np.triu_indices(n=3)
     values = expected[first, second]
     filename = "cov.txt"
@@ -31,6 +45,8 @@ def test_supplied_formats_and_cuts(tmp_path, format):
             table[:, 8] = values*0.25
             table[:, 9] = values*0.75
         np.savetxt(fname=tmp_path/filename, X=table)
+    # selected.dataset takes its keys from base.dataset through getdist's
+    # DEFAULT(...) include; the mask (index, 0/1) cuts row 2
     (tmp_path/"base.dataset").write_text(f"cov_file = {filename}\nmask_file = cut.mask\n")
     (tmp_path/"selected.dataset").write_text("DEFAULT(base.dataset)\n")
     np.savetxt(fname=tmp_path/"cut.mask", X=[[0, 1], [1, 1], [2, 0]])
@@ -63,7 +79,13 @@ def test_supplied_formats_and_cuts(tmp_path, format):
 
 
 def test_defined_null_rows_require_a_physical_mask():
-    """A selected Y null row is an error, never a diagonal regularization."""
+    """A selected Y null row is an error, never a diagonal regularization.
+
+    A forecast can mark rows it cannot define (here row 2 is missing
+    from valid_indices: a null row of the cluster-lensing Y statistic,
+    which has no covariance). If the likelihood's mask keeps such a row,
+    the selection must stop instead of inventing a variance for it.
+    """
     forecast = {
         "total": np.eye(3),
         "gaussian": np.eye(3),

@@ -5,9 +5,13 @@ coefficients have opposite signs. This exposes cross-bin terms that would
 vanish for separated lenses or zero magnification. CAMB runs only when the
 input archive is generated. Tests reuse those exact arrays through the
 ordinary project setters. This setup module is separate from the independent
-NumPy integration in spectra_reference.py.
+NumPy integration in spectra_reference.py
+(cosmolike_notebook_utils/covariance/reference/).
 
 Tests create these files in a temporary directory and remove them afterward.
+The order of use: create_inputs writes the files once per test class,
+initialize installs them in the compiled interface, and panel_edges
+returns the radial integration panels the spectrum tests share.
 """
 
 import json
@@ -25,6 +29,8 @@ def create_inputs(directory):
     """
     from cosmolike_notebook_utils.camb_cosmology import get_camb_cosmology
 
+    # The fiducial cosmology and CAMB settings (the forecast cosmology of
+    # covariance/lsst_y1_covariance.py: massless neutrinos, w = -1).
     configuration = {
         "omegam": 0.3,
         "omegab": 0.05,
@@ -43,6 +49,16 @@ def create_inputs(directory):
         "lens_potential_accuracy": 1.0,
         "halofit_version": "takahashi",
     }
+    # The test survey, two bins per sample. *_support_z = the [z_low,
+    # z_high] range where each bin's n(z) is nonzero (the lens ranges
+    # overlap); bias = linear bias per lens bin; magnification = the
+    # magnification-bias coefficient per lens bin (opposite signs);
+    # ia_amplitude = NLA amplitude per source bin; densities in objects
+    # per arcmin^2; sigma_e_per_component = shape noise per ellipticity
+    # component; area_deg2 = the LSST Y1 area; 20 log-spaced angular
+    # bins between 2.5 and 250 arcmin; linear n(z) interpolation with
+    # the z column read as sample points; nz_profile documents the
+    # n(z) shape written below, tabulated every nz_step up to nz_max.
     survey = {
         "lens_support_z": [[0.2, 0.7], [0.4, 0.9]],
         "source_support_z": [[0.35, 1.1], [0.75, 2.0]],
@@ -76,8 +92,14 @@ def create_inputs(directory):
             t = fraction[inside]
             density[inside] = 30*t**2*(1-t)**2/(upper-lower)
             columns.append(density)
+        # one z column, then one n(z) column per bin; "%.17e" (17
+        # significant digits) writes every double exactly, so the file
+        # reads back bit for bit
         np.savetxt(directory/f"{sample}.nz", np.column_stack(columns), fmt="%.17e")
 
+    # **configuration passes the dictionary entries as keyword
+    # arguments; names lists get_camb_cosmology's returned tuple in
+    # order, under the keyword names set_cosmology expects
     tables = get_camb_cosmology(**configuration)
     names = (
         "log10k_2D", "z_2D", "lnP_linear", "lnP_nonlinear", "G", "z_G",
@@ -122,6 +144,8 @@ def initialize(ci, directory):
         source_multihisto_file=str(directory/"source.nz"),
         source_ntomo=2,
     )
+    # copy every array out of the .npz archive before the with-block
+    # closes the file
     with np.load(directory/"camb.npz") as archive:
         inputs = {}
         for name in archive.files:
@@ -146,6 +170,12 @@ def initialize(ci, directory):
 
 def panel_edges(configuration):
     """Return common scale-factor edges including every sample support edge.
+
+    The radial integrals are split into panels at a = 1/(1+z) for
+    z = 1e-5 (just short of the observer), z = 3, and the lower edge,
+    midpoint and upper edge of every bin's support, so no panel straddles
+    the kink of an n(z) edge. np.unique sorts the values and removes
+    repeats.
 
     Arguments: configuration = fully specified dict from initialize.
     Returns: ascending float64 edges, with a foreground endpoint at z=1e-5.

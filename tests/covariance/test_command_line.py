@@ -2,7 +2,12 @@
 
 These are reader/configuration checks: CAMB and covariance kernels do not
 run. Tests keep malformed input from silently selecting a different model
-or a random prior point on an HPC job.
+or a random prior point on an HPC job. The reader is
+load_run_configuration (cosmolike_notebook_utils/covariance/command_line.py),
+the function compute_covariance.py calls first; each test edits the
+shipped EXAMPLE_EVALUATE_COVARIANCE.yaml in memory, writes it into
+tmp_path (a fresh temporary folder pytest creates for every test that
+names it as an argument) and reads it back.
 """
 
 import os
@@ -12,6 +17,8 @@ import sys
 import pytest
 from cobaya.yaml import yaml_dump, yaml_load_file
 
+# project = projects/lsst_y1; its covariance/ folder holds the survey
+# adapter lsst_y1_covariance.py, imported below
 project = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(project/"covariance"))
 
@@ -48,6 +55,9 @@ def test_fixed_cosmology_and_independent_boosts(tmp_path):
     assert settings["cosmology"]["H0"] == 68.0
     assert settings["cosmology"]["w0pwa"] == -0.8
     assert settings["cosmology"]["CAMBAccuracyBoost"] == 1.5
+    # covariance_accuracy's rules: nwindow = 16384 x window boost (3) x
+    # global boost (2) + 1 samples; integration_accuracy 1 selects the
+    # 128-node quadrature rule
     assert settings["nwindow"] == 16384*3*2+1
     assert settings["radial_nquad"] == 128
     assert run["space"] == "real"
@@ -100,6 +110,9 @@ def test_gaussian_choices_and_environment_threads(tmp_path):
     settings, unused = load_run_configuration(
         filename=write_input(tmp_path=tmp_path, info=info), survey=survey,
     )
+    # a scalar A1 becomes one value per source bin; nonlimber_nchi =
+    # 4096 x non-Limber boost (2) x global boost (2) + 1; nonlimber_lmax
+    # = 1000 x global boost
     assert settings["gaussian"]["A1"] == [0.6]*5
     assert settings["nonlimber_nchi"] == 4096*2*2+1
     assert settings["nonlimber_lmax"] == 2000

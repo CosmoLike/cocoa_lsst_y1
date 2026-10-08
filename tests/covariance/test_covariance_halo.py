@@ -1,9 +1,14 @@
 """Check covariance-owned halo mass integration against independent sums.
 
-The physical sigma, multiplicity, bias, concentration and profile samples
-are shared inputs from public core readers. The NumPy reference performs
-its own quadrature construction and moment contraction. These tests do
-not independently calibrate the halo fits or a massive-neutrino response.
+The halo moments I11(k) and the five pair moments (halo_inputs.py
+explains them) are mass integrals of the halo abundance, bias and
+profile; halo_moments_cov computes them in C. The physical sigma,
+multiplicity, bias, concentration and profile samples are shared inputs
+from public core readers. The NumPy reference performs its own
+quadrature construction and moment contraction. These tests do not
+independently calibrate the halo fits or a massive-neutrino response.
+Wavenumbers are in units of H0/c: k [h/Mpc] times c/H0 = 2997.92458
+Mpc/h.
 """
 
 from pathlib import Path
@@ -37,6 +42,8 @@ class HaloCovariance(unittest.TestCase):
             project_library=ci.__file__, covariance_library=ci.__file__
         )
         cls.original_threads = cls.inputs.core.omp_get_max_threads()
+        # three scale factors and seven wavenumbers, 0 to 300 h/Mpc,
+        # converted to H0/c units; every scale factor uses the same row
         cls.a = np.array([0.35, 0.7, 0.95])
         wave = np.array([0., 0.01, 0.1, 1., 10., 100., 300.])*2997.92458
         cls.k = np.tile(wave, (len(cls.a), 1))
@@ -105,6 +112,7 @@ class HaloCovariance(unittest.TestCase):
         Response derivatives need nearby one-profile integrals only. Grouping
         redshifts or wavenumbers must preserve their mass sums and unresolved
         low-mass completion, regardless of which worker computes a row.
+        .view(np.uint64) compares the 64-bit patterns: bitwise equality.
         """
         self.ci.set_omp_threads(1)
         expected, unused = self.ci.covariance_halo_moments(
@@ -240,6 +248,9 @@ class HaloCovariance(unittest.TestCase):
         """Shared samples preserve each moment's dimension under length conversion."""
         samples = self.inputs.sample(a=self.a, k=self.k, edges=self.edges, nquad=64)
         original = self.reference.moments(**samples)
+        # c/H0 in Mpc for h = 0.7 (2997.92458/0.7): a change of length unit
+        # divides the densities by scale^3 and multiplies the moments by
+        # scale to their length powers 3, 3, 6, 6, 9
         scale = 4282.7494
         converted = dict(samples)
         converted["number_density"] = samples["number_density"]/scale**3
@@ -262,6 +273,8 @@ class HaloCovariance(unittest.TestCase):
         single, moments = self.inputs.compute(
             a=self.a, k=self.k, edges=self.edges, nquad=128
         )
+        # the pair order of the moments: (first, second) runs over the
+        # upper triangle of the k grid, diagonal included
         first, second = np.triu_indices(n=self.k.shape[1])
         for threads in (1, 2, 4, 8):
             self.ci.set_omp_threads(threads)
@@ -303,5 +316,7 @@ class HaloCovariance(unittest.TestCase):
             np.testing.assert_array_equal(measured, reference)
 
 
+# __name__ is "__main__" only when this file runs directly as a
+# script; pytest imports the module instead
 if __name__ == "__main__":
     unittest.main()

@@ -13,9 +13,12 @@ import sys
 
 # The tests folder first (cocoa_test_utils), then cosmolike_core
 # (cocoa_testing), both computed from this file's location so the
-# imports work no matter where pytest was launched from. This
-# project does not use the shared harness, so the core path is added
-# here rather than by the shim.
+# imports work no matter where pytest was launched from. In other
+# projects cocoa_test_utils.py is a short binding to the shared harness
+# cosmolike_core/cocoa_testing.py and adds the core path itself; this
+# project's cocoa_test_utils.py is self-contained, so the core path,
+# needed here for cocoa_testing's option functions, is added in this
+# file.
 _TESTS_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, _TESTS_DIR)
 sys.path.insert(0, os.path.abspath(os.path.join(
@@ -51,6 +54,8 @@ def pytest_configure(config):
       config = pytest's configuration object (supplied by pytest).
 
     Returns:
-      nothing; the environment of this process gains the variables.
+      nothing; the environment of this process gains the variables
+      COCOA_FASTPT_HIGH and COCOA_FASTPT_MASK, which test_fastpt.py and
+      test_nonlinear.py read.
     """
     _cct.conftest_configure(config)

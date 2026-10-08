@@ -4,15 +4,15 @@ The EXAMPLE_EMUL2 examples replace the Boltzmann code with trained
 machine-learning emulators (the emulrdrag, emulbaosn, and emulmps
 theory blocks) while the cosmolike likelihood stays exact. An
 emulator is an approximation of the exact physics, so these checks
-carry NO pass/fail: they measure and report, and every method here
+carry no pass/fail: they measure and report, and every method here
 ends green as long as the pipeline runs at all. What is reported:
 
   - the emulator chi2 against the frozen emulator reference (did the
     installed emulator stack change since the freeze);
   - the emulator chi2 against the exact-physics reference at the same
     cosmology (how accurate the emulator is), followed by the
-    recommendation: RECOMMENDED for actual data analysis when
-    |emulator - exact| chi2 < 0.2, NOT recommended otherwise;
+    printed recommendation: "RECOMMENDED for actual data analysis"
+    when |emulator - exact| chi2 < 0.2, "NOT recommended" otherwise;
   - a race check identical in structure to tests 2/4/6/8, printed
     with a warning instead of a failure.
 
@@ -26,7 +26,7 @@ the emulated configurations sample fewer parameters than the exact
 ones (mnu is fixed inside the emulator training), so part of the
 difference is a modeling choice, not emulator error. Second, the
 trained-network files are read from external_modules/data/emultrf
-(pinned by the EMULTRF keys in set_installation_options.sh), NOT from
+(pinned by the EMULTRF keys in set_installation_options.sh), not from
 the frozen state: retraining or updating the emulators changes these
 numbers, and detecting that is part of this file's job. The network
 device is frozen to "cpu" so the numbers do not depend on GPU
@@ -41,7 +41,7 @@ start_cocoa.sh sourced):
 import os
 
 # OpenMP reads OMP_NUM_THREADS when the compiled libraries load, so
-# this must run before ANY cobaya/cosmolike import in the process.
+# this must run before any cobaya/cosmolike import in the process.
 os.environ["OMP_NUM_THREADS"] = "4"
 
 import sys
@@ -49,7 +49,7 @@ import unittest
 
 # The tests folder is not a package; put it on the import path so the
 # shared harness resolves no matter where pytest was launched from.
-# insert(0, ...) puts the folder FIRST in the search order, ahead of
+# insert(0, ...) puts the folder first in the search order, ahead of
 # every other place a same-named module could hide.
 sys.path.insert(0, os.path.dirname(os.path.dirname(
     os.path.abspath(__file__))))
@@ -69,7 +69,7 @@ class TestEmul2Advisory(unittest.TestCase):
     setUpClass runs once: it moves to ROOTDIR, verifies every frozen
     file against the SHA-256 manifest, and loads the frozen reference
     chi2 values. The manifest check still applies here: the frozen
-    emulator CONFIGURATIONS are pinned even though the trained-network
+    emulator configurations are pinned even though the trained-network
     files are not.
     """
 
@@ -78,6 +78,7 @@ class TestEmul2Advisory(unittest.TestCase):
     # the first test of the class
     @classmethod
     def setUpClass(cls):
+        """Move to ROOTDIR, verify the frozen state, load the references."""
         u.require_cocoa_environment()
         u.verify_frozen()
         cls.reference = u.load_reference()
@@ -90,6 +91,9 @@ class TestEmul2Advisory(unittest.TestCase):
           example = a key of cocoa_test_utils.EXAMPLES with the
                     "emulator" flag.
           label   = one line naming the emulated configuration.
+
+        Returns:
+          nothing; the report is printed and nothing is asserted.
         """
         chi2 = u.single_model_chi2(example, tatt=False)
         frozen_ref = self.reference[f"{example}_nla"]
@@ -105,6 +109,10 @@ class TestEmul2Advisory(unittest.TestCase):
           example = a key of cocoa_test_utils.EXAMPLES with the
                     "emulator" flag.
           label   = one line naming the emulated configuration.
+
+        Returns:
+          nothing; the report is printed and a difference above
+          RACE_TOLERANCE only prints a warning.
         """
         u.assert_omp_threads()
         # the function returns a (fresh, tenth) pair; the assignment

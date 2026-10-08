@@ -4,6 +4,9 @@ The synthetic survey has overlapping lens bins and distinct source windows.
 Combining two adjacent measured bands is an independent check of the whole
 G/SSC/cNG projection: covariance must transform on both matrix axes.
 These small grids test assembly, not numerical accuracy for a survey.
+G = Gaussian, SSC = super-sample covariance, cNG = connected
+non-Gaussian; a bandpower is the (2l+1)-weighted average of C_l over an
+integer multipole band [band_first, band_last].
 """
 
 import numpy as np
@@ -16,12 +19,16 @@ def test_band_rebinning_and_thread_determinism(tmp_path):
     import cosmolike_lsst_y1_interface as ci
     import survey_inputs as setup
 
+    # tmp_path = a fresh temporary folder pytest creates for this test
     setup.create_inputs(directory=tmp_path)
     configuration = setup.initialize(ci=ci, directory=tmp_path)
+    # the survey's magnification coefficients are set to zero here
     ci.set_nuisance_bias(
         B1=configuration["survey"]["bias"], B2=[0., 0.],
         B_MAG=[0., 0.], B3nl=[0., 0.], BK=[0., 0.],
     )
+    # deliberately small numerical settings (few nodes, two bands
+    # [10, 39] and [40, 120]): the test checks assembly, not convergence
     settings = {
         "mnu": 0.0,
         "ell_max": 120,
@@ -40,6 +47,9 @@ def test_band_rebinning_and_thread_determinism(tmp_path):
         "band_first": np.array([10, 40], dtype=np.int32),
         "band_last": np.array([39, 120], dtype=np.int32),
     }
+    # observable rows (probe, A, B) with probe 0 xi+, 1 xi-, 2 gamma_t,
+    # 3 w; Fourier space has one shear spectrum per pair, so the xi-
+    # rows (probe 1) are dropped
     rows = cov.observable_rows(nlens=2, nsource=2)
     rows = np.ascontiguousarray(rows[rows[:, 0] != 1])
     noise = cov.noise_powers(
@@ -55,13 +65,16 @@ def test_band_rebinning_and_thread_determinism(tmp_path):
         for name in ("gaussian", "ssc", "cng", "total"):
             assert np.all(np.isfinite(result[name]))
             np.testing.assert_array_equal(result[name], result[name].T)
+            # .view(np.uint64) compares the 64-bit patterns: the 8-thread
+            # matrices must equal the 1-thread ones bit for bit
             if baseline is not None:
                 np.testing.assert_array_equal(
                     result[name].view(np.uint64), baseline[name].view(np.uint64)
                 )
         baseline = result
-    # Fourier means must average the C spectra directly. The additional
-    # source-leg conversion used to match real-space kernels is absent.
+    # Fourier means must average the C spectra directly with (2l+1)
+    # weights; the conversion of the source leg that the real-space
+    # kernels apply is not part of the Fourier mean.
     ell = np.arange(2., 121.)
     snapshot = ci.covariance_limber_spectra(
         ell=ell, a_edges=settings["a_edges"], nquad=settings["radial_nquad"],
@@ -83,6 +96,9 @@ def test_band_rebinning_and_thread_determinism(tmp_path):
     # A band's normalization is its number of harmonic modes. Averaging
     # adjacent band estimates therefore uses these mode-count fractions,
     # not the geometric centers or equal weights for the two bands.
+    # sum of (2l+1) from l = first to last = (last+1)^2 - first^2.
+    # np.kron(identity, weights row) builds the matrix that averages the
+    # two bands of every row: shape [n_rows, 2 n_rows]
     modes = (settings["band_last"]+1)**2-settings["band_first"]**2
     weights = modes/np.sum(modes)
     transform = np.kron(np.eye(len(rows)), weights[None, :])

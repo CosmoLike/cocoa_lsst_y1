@@ -1,8 +1,14 @@
 """Test the portable notebook boundary and shared plotting conventions.
 
-Numeric references use direct NumPy sums, analytic polynomials and explicit
-Wick contractions. Figures are drawn with a noninteractive canvas so their
-artists and masked ratios can be inspected without opening a window.
+The notebook boundary is the set of functions EXAMPLE_EVALUATE_COVARIANCE
+calls: the Python helpers of cosmolike_notebook_utils.covariance (cov
+below: accuracy settings, mass panels, Gaussian blocks, tables), the
+covariance_* bindings of the compiled module (ci), and the plots of
+cosmolike_notebook_utils.plot_covariances. Numeric references use direct
+NumPy sums, analytic polynomials and explicit Wick contractions. Figures
+are drawn with a noninteractive canvas (matplotlib's "Agg" backend,
+chosen before pyplot is imported) so their artists and masked ratios can
+be inspected without opening a window.
 """
 
 import json
@@ -31,7 +37,12 @@ class NotebookCovariance(unittest.TestCase):
         plt.close("all")
 
     def test_low_mass_extension_preserves_upper_panels(self):
-        """Adding small halos must not move the established mass quadrature."""
+        """Adding small halos must not move the established mass quadrature.
+
+        halo_mass_edges: 22 edges in ln(M/[Msun/h]) from 10^-40; the first
+        eleven panels span four decades each (the low-mass tail), and the
+        last nine edges are the linear-in-ln M panels from 10^6 to 10^17.
+        """
         edges = cov.halo_mass_edges()
         self.assertEqual(len(edges), 22)
         self.assertEqual(edges[0], np.log(1.e-40))
@@ -42,7 +53,14 @@ class NotebookCovariance(unittest.TestCase):
         self.assertTrue(np.all(np.diff(edges) > 0.0))
 
     def test_single_accuracy_boost(self):
-        """Refinement keeps every old interpolation node, even as cutoffs grow."""
+        """Refinement keeps every old interpolation node, even as cutoffs grow.
+
+        Each doubling of accuracy_boost doubles the multipole cutoffs and
+        the window intervals, halves the ln(l + 1/2) step of the
+        non-Gaussian multipole grid (keeping every coarser node) and the
+        response step, and leaves the quadrature rules alone; only
+        boosts 1, 2, 4 and 8 are accepted.
+        """
         previous = cov.covariance_accuracy(accuracy_boost=1)
         for boost in (2, 4, 8):
             current = cov.covariance_accuracy(accuracy_boost=boost)
@@ -196,6 +214,8 @@ class NotebookCovariance(unittest.TestCase):
         )
         expected_area = area*2*np.pi*(np.cos(edges[:-1])-np.cos(edges[1:]))
         np.testing.assert_allclose(actual=pair_area, desired=expected_area, rtol=1.e-12)
+        # pure shape noise of an auto xi+: variance 4 N^2/pair area (two
+        # shear components and two catalog pairings)
         result = cov.realspace_block(
             interface=ci, spectra=np.zeros(shape=(29, 1, 1)), noise=np.array([0.3]),
             fields=[0, 0, 0, 0], operators=operators, probe_left=0, probe_right=0,
@@ -217,6 +237,8 @@ class NotebookCovariance(unittest.TestCase):
         np.testing.assert_allclose(actual=converted[:, 1, 1], desired=spin_squared)
         np.testing.assert_allclose(actual=converted[:, 0, 1], desired=np.sqrt(spin_squared))
         np.testing.assert_array_equal(x=spectra, y=1.0)
+        # white noise N_g = 1/n_g and N_s = sigma_e^2/n_s, with the
+        # densities per arcmin^2 converted to per sr
         white = cov.noise_powers(lens_density=[3.6], source_density=[2.0],
                                  sigma_component=[0.26])
         radians_per_arcmin = np.pi/(180*60)
@@ -224,7 +246,14 @@ class NotebookCovariance(unittest.TestCase):
         np.testing.assert_allclose(actual=white, desired=expected)
 
     def test_dense_linear_lookup_off_grid(self):
-        """A cubic ln-k function isolates dense linear error from coarse error."""
+        """A cubic ln-k function isolates dense linear error from coarse error.
+
+        DenseLogTable resamples a coarse table (21 nodes) onto ndense
+        nodes uniform in ln k and then interpolates linearly; doubling
+        ndense must cut the error by more than three (linear
+        interpolation error falls as the square of the spacing). A query
+        outside the tabulated k range is refused.
+        """
         k = np.geomspace(start=0.01, stop=10, num=21)
         x = np.log(k)
         values = 2+x-0.3*x**2+0.02*x**3
@@ -256,6 +285,9 @@ class NotebookCovariance(unittest.TestCase):
             mask_cl=mask, area_sr=1.0, distance=distance, power=power
         )
         np.testing.assert_allclose(actual=variance, desired=expected)
+        # a covariance built as R R^T is positive definite; "bad" (an
+        # arbitrary symmetric matrix) has a negative eigenvalue; the
+        # generalized eigenvalues of (1.001 C, C) are all 1.001
         response = np.array([[1., 1., 0.], [1., 0., 1.], [0., 1., 1.]])
         matrix = ci.covariance_project(left=response, right=response,
                                        weight=np.ones(shape=3))
@@ -301,6 +333,8 @@ class NotebookCovariance(unittest.TestCase):
 
     def test_plot_ratio_masks_and_returned_artists(self):
         """Undefined ratios stay masked; signed correlations and labels survive."""
+        # show=None makes each plotting function return (figure, axes)
+        # instead of drawing; the checks read back the drawn arrays
         matrix = np.array([[2., -0.2], [-0.2, 1.]])
         figure, axis = plots.plot_correlation(
             covariance=matrix, covariance_ref=np.eye(N=2),
@@ -355,6 +389,8 @@ def test_forecast_archive_preserves_arrays_and_resolved_settings(tmp_path):
             "space": "fourier",
         },
     }
+    # allow_pickle=False refuses stored Python objects: every entry must
+    # be a plain array, and the settings travel as JSON text
     output = tmp_path/"forecast.npz"
     save_forecast(result=result, filename=output)
     with np.load(output, allow_pickle=False) as saved:
@@ -374,5 +410,7 @@ def test_forecast_archive_preserves_arrays_and_resolved_settings(tmp_path):
                                       saved["signal"])
 
 
+# __name__ is "__main__" only when this file runs directly as a
+# script; pytest imports the module instead
 if __name__ == "__main__":
     unittest.main()

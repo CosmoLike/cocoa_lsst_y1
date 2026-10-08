@@ -1,6 +1,50 @@
+"""Samples the CMB + BAO + SN + LSST-Y1 shear posterior with emcee (emulated theory).
+
+The likelihoods are Planck 2018 CMB (high-l TTTEEE, low-l TT and EE),
+DESI DR2 BAO, DES-Y5 supernovae and LSST-Y1 cosmic shear. Emulators
+replace every Boltzmann-code product: theta* (emultheta), the drag-epoch
+sound horizon (emulrdrag), the CMB spectra (emulcmb), the BAO and SN
+distances (emulbaosn) and the 780 xi_+ and xi_- entries of the
+cosmic-shear data vector (emul_cosmic_shear).
+
+In these examples the cosmolike likelihood runs with use_emulator: 1:
+it adds only the shear calibration, the point masses and the mask to the
+emulated data vector (likelihood/_cosmolike_prototype_base.py). The
+complete Cobaya configuration is the yaml_string below. Every chi2 in
+this script is -2 (log prior + log likelihood), the -2 log posterior.
+
+emcee is an ensemble sampler: a set of walkers (3 per sampled
+parameter, or one per MPI process when there are more processes) moves
+through parameter space, and each proposed move is built from the
+positions of other walkers (differential-evolution moves, 80%, and
+snooker moves, 20%). The walkers start at points drawn from the
+reference distributions of the yaml. After the run, the first 5
+autocorrelation times are discarded as burn-in and the chain is
+thinned by half the shortest autocorrelation time.
+
+Run from the Cocoa/ folder with Cocoa activated (start_cocoa.sh), under
+MPI, for example (the project README lists the full commands):
+
+    mpirun -n 5 python ./projects/lsst_y1/EXAMPLE_EMUL_EMCEE2.py --maxfeval 1000000 \\
+        --root ./projects/lsst_y1/ --outroot EXAMPLE_EMUL_EMCEE2
+
+Options: --maxfeval = total likelihood evaluations, shared among the
+walkers; --root = folder whose chains/ subfolder receives the output;
+--outroot = output name; --progress = show emcee's progress bar.
+Output in <root>chains/, in getdist's format: <outroot>.1.txt (weight,
+log posterior, parameters, chi2*), <outroot>.ranges (prior bounds),
+<outroot>.paramnames, <outroot>.covmat (the chain covariance), and the
+emcee checkpoint <outroot>.h5.
+"""
 import warnings
 import os
 from sklearn.exceptions import InconsistentVersionWarning
+# Silence warnings that are expected here, so the sampler output stays
+# readable: a scikit-learn version mismatch when the pickled emulator
+# models load, a deprecation message of the sacc package, numpy
+# invalid-value and overflow warnings at points far from the emulator
+# training range (their chi2 becomes 1e20 below), and known UserWarnings
+# matched by their message text.
 warnings.filterwarnings("ignore", category=InconsistentVersionWarning)
 warnings.filterwarnings(
     "ignore",
@@ -69,6 +113,8 @@ parser.add_argument("--progress",
                     nargs='?',
                     type=bool,
                     default=False)
+# parse_known_args (unlike parse_args) ignores options it does not define,
+# such as those an MPI launcher adds, instead of stopping
 args, unknown = parser.parse_known_args()
 # ------------------------------------------------------------------------------
 # ------------------------------------------------------------------------------
@@ -76,6 +122,11 @@ args, unknown = parser.parse_known_args()
 # ------------------------------------------------------------------------------
 # ------------------------------------------------------------------------------
 # ------------------------------------------------------------------------------
+# yaml_string = the complete Cobaya configuration: likelihoods, sampled and
+# derived parameters with their priors, and the emulator theory blocks
+# (file = the trained network, extra = its normalization data, ord = the
+# order of the network inputs, extrapar = the network architecture). The
+# lines starting with # inside the string are YAML comments.
 yaml_string=r"""
 likelihood:
   planck_2018_highl_plik.TTTEEE:
@@ -392,8 +443,24 @@ theory:
 # ------------------------------------------------------------------------------
 # ------------------------------------------------------------------------------
 # ------------------------------------------------------------------------------
+# model = the Cobaya model of the configuration: model.logprior,
+# model.loglike and model.logposterior evaluate one point
 model = get_model(yaml_load(yaml_string))
 def chi2(p):
+    """Return -2 (log prior + log likelihood) at one parameter point.
+
+    Arguments:
+      p = sampled-parameter values in Cobaya's sampled order (a list or
+          array), or a {name: value} dictionary.
+
+    Returns:
+      float; 1e20 when the prior or the likelihood is infinite or NaN
+      (outside the prior, or an evaluation that failed), so samplers and
+      minimizers treat the point as forbidden.
+
+    Raises:
+      ValueError when a parameter value is infinite or NaN.
+    """
     p = [float(v) for v in p.values()] if isinstance(p, dict) else p
     if np.any(np.isinf(p)) or  np.any(np.isnan(p)):
       raise ValueError(f"At least one parameter value was infinite (CoCoa) param = {p}")
@@ -409,6 +476,15 @@ def chi2(p):
       return 1e20
     return -2.0*(res1+res2)
 def chi2v2(p):
+    """Return the -2 log posterior split into its parts at one point.
+
+    Arguments:
+      p = sampled-parameter values, as in chi2.
+
+    Returns:
+      1D array: -2 log likelihood of each likelihood of the model, in the
+      order of the yaml likelihood block, followed by -2 log prior.
+    """
     p = [float(v) for v in p.values()] if isinstance(p, dict) else p
     point = dict(zip(model.parameterization.sampled_params(), p))
     logposterior = model.logposterior(point, as_dict=True)
@@ -429,8 +505,26 @@ def chain(x0,
           maxfeval=3000, 
           pool=None,
           checkpoint=None):  
+    """Run emcee and return the thinned, burned-in chain.
+
+    Arguments:
+      x0       = starting points [nwalkers, ndim].
+      ndim     = number of sampled parameters.
+      nwalkers = number of walkers.
+      cov      = parameter covariance (not used by the moves here).
+      names    = sampled-parameter names.
+      maxfeval = steps per walker.
+      pool     = MPI pool that evaluates the walkers, or None.
+      checkpoint = HDF5 file where emcee stores the chain as it runs.
+
+    Returns:
+      [rows, tau]: rows [n, ndim + 3] = weight 1, log posterior, the
+      parameters and chi2 = -2 log posterior; tau = the integrated
+      autocorrelation time of each parameter, in steps.
+    """
   
     def logprob(params, *args):
+        """Return the log probability -chi2/2 emcee samples (-inf if forbidden)."""
         res = chi2(params)
         if (res > 1.e19 or np.isinf(res) or  np.isnan(res)):
           return -np.inf
@@ -474,12 +568,19 @@ def chain(x0,
 # ------------------------------------------------------------------------------
 # ------------------------------------------------------------------------------
 # ------------------------------------------------------------------------------
+# The block below runs only when this file is executed as a script.
+# MPIPool (schwimmbad) makes MPI rank 0 the master, which runs the block;
+# every other rank waits in pool.wait(), evaluating the walkers the master
+# sends, until the master closes the pool, and then exits.
 if __name__ == '__main__':
     with MPIPool() as pool:
         if not pool.is_master():
             pool.wait()
             sys.exit(0)
         
+        # dim = number of sampled parameters; bounds = the 99.9999% prior
+        # ranges; nwalkers = 3 per parameter, at least one per MPI process;
+        # maxevals = steps per walker
         dim      = model.prior.d()                                      # Cobaya call
         bounds   = model.prior.bounds(confidence=0.999999)              # Cobaya call
         names    = list(model.parameterization.sampled_params().keys()) # Cobaya Call
@@ -490,7 +591,7 @@ if __name__ == '__main__':
               f"nwalkers={nwalkers}, "
               f"maxfeval per walker = {maxevals}"
               f"\n\n\n")
-        # get initial points ---------------------------------------------------
+        # get initial points: one draw per walker from the yaml ref -----------
         x0 = [] # Initial point x0
         for j in range(nwalkers):
           (tmp_x0, tmp) = model.get_valid_point(max_tries=10000, 
@@ -499,13 +600,13 @@ if __name__ == '__main__':
           x0.append(tmp_x0[0:dim])
         x0 = np.array(x0, dtype='float64')
         
-        # get covariance -------------------------------------------------------
+        # get the covariance of the prior -------------------------------------
         cov = model.prior.covmat(ignore_external=True) # cov from prior
         
-        # get checkpoint -------------------------------------------------------
+        # the emcee checkpoint: an HDF5 file that stores the chain as it runs
         checkpoint = f"{args.root}chains/{args.outroot}.h5"
 
-        # run the chains -------------------------------------------------------
+        # run the chains (chain() returns [rows, autocorrelation times]) ------
         res = chain(x0=np.array(x0, dtype='float64'),
                     ndim=dim,
                     nwalkers=nwalkers,
@@ -515,7 +616,7 @@ if __name__ == '__main__':
                     pool=pool,
                     checkpoint=checkpoint)
 
-        # saving file begins ---------------------------------------------------
+        # save the chain in getdist's text format: <outroot>.1.txt -----------
         os.makedirs(os.path.dirname(f"{args.root}chains/"),exist_ok=True)
         hd=f"nwalkers={nwalkers}, maxfeval={args.maxfeval}, max tau={res[1]}\n"
         np.savetxt(f"{args.root}chains/{args.outroot}.1.txt",
@@ -523,14 +624,14 @@ if __name__ == '__main__':
                    fmt="%.7e",
                    header=hd + ' '.join(names),
                    comments="# ")
-        # Now we need to save a range files ----------------------------------------
+        # save the .ranges file (prior bounds, read by getdist) --------------
         hd = ["weights","lnp"] + names + ["chi2*"]
         rows = [(str(n),float(l),float(h)) for n,l,h in zip(names, bounds[:,0], bounds[:,1])]
         with open(f"{args.root}chains/{args.outroot}.ranges", "w") as f: 
           f.write(f"# {' '.join(hd)}\n")
           f.writelines(f"{n} {l:.5e} {h:.5e}\n" for n, l, h in rows)
 
-        # Now we need to save a paramname files --------------------------------
+        # save the .paramnames file (name and LaTeX label per column) --------
         param_info = model.info()['params']
         latex  = [param_info[x]['latex'] for x in names]
         names.append("chi2*")
@@ -539,7 +640,7 @@ if __name__ == '__main__':
                    np.column_stack((names,latex)),
                    fmt="%s")
     
-        # Now we need to save a cov matrix -------------------------------------
+        # save the chain covariance (.covmat), read back with getdist --------
         samples = loadMCSamples(f"{args.root}chains/{args.outroot}",
                                 settings={'ignore_rows': u'0.0'})
         np.savetxt(f"{args.root}chains/{args.outroot}.covmat",

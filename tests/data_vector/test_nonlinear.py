@@ -13,8 +13,8 @@ construction).
 
 There is no pass/fail: the numbers say how much of the statistical
 error budget the Halofit-vs-emulator difference consumes under the
-chosen scale cuts - the question "can Halofit be used on real data
-analysis at this mask". The check reads the --mask option of the
+chosen scale cuts, which answers the question "can Halofit be used in
+a real data analysis with this mask". The check reads the --mask option of the
 comparison sweeps (conftest.py): --mask=frozen (the M1 contract
 mask, the default), --mask=M2 .. --mask=M6, or --mask=ones (every
 data point kept).
@@ -30,7 +30,7 @@ start_cocoa.sh sourced):
 import os
 
 # OpenMP reads OMP_NUM_THREADS when the compiled libraries load, so
-# this must run before ANY cobaya/cosmolike import in the process.
+# this must run before any cobaya/cosmolike import in the process.
 os.environ["OMP_NUM_THREADS"] = "4"
 
 import sys
@@ -38,7 +38,7 @@ import unittest
 
 # The tests folder is not a package; put it on the import path so the
 # shared harness resolves no matter where pytest was launched from.
-# insert(0, ...) puts the folder FIRST in the search order, ahead of
+# insert(0, ...) puts the folder first in the search order, ahead of
 # every other place a same-named module could hide.
 sys.path.insert(0, os.path.dirname(os.path.dirname(
     os.path.abspath(__file__))))
@@ -57,6 +57,7 @@ class TestHalofitVsEE2(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
+        """Move to ROOTDIR and verify the frozen state, once per class."""
         u.require_cocoa_environment()
         u.verify_frozen()
 
@@ -64,7 +65,7 @@ class TestHalofitVsEE2(unittest.TestCase):
         """Cosmic shear: Halofit scored against EE2 at ten cosmologies.
 
         Advisory: the printed report is the product. The only
-        assertion is structural - every cosmology must have produced
+        assertion is structural: every cosmology must have produced
         a number.
         """
         mask = os.environ.get("COCOA_FASTPT_MASK", "frozen")

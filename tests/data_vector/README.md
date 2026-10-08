@@ -1,8 +1,8 @@
 # Data-vector and likelihood tests
 
-The frozen snapshots and their manifest remain in the parent `tests/`
-directory. The paths `frozen/` and `manifest_sha256.json` below refer
-to that directory; their contents are unchanged by the test layout.
+The frozen snapshot `frozen/` and its manifest `manifest_sha256.json`
+live in the parent `tests/` directory; the paths below are relative to
+it.
 
 These tests catch two kinds of silent breakage: a $\chi^2$ that drifted
 because code or data changed by accident, and a race condition (a bug
@@ -20,14 +20,15 @@ no pass/fail).
     2. [The Halofit vs EE2 checks](#halofit_ee2)
     3. [The EE2 modification tests](#ee2_tests)
     4. [Advisory checks](#advisory_checks)
-    5. [Accuracy checks](#accuracy_checks)
-    6. [The N-random-models check](#nmodels_check)
-    7. [Baryonic feedback accuracy checks](#baryon_accuracy_checks)
-    8. [Baryonic feedback drift tests](#baryon_drift_tests)
-    9. [The photo-z convention checks](#photoz_conventions)
-    10. [The non-Limber galaxy-galaxy lensing check](#nonlimber_ggl)
-    11. [The non-Limber galaxy clustering check](#nonlimber_gg)
-    12. [The sector-ladder cache check](#cache_ladder)
+    5. [Scale-cut diagnostics](#scale_cut_diagnostics)
+    6. [Accuracy checks](#accuracy_checks)
+    7. [The N-random-models check](#nmodels_check)
+    8. [Baryonic feedback accuracy checks](#baryon_accuracy_checks)
+    9. [Baryonic feedback drift tests](#baryon_drift_tests)
+    10. [The photo-z convention checks](#photoz_conventions)
+    11. [The non-Limber galaxy-galaxy lensing check](#nonlimber_ggl)
+    12. [The non-Limber galaxy clustering check](#nonlimber_gg)
+    13. [The sector-ladder cache check](#cache_ladder)
 3. [Appendix](#appendix)
     1. [FAQ: Do the tests keep their own data?](#frozen_copy)
     2. [FAQ: Why do the TATT tests use their own data vector?](#synthetic_vectors)
@@ -159,11 +160,11 @@ are rebased so 1.0 is the converged configuration.
 - Separating the two grids located the entire divergence in the
   density of the interpolated table and none of it in the
   convolutions.
-- Raising the internal grid alone moves nothing (0.00830 at 1,100
-  points, 0.00827 at 4,900, output fixed at the default): the
-  convolutions were already accurate on their default grid, and the
-  dense splined table removes the interpolation error at almost no
-  cost.
+- Raising the internal grid alone moves nothing (max
+  $\Delta\chi^2 = 0.00830$ at 1,100 points, 0.00827 at 4,900, output
+  fixed at the default): the convolutions were already accurate on
+  their default grid, and the dense splined table removes the
+  interpolation error at almost no cost.
 
 Table measured on 2026-09-22 (cosmic shear, test 15):
 
@@ -185,9 +186,9 @@ Measured on 2026-09-23:
   $0.00008$ at the pushed camb/cosmolike settings - smaller than
   cosmic shear's 0.0082 at the same points under the 3x2pt masked
   covariance.
-- Test 17 (2x2pt): $0.00004$ and $0.00001$, the mildest of the
-  three, with the TATT tables entering through galaxy-galaxy
-  lensing alone.
+- Test 17 (2x2pt): max $\Delta\chi^2 = 0.00004$ at the defaults and
+  $0.00001$ pushed, the mildest of the three, with the TATT tables
+  entering through galaxy-galaxy lensing alone.
 - b2-activated variant (exploratory, not a shipped test:
   `LSST_B2_* = 1.0` fixed in BOTH implementations, every other
   setting the frozen 3x2pt contract): the one-loop galaxy-bias
@@ -198,7 +199,8 @@ Measured on 2026-09-23:
   numerics difference between the two bias implementations, well
   inside the 0.2 limit.
 - `--mask=ones` (no scale cuts, all 1,560 points weighted): every
-  sweep still passes. Cosmic shear measures 0.097 at the default
+  sweep still passes. Cosmic shear measures max
+  $\Delta\chi^2 = 0.097$ at the default
   camb/cosmolike settings - twelve times its M1 value, insensitive
   to the FAST-PT boosts - and 0.00012 at the pushed settings: the
   unmasked small scales amplify cosmolike's default integration
@@ -366,16 +368,16 @@ overload returns finite values, that the scalar overloads agree with
 the matching array entries (they share the batch engines), and that
 the response functions behave as normalized cumulative fractions.
 
-- 2026-09-26: added with the cosmo2D_scuts batch (_work) refactor.
-  The low multipoles it pins (rf_C_ss at l = 3) were fatal before the
-  refactor: the retired exact-scalar branch underflowed k to 0 in its
-  normalization integrand and exited, which is what killed jupyter
-  kernels running the notebook derivative cells.
+The multipoles $\ell \le 20$ take a separate low-$`\ell`$ branch of
+rf_C_ss. If $k$ underflowed to zero inside its normalization integrand
+there, a guard would stop the process with `exit(1)`, which also kills
+a Jupyter kernel running the notebook derivative cells; the test
+evaluates $\ell = 3$ and 10 to keep that branch under check.
 
 ### Accuracy checks (`test_accuracy.py`, A1-A6) <a name="accuracy_checks"></a>
 
-First we change one accuracy parameter at a time on the 3x2pt NLA
-configuration, so a large $\Delta\chi^2$ can be attributed to the
+Check A0 first changes one accuracy parameter at a time on the 3x2pt
+NLA configuration, so a large $\Delta\chi^2$ can be attributed to the
 parameter causing it (the scan includes `accuracyboost: 5` as a
 stress test). Then checks A1-A6 re-evaluate cosmic shear, 3x2pt, and
 2x2pt, with NLA and TATT, with every setting pushed beyond the
@@ -383,9 +385,9 @@ defaults at once:
 
 | setting | raised to | what it controls |
 |---------|-----------|------------------|
-| `accuracyboost` (cosmolike) | 2 | sizes of cosmolike's internal lookup tables, including the dyadic z grid of the power-spectrum tables |
+| `accuracyboost` (cosmolike) | 3 | sizes of cosmolike's internal lookup tables, including the dyadic z grid of the power-spectrum tables |
 | `integration_accuracy` (cosmolike) | 10 | extra refinement passes of cosmolike's numerical integrals |
-| `internal_accuracyboost` (cosmolike) | 2 | density of the C-FAST-PT convolution grid relative to the output table the likelihood interpolates; 1 is the legacy single-grid path |
+| `internal_accuracyboost` (cosmolike) | 2 | density of the C-FAST-PT convolution grid relative to the output table the likelihood interpolates; the default 1 keeps the two grids equal |
 | `lmax` (cosmolike) | 200000 | highest multipole of the internal harmonic-space $C_\ell$ tables that cosmolike transforms into the real-space correlation functions; arcminute scales need very high $\ell$ |
 | `kmax_boltzmann` (cosmolike) | 40 | the k cutoff of the power spectrum the likelihood requests from CAMB |
 | `AccuracyBoost` (CAMB) | 2 | CAMB's overall accuracy multiplier: denser sampling in every internal CAMB grid, the most expensive setting |
@@ -400,11 +402,15 @@ moving the nodes (the construction is commented in
 
 `internal_accuracyboost` scales only the C-FAST-PT convolution
 grid; the output table the likelihood interpolates is unchanged.
+Every likelihood yaml of this project and the notebook wrappers set
+`internal_accuracyboost: 1.0`, which keeps the two grids equal: the
+exact single-grid path. Smaller values run the convolutions on fewer
+points and spline them onto the output table. The C library's own
+default, 0.5 (`structs.c`), applies only where no caller sets this setting.
 
-- 2026-09-25: the 0.5 default is converged. The lsst_y1 scan
-  measured $\Delta^T C^{-1} \Delta \le 10^{-9}$ against the
-  single-grid path down to 0.27, and `internal_accuracyboost: 1`
-  recovers that path exactly.
+- 2026-09-25: the lsst_y1 scan measured
+  $\Delta^T C^{-1} \Delta \le 10^{-9}$ against the single-grid path
+  down to 0.27.
 
 When several settings move the $\chi^2$, settle them in cost order:
 raise cosmolike `accuracyboost` first (cheap), then CAMB
@@ -598,6 +604,9 @@ Measured on 2026-09-24:
 - Z_MID: $\Delta\chi^2 = 1.63$ - the half-bin z-column reading
   is the one photo-z convention that matters at this precision.
 
+The test compares the default evaluation with the stored cosmic-shear
+NLA reference in `frozen/reference_chi2.json`.
+
 The figures below are regenerated by
 `generate_photoz_convention_figure.py`:
 
@@ -630,7 +639,7 @@ entries change, a bit-identical round trip back to the default,
 agreement with the measured $\Delta\chi^2$ to 5%, and, last, the
 frozen-reference check on the default evaluation.
 
-Measured on 2026-10-01:
+Measured on 2026-10-01 (the test stores `DCHI2_MEASURED = 1.904`):
 
 - $\Delta\chi^2 = 1.90$ for the 3x2pt data vector (1.86 on
   2026-09-27).
@@ -660,12 +669,12 @@ clustering entries change, a bit-identical round trip back to the
 default, agreement with the measured $\Delta\chi^2$ to 5%, and, last,
 the frozen-reference check on the default evaluation.
 
-Measured on 2026-10-01:
+Measured on 2026-10-01 (the test stores `DCHI2_MEASURED = 151.8`):
 
 - $\Delta\chi^2 = 152$ for the 3x2pt data vector, against 1.90 for
   the same comparison in galaxy-galaxy lensing.
 - It grows with lens redshift: lens bins 4, 3, 2, 1, 0 contribute
-  57.9, 50.1, 27.7, 16.6, 4.1 (each bin's block alone).
+  $\Delta\chi^2 =$ 57.9, 50.1, 27.7, 16.6, 4.1 (each bin's block alone).
 - 148 on 2026-09-28; the core and likelihood changes since moved it
   by 2.5% (not separated).
 
@@ -697,9 +706,17 @@ files. Instead, `frozen/` holds:
 
 | `frozen/` entry | holds |
 |---|---|
-| `frozen_config_example{1,2}.py` | the complete cobaya configuration as a yaml string, plus the exact evaluation point |
-| `data/` | the tests' own copy of the data vectors, covariance, n(z), and masks |
-| `EXAMPLE_EVALUATE{1,2}.yaml` | snapshots kept only so a human can diff how the live examples drifted since the freeze |
+| `frozen_config_example1.py` | cosmic shear: the complete cobaya configuration as a yaml string, plus the exact evaluation point |
+| `frozen_config_example2.py` | 3x2pt: the complete cobaya configuration as a yaml string, plus the exact evaluation point |
+| `frozen_config_example2_2x2pt.py` | 2x2pt: the complete cobaya configuration as a yaml string, plus the exact evaluation point |
+| `frozen_config_emul2_example1.py` | cosmic shear with the hybrid emulators: the complete cobaya configuration as a yaml string, plus the exact evaluation point |
+| `frozen_config_emul2_example2.py` | 3x2pt with the hybrid emulators: the complete cobaya configuration as a yaml string, plus the exact evaluation point |
+| `data/` | the tests' own copy of the data vectors, covariance, n(z), and masks, plus the TATT and baryonic-feedback vectors the generator writes |
+| `reference_chi2.json` | the reference $\chi^2$ values, one per configuration and variant |
+| `EXAMPLE_EVALUATE1.yaml` | snapshot of the cosmic-shear example, kept only so a human can diff how the live example drifted since the freeze |
+| `EXAMPLE_EVALUATE2.yaml` | snapshot of the 3x2pt example, kept only so a human can diff how the live example drifted since the freeze |
+| `EXAMPLE_EMUL2_EVALUATE1.yaml` | snapshot of the hybrid cosmic-shear example, kept only so a human can diff how the live example drifted since the freeze |
+| `EXAMPLE_EMUL2_EVALUATE2.yaml` | snapshot of the hybrid 3x2pt example, kept only so a human can diff how the live example drifted since the freeze |
 
 In the configuration modules every option and every parameter is
 written out, including the ones that normally come from
@@ -767,6 +784,15 @@ The refreeze (next FAQ) regenerated `data/lsst_y1_theory.modelvector`
 fiducial with the fixed code and the non-Limber ggl default, and made
 the new $\chi^2$ values the references.
 
+The current `C_cl_tomo` anchors the separable spectrum per lens bin
+instead of at $`z = 0`$:
+$`(D(a)/D(a_{\rm piv}))^2\, P_{\rm lin}(k, a_{\rm piv})`$, with
+$a_{\rm piv} = 1/(1+\bar z)$ and $\bar z$ the bin's mean redshift, so
+the separable form is exact at that redshift (see the comments of
+`C_cl_tomo` in the core's `cosmolike/cosmo2D.c`). The `_meta` block of
+`frozen/reference_chi2.json` records when the current references were
+generated.
+
 ## :interrobang: FAQ: How can maintainers refresh the snapshot? <a name="refreeze"></a>
 
 A deliberate change to the data vectors, n(z), covariance, examples,
@@ -785,7 +811,17 @@ the script `start_cocoa.sh`
 
     python ./projects/lsst_y1/tests/generate_frozen_reference.py --overwrite
 
-It rebuilds `frozen/` from the current project, prints the four new
-reference $\chi^2$ values, and rewrites the manifest. Review the printed
-$\chi^2$ values against the old references before committing: they define
-what every later test run compares against.
+It deletes and rebuilds `frozen/` from the current project, prints one
+reference $\chi^2$ per configuration and variant (ten values), and
+rewrites the manifest. Review the printed $\chi^2$ values against the
+old references before committing: they define what every later test
+run compares against. This step does not write the baryonic-feedback
+vectors of `test_baryons.py`.
+
+**Step :three:**: write the baryonic-feedback vectors
+
+    python ./projects/lsst_y1/tests/generate_frozen_reference.py --baryons
+
+It evaluates each feedback method once (the three SP(k) relations,
+BCEmu, Flamingo, BACCOemu, and BCemu2025), writes its vector and dataset
+file under `frozen/data/`, and re-pins the manifest.

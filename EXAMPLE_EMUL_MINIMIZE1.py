@@ -1,6 +1,46 @@
+"""Minimizes -2 log posterior for LSST-Y1 cosmic shear (emulated theory).
+
+The likelihood is the LSST-Y1 cosmic-shear likelihood alone
+(lsst_y1.cosmic_shear). The emul_cosmic_shear theory block (a
+transformer network) predicts the 780 xi_+ and xi_- entries of its data
+vector directly from the parameters listed in its `ord` option.
+
+In these examples the cosmolike likelihood runs with use_emulator: 1:
+it adds only the shear calibration, the point masses and the mask to the
+emulated data vector (likelihood/_cosmolike_prototype_base.py). The
+complete Cobaya configuration is the yaml_string below. Every chi2 in
+this script is -2 (log prior + log likelihood), the -2 log posterior.
+
+The minimizer anneals an ensemble of emcee walkers (points that move
+together through parameter space; emcee proposes each move from the
+positions of the other walkers). At each temperature T of the ladder
+1, 0.25, 0.1, 0.005, 0.001 the walkers sample exp(-chi2/(2T)) for
+--nstw steps each, starting around the best point found so far with a
+Gaussian cloud of covariance (prior covariance) x T/3; small T makes
+the ensemble behave like a hill climber. The best point of all stages
+is the result.
+
+Run from the Cocoa/ folder with Cocoa activated (start_cocoa.sh), under
+MPI, for example (the project README lists the full commands):
+
+    mpirun -n 5 python ./projects/lsst_y1/EXAMPLE_EMUL_MINIMIZE1.py --nstw 200 \\
+        --outroot example_min1
+
+Options: --nstw = evaluations per temperature per walker; --root =
+folder whose chains/ subfolder receives the output; --outroot = output
+name. Output: <root>chains/<outroot>.txt, one row with the sampled
+parameters, -2 log likelihood of each likelihood, -2 log prior and the
+total chi2; its header records nstw and the column names.
+"""
 import warnings
 import os
 from sklearn.exceptions import InconsistentVersionWarning
+# Silence warnings that are expected here, so the sampler output stays
+# readable: a scikit-learn version mismatch when the pickled emulator
+# models load, a deprecation message of the sacc package, numpy
+# invalid-value and overflow warnings at points far from the emulator
+# training range (their chi2 becomes 1e20 below), and known UserWarnings
+# matched by their message text.
 warnings.filterwarnings("ignore", category=InconsistentVersionWarning)
 warnings.filterwarnings(
     "ignore",
@@ -55,7 +95,8 @@ parser.add_argument("--outroot",
                     nargs='?',
                     const=1,
                     default="example_min1")
-# need to use parse_known_args because of mpifuture 
+# parse_known_args (unlike parse_args) ignores options it does not define,
+# such as those an MPI launcher adds, instead of stopping
 args, unknown = parser.parse_known_args()
 # ------------------------------------------------------------------------------
 # ------------------------------------------------------------------------------
@@ -63,6 +104,11 @@ args, unknown = parser.parse_known_args()
 # ------------------------------------------------------------------------------
 # ------------------------------------------------------------------------------
 # ------------------------------------------------------------------------------
+# yaml_string = the complete Cobaya configuration: likelihoods, sampled and
+# derived parameters with their priors, and the emulator theory blocks
+# (file = the trained network, extra = its normalization data, ord = the
+# order of the network inputs, extrapar = the network architecture). The
+# lines starting with # inside the string are YAML comments.
 yaml_string=r"""
 likelihood:
   lsst_y1.cosmic_shear:
@@ -292,8 +338,24 @@ theory:
 # ------------------------------------------------------------------------------
 # ------------------------------------------------------------------------------
 # ------------------------------------------------------------------------------
+# model = the Cobaya model of the configuration: model.logprior,
+# model.loglike and model.logposterior evaluate one point
 model = get_model(yaml_load(yaml_string))
 def chi2(p):
+    """Return -2 (log prior + log likelihood) at one parameter point.
+
+    Arguments:
+      p = sampled-parameter values in Cobaya's sampled order (a list or
+          array), or a {name: value} dictionary.
+
+    Returns:
+      float; 1e20 when the prior or the likelihood is infinite or NaN
+      (outside the prior, or an evaluation that failed), so samplers and
+      minimizers treat the point as forbidden.
+
+    Raises:
+      ValueError when a parameter value is infinite or NaN.
+    """
     p = [float(v) for v in p.values()] if isinstance(p, dict) else p
     if np.any(np.isinf(p)) or  np.any(np.isnan(p)):
       raise ValueError(f"At least one parameter value was infinite (CoCoa) param = {p}")
@@ -309,6 +371,15 @@ def chi2(p):
       return 1e20
     return -2.0*(res1+res2)
 def chi2v2(p):
+    """Return the -2 log posterior split into its parts at one point.
+
+    Arguments:
+      p = sampled-parameter values, as in chi2.
+
+    Returns:
+      1D array: -2 log likelihood of each likelihood of the model, in the
+      order of the yaml likelihood block, followed by -2 log prior.
+    """
     p = [float(v) for v in p.values()] if isinstance(p, dict) else p
     point = dict(zip(model.parameterization.sampled_params(), p))
     logposterior = model.logposterior(point, as_dict=True)
@@ -327,7 +398,31 @@ def min_chi2(x0,
              nstw=200,
              nwalkers=5,
              pool=None):
+    """Return the minimum of chi2 found by an annealed emcee search.
+
+    Each temperature T of the ladder runs nwalkers walkers for nstw steps
+    on log probability -chi2/(2T), starting from a Gaussian cloud of
+    covariance cov x T/3 around the best point so far.
+
+    Arguments:
+      x0       = starting parameter vector (full sampled order).
+      cov      = proposal covariance of the sampled parameters.
+      fixed    = index of a parameter held at x0[fixed] (a profile), or
+                 -1 to vary every parameter.
+      nstw     = steps per temperature per walker.
+      nwalkers = number of emcee walkers.
+      pool     = MPI pool that evaluates the walkers, or None.
+
+    Returns:
+      [best parameter vector, its chi2]; with fixed > -1 the vector
+      omits the fixed parameter.
+    """
     def mychi2(params, *args):
+        """Return chi2/T, with the fixed parameter reinserted.
+
+        args = (z, fixed, T): the value z of the fixed parameter, its index
+        (-1 or below = none) and the temperature T.
+        """
         z, fixed, T = args
         params = np.array(params, dtype='float64')
         if fixed > -1:
@@ -345,6 +440,7 @@ def min_chi2(x0,
         args = (0.0, -2.0, 1.0)
     
     def logprob(params, *args):
+        """Return the log probability -chi2/2 emcee samples (-inf if forbidden)."""
         res = mychi2(params, *args)
         if (res > 1.e19 or np.isinf(res) or  np.isnan(res)):
           return -np.inf
@@ -352,9 +448,17 @@ def min_chi2(x0,
           return -0.5*res
     
     class GaussianStep:
+       """Draws a Gaussian cloud of starting points around a vector.
+
+       A class whose instances can be called like a function: the
+       instance stores the covariance stepsize x cov, and calling it with
+       a point x returns one draw from N(x, stepsize x cov), shape [1, n].
+       """
        def __init__(self, stepsize=0.2):
+           """Store the covariance stepsize x cov."""
            self.cov = stepsize*cov
        def __call__(self, x):
+           """Return one Gaussian draw around x, shape [1, len(x)]."""
            return np.random.multivariate_normal(x, self.cov, size=1)   
     
     ndim        = int(x0.shape[0])
@@ -388,7 +492,7 @@ def min_chi2(x0,
         j = np.argmin(np.array(partial))
         print(f"Partial ({i+1}/{len(temperature)}): "
               f"params = {partial_samples[j]}, and chi2 = {partial[j]}")
-    # min chi2 from the entire emcee runs
+    # the best point over all temperatures
     j = np.argmin(np.array(partial))
     result = [partial_samples[j], partial[j]]
     return result
@@ -399,6 +503,7 @@ def min_chi2(x0,
 # ------------------------------------------------------------------------------
 # ------------------------------------------------------------------------------
 def prf(x0, nstw, cov, fixed=-1, nwalkers=5, pool=None):
+    """Return min_chi2 at x0 (same arguments; fixed = profiled index)."""
     res =  min_chi2(x0=np.array(x0, dtype='float64'), 
                     fixed=fixed,
                     cov=cov, 
@@ -412,21 +517,28 @@ def prf(x0, nstw, cov, fixed=-1, nwalkers=5, pool=None):
 # ------------------------------------------------------------------------------
 # ------------------------------------------------------------------------------
 # ------------------------------------------------------------------------------
+# The block below runs only when this file is executed as a script.
+# MPIPool (schwimmbad) makes MPI rank 0 the master, which runs the block;
+# every other rank waits in pool.wait(), evaluating the walkers the master
+# sends, until the master closes the pool, and then exits.
 if __name__ == '__main__':
     with MPIPool() as pool:
         if not pool.is_master():
             pool.wait()
             sys.exit(0)
+        # dim = number of sampled parameters; nwalkers = 3 per parameter, at
+        # least one per MPI process; x0 = a starting point drawn from the
+        # ref distributions of the yaml
         dim      = model.prior.d()     
         nwalkers = max(3*dim,pool.comm.Get_size())
         nstw = args.nstw
         (x0, results) = model.get_valid_point(max_tries=1000, 
                                              ignore_fixed_ref=False,
                                              logposterior_as_dict=True)
-        # 1st: Get covariance --------------------------------------------------
+        # 1st: get the covariance of the prior --------------------------------
         cov = model.prior.covmat(ignore_external=True) # cov from prior
         
-        # 2nd: Run Procoli -----------------------------------------------------
+        # 2nd: run the annealed minimization (prf calls min_chi2) -------------
         res = np.array(list(prf(np.array(x0, dtype='float64'), 
                                fixed=-1, 
                                nstw=nstw,
@@ -435,12 +547,12 @@ if __name__ == '__main__':
                                cov=cov)), dtype="object")
         xf = np.array([res[0]],dtype='float64')
         
-        # 3rd Append derived parameters ----------------------------------------
+        # 3rd: append the chi2 decomposition (chi2v2) and the total chi2 ------
         xf = np.column_stack((xf, 
                               np.array([chi2v2(d) for d in xf], dtype='float64'),
                               res[1]))
         
-        # 4th Save output file -------------------------------------------------
+        # 4th: save the output file ------------------------------------------
         names = list(model.parameterization.sampled_params().keys()) # Cobaya Call
         names = names+list(model.info()['likelihood'].keys())+["prior"]+["chi2"]
         os.makedirs(os.path.dirname(f"{args.root}chains/"),exist_ok=True)

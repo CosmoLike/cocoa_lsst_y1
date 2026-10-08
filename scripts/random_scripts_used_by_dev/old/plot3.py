@@ -1,3 +1,18 @@
+"""Compares LSST-Y1 cosmic shear with 3x2pt (old developer script).
+
+Draws one triangle plot of two Cobaya Metropolis-Hastings chains:
+  EXAMPLE_MCMC1  legend "LSST-Y1 Cosmic Shear";
+  EXAMPLE_MCMC2  legend "LSST-Y1 3x2pt".
+3x2pt = cosmic shear, galaxy-galaxy lensing and galaxy clustering
+(lsst_y1.combo_3x2pt).
+
+The chains are read from ../chains/ relative to the folder the script runs
+from, so run it from a folder next to chains/ (for example scripts/). The
+first 50% of each chain is removed as burn-in. Output, in the folder the
+script runs from: the hidden getdist files .VM_P3_TMP1 and .VM_P3_TMP2 (the
+chains with derived columns added) and the figure plot3.pdf (g.export()
+with no file name uses the name of the script).
+"""
 import getdist.plots as gplot
 from getdist import MCSamples
 from getdist import loadMCSamples
@@ -7,7 +22,9 @@ import subprocess
 import matplotlib.pyplot as plt
 import numpy as np
 
-# GENERAL PLOT OPTIONS
+# General plot options: matplotlib.rcParams is matplotlib's table of default
+# styles (fonts, ticks, grid, output format); the entries below apply to
+# every figure of this script, saved as PDF with the white margins cropped.
 matplotlib.rcParams['mathtext.fontset'] = 'stix'
 matplotlib.rcParams['font.family'] = 'STIXGeneral'
 matplotlib.rcParams['mathtext.rm'] = 'Bitstream Vera Sans'
@@ -27,15 +44,25 @@ matplotlib.rcParams['legend.labelspacing'] = 0.77
 matplotlib.rcParams['savefig.bbox'] = 'tight'
 matplotlib.rcParams['savefig.format'] = 'pdf'
 
+# parameter = the chain columns to plot (Cobaya names, and SS8 added below);
+# chaindir = the folder the script runs from
 parameter = [u'omegam', u'sigma8', u'As_1e9', u'ns', u'SS8', u'omegab', u'H0', u'w', u'LSST_A1_1', u'LSST_A1_2']
 chaindir=os.getcwd()
 
+# getdist analysis settings. analysissettings removes the first 50% of each
+# chain as burn-in (ignore_rows = 0.5) when the chain is loaded;
+# analysissettings2 (ignore_rows = 0) is for the plotter, which reads the
+# saved files, whose burn-in is already removed. smooth_scale_1D and
+# smooth_scale_2D = width of the Gaussian smoothing kernel, in standard
+# deviations of each parameter; range_confidence = tail probability that
+# sets the plotted range of each parameter.
 analysissettings={'smooth_scale_1D':0.35, 'smooth_scale_2D':0.3,'ignore_rows': u'0.5',
 'range_confidence' : u'0.005'}
 
 analysissettings2={'smooth_scale_1D':0.35,'smooth_scale_2D':0.3,'ignore_rows': u'0.0',
 'range_confidence' : u'0.005'}
 
+# root_chains = the two chain names, in the order of the legend labels
 root_chains = (
   'EXAMPLE_MCMC1',
   'EXAMPLE_MCMC2',
@@ -43,6 +70,12 @@ root_chains = (
 
 
 # --------------------------------------------------------------------------------
+# Each block loads one chain and adds derived columns (p.<name> is the array
+# of column <name>, one entry per sample): gamma = Omega_m h; SS8 = S_8 =
+# sigma_8 (Omega_m/0.3)^0.5, from s8omegamp5 = sigma_8 Omega_m^0.5 and
+# 0.5477225575 = 0.3^0.5; om10, ob100 and ns10 = 10 Omega_m, 100 Omega_b
+# and 10 n_s. Only SS8 is plotted. saveAsText writes the chain as hidden
+# getdist text files (names starting with a dot) in the current folder.
 samples=loadMCSamples(chaindir + '/../chains/' + root_chains[0],settings=analysissettings)
 p = samples.getParams()
 samples.addDerived(p.omegam*p.H0/100.,name='gamma',label='{\\Omega_m h}')
@@ -63,7 +96,9 @@ samples.saveAsText(chaindir + '/.VM_P3_TMP2')
 # --------------------------------------------------------------------------------
 
 
-#GET DIST PLOT SETUP
+# getdist plotter: it reads the hidden files with analysissettings2;
+# width_inch = figure width in inches; g.settings sets fonts, line widths,
+# the rotation of the x tick labels and the legend style.
 g=gplot.getSubplotPlotter(chain_dir=chaindir,
   analysis_settings=analysissettings2,width_inch=12.5)
 g.settings.axis_tick_x_rotation=65
@@ -78,6 +113,11 @@ g.legend_labels=False
 
 print(chaindir)
 
+# triangle_plot draws the 1D marginalized posterior of each parameter on the
+# diagonal and the 68% and 95% contours of each pair below it; the style
+# lists hold one entry per chain, in the order of the roots, and extra
+# entries are not used. param_3d = None: no third parameter shown as
+# colored points.
 param_3d = None
 g.triangle_plot([chaindir + '/.VM_P3_TMP1',chaindir + '/.VM_P3_TMP2'],
 parameter,

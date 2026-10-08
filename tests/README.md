@@ -1,48 +1,91 @@
 # Tests
 
-The two test sectors answer different questions and can be run separately.
+The LSST Y1 tests are divided into two sectors.
 
-- [Data-vector and likelihood tests](data_vector/README.md) check predicted
-  signals, frozen likelihood values, numerical accuracy and repeated
-  evaluations. This is the usual choice for likelihood users.
-- [Covariance tests](covariance/README.md) check Gaussian covariance,
-  halo moments, connected terms, super-sample responses, survey geometry
-  and covariance projection against independent calculations.
+- [Data-vector and likelihood checks](data_vector/README.md) cover the project
+  predictions, frozen inputs and numerical diagnostics.
+- [Covariance checks](covariance/README.md) cover forecast assembly and its
+  documented component checks. Covariance generation must be compiled.
 
-From `cocoa/Cocoa`, with the Cocoa environment active and `start_cocoa.sh`
-available, follow these steps.
+```mermaid
+flowchart TB
+  A["tests/README.md: run both sectors"] --> B["data_vector/README.md"]
+  A --> C["covariance/README.md"]
+  B --> D["frozen/ + manifest_sha256.json: pinned inputs"]
+  D --> E["Asserted checks: Δχ² drift, race conditions, caches"]
+  D --> F["Advisory reports: accuracy, Halofit vs EE2, emulators"]
+  C --> G["Covariance build enabled"]
+  G --> H["Covariance checks: algebra, quadrature, production"]
+```
 
-**Step :one:**: activate Cocoa's private Python environment.
+Every data-vector test reads only the pinned snapshot in `frozen/`.
+Asserted checks fail the run when a number moves: the $\Delta\chi^2$
+checks against `frozen/reference_chi2.json`, the race conditions (OpenMP
+threading), the cache ladder, the FAST-PT and EuclidEmulator2
+comparisons, the baryonic-feedback drift tests, the photo-z and
+non-Limber switches, and the scale-cut diagnostics. Advisory checks print
+measurements without a pass limit: the accuracy scans (with and without
+feedback), Halofit versus EuclidEmulator2, and the hybrid emulators.
 
-    source start_cocoa.sh
+The covariance sector does not read `frozen/`; it builds its own small
+inputs and needs the covariance build.
 
-**Step :two:**: run the data-vector tests.
+We assume Cocoa and this project are installed, the Cocoa Conda environment
+is active, the shell is Bash, and the current folder is `cocoa/Cocoa/`.
 
-    python -m pytest projects/lsst_y1/tests/data_vector
+Run the sectors in separate Python invocations: they initialize different
+compiled-library state. Running one project at a time also avoids importing
+another project's same-named test helpers.
 
-For covariance checks, we assume the Conda Cocoa environment, Bash,
-and the current folder `cocoa/Cocoa`.
+**Step :one:**: activate Cocoa.
 
-**Step :one:**: activate Cocoa's private Python environment.
+```bash
+source start_cocoa.sh
+```
 
-    source start_cocoa.sh
+**Step :two:**: run the data-vector sector.
 
-**Step :two:**: run the covariance tests.
+```bash
+python -m pytest ./projects/lsst_y1/tests/data_vector
+```
 
-    python -m pytest projects/lsst_y1/tests/covariance
+**Step :three:**: enable covariance generation.
 
-To check both sectors, we assume the Conda Cocoa environment, Bash,
-and the current folder `cocoa/Cocoa`.
+```bash
+unset IGNORE_COSMOLIKE_LSST_Y1_COVARIANCE
+```
 
-**Step :one:**: activate Cocoa's private Python environment.
+**Step :four:**: compile the project.
 
-    source start_cocoa.sh
+```bash
+source ./projects/lsst_y1/scripts/compile_lsst_y1.sh
+```
 
-**Step :two:**: select both test folders.
+**Step :five:**: run the covariance sector.
 
-    python -m pytest projects/lsst_y1/tests/data_vector projects/lsst_y1/tests/covariance
+```bash
+python -m pytest ./projects/lsst_y1/tests/covariance
+```
 
-The shared data-vector harness, frozen snapshots, their fingerprint
-manifest and reference-generation scripts remain here in `tests/`.
-Moving test modules does not change those snapshots or refreeze any result.
-Covariance tests do not replace the likelihood's stored covariance.
+The project must be enabled in `set_installation_options.sh` before
+activation. A covariance skip in a deliberately disabled build is expected;
+it is not a successful covariance check. Read the sector guide to distinguish
+asserted regressions from advisory accuracy reports.
+
+Frozen configurations and inputs are protected by `manifest_sha256.json`.
+Do not regenerate references to silence an unexplained failure. The sector
+guides document the deliberate reference-update procedure and its limits.
+
+Hybrid examples can be checked without sampling:
+
+**Step :one:**: check configuration 1.
+
+```bash
+python ./projects/lsst_y1/EXAMPLE_EMUL2_MINIMIZE1.py --check
+```
+
+**Step :two:**: check configuration 2.
+
+```bash
+python ./projects/lsst_y1/EXAMPLE_EMUL2_MINIMIZE2.py --check
+```

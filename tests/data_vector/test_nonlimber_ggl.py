@@ -21,8 +21,8 @@ to the exact projection because the delta chi2 below is too large to
 absorb (galaxy clustering has its own key, adopt_limber_gg; see
 test_nonlimber_gg.py). This test measures what Limber would cost.
 
-It evaluates the frozen 3x2pt fiducial (NLA) three times IN
-ONE PROCESS: non-Limber, Limber, non-Limber again, and computes
+It evaluates the frozen 3x2pt fiducial (NLA) three times in
+one process: non-Limber, Limber, non-Limber again, and computes
 
     delta chi2 = delta^T C^-1 delta,
     delta = dv(non-Limber) - dv(Limber),
@@ -55,7 +55,7 @@ start_cocoa.sh sourced):
 import os
 
 # OpenMP reads OMP_NUM_THREADS when the compiled libraries load, so
-# this must run before ANY cobaya/cosmolike import in the process.
+# this must run before any cobaya/cosmolike import in the process.
 os.environ["OMP_NUM_THREADS"] = "4"
 
 import sys
@@ -82,8 +82,8 @@ SETTINGS = (
 # magnitude below the measured value, so it only catches a dead flag.
 DCHI2_FLOOR = 1.0e-6
 
-# delta chi2 measured on 2026-10-01 (macOS, arm64), and the relative band
-# assertion 4 allows around it.
+# delta chi2 measured for this project's frozen fiducial (macOS, arm64),
+# and the relative band assertion 4 allows around it.
 DCHI2_MEASURED = 1.904
 DCHI2_RTOL = 0.05
 
@@ -93,11 +93,13 @@ class TestNonLimberGGL(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
+        """Move to ROOTDIR, verify the frozen state, load the references."""
         u.require_cocoa_environment()
         u.verify_frozen()
         cls.reference = u.load_reference()
 
     def test_nonlimber_ggl(self):
+        """Limber vs non-Limber ggl: assertions 1-5 above."""
         import numpy as np
         import cosmolike_lsst_y1_interface as ci
 
@@ -158,6 +160,8 @@ class TestNonLimberGGL(unittest.TestCase):
         print(f"    delta^T C^-1 delta = {dchi2:.4f} "
               f"(measured {DCHI2_MEASURED:.4f})")
         print("    per lens-source pair (the pair's block alone):")
+        # per-pair contributions, printed largest first; the loop stops
+        # at the first one below 0.1% of the total
         rows = []
         for p in range(npairs):
             block = np.zeros_like(delta)
@@ -167,6 +171,8 @@ class TestNonLimberGGL(unittest.TestCase):
         for contribution, p in sorted(rows, reverse=True):
             if contribution < 1.0e-3*max(dchi2, DCHI2_FLOOR):
                 break
+            # name the pair by its bins when the pair list matches the
+            # block count, by its position otherwise
             label = (f"(lens {pairs[p][0]}, source {pairs[p][1]})"
                      if len(pairs) == npairs else f"pair {p}")
             print(f"      {label:24s} {contribution:.4f}")
@@ -201,5 +207,8 @@ class TestNonLimberGGL(unittest.TestCase):
             f"reference {self.reference[REFERENCE_KEY]:.6f}")
 
 
+# __name__ is "__main__" only when this file runs directly as a
+# script; pytest imports the module instead, so this block stays
+# idle under pytest
 if __name__ == "__main__":
     unittest.main(verbosity=2)

@@ -277,7 +277,7 @@ theory:
     extra_args:
       # This version of the emul was not trained with CosmoRec
       eval: [True, True, True, False] #TT,TE,EE,PHIPHI
-      device: "cuda"
+      device: "cpu"
       ord: [['omegabh2','omegach2','H0','tau','ns','logA','mnu','w','wa'],
             ['omegabh2','omegach2','H0','tau','ns','logA','mnu','w','wa'],
             ['omegabh2','omegach2','H0','tau','ns','logA','mnu','w','wa'],
@@ -298,7 +298,7 @@ theory:
     path: ./cobaya/cobaya/theories/
     stop_at_error: True
     extra_args:
-      device: "cuda"
+      device: "cpu"
       file:  [None, 'external_modules/data/emultrf/BAO_SN_RES/emul_lcdm_H.pt']
       extra: [None, 'external_modules/data/emultrf/BAO_SN_RES/extra_lcdm_H.npy']    
       ord: [None, ['omegam','H0']]

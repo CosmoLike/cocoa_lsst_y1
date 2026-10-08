@@ -1,8 +1,11 @@
 """Check notebook-level Gaussian wrappers against independent block assembly.
 
-Real-space checks retain the already tested analytic pair-noise primitive.
-Fourier checks explicitly form the Wick products and band sums in NumPy.
-The arrays contain complete internal cross spectra, while the measured
+The whole-matrix functions covariance_gaussian_real and
+covariance_gaussian_fourier of the compiled module must equal the
+block-by-block assembly of the same Gaussian covariance. Real-space
+checks retain the already tested analytic pair-noise primitive. Fourier
+checks explicitly form the Wick products and band sums in NumPy. The
+arrays contain complete internal cross spectra, while the measured
 observable list contains only a subset of field pairs.
 """
 
@@ -13,7 +16,13 @@ from cosmolike_notebook_utils.covariance.gaussian import realspace_block
 
 
 def inputs():
-    """Return positive field spectra, white noise and a small multipole grid."""
+    """Return positive field spectra, white noise and a small multipole grid.
+
+    Returns:
+      (spectra [n_ell, 4, 4], noise [4], ell [n_ell]): four fields with
+      a positive-definite field matrix (outer product plus 0.2 on the
+      diagonal) falling as 1/(l + 1), for l = 2..40.
+    """
     ell = np.arange(2., 41.)
     amplitude = np.array([1.0, 0.7, 0.5, 0.9])
     field_power = np.outer(amplitude, amplitude)+0.2*np.eye(4)
@@ -29,6 +38,8 @@ def test_realspace_wrapper_matches_blocks(nobs, nbin):
     import cosmolike_lsst_y1_interface as ci
 
     spectra, noise, ell = inputs()
+    # observable rows (probe, A, B): xi+ of field 2, xi- of field 3,
+    # gamma_t of fields 0 and 2, w of field 1, w of field 0
     rows = np.array([
         [0, 2, 2],
         [1, 3, 3],
@@ -58,6 +69,8 @@ def test_realspace_wrapper_matches_blocks(nobs, nbin):
                 probe_right=right_probe, pair_area_sr2=pair_area,
                 area_sr=area_sr,
             )
+            # a diagonal block is symmetric: rebuild it from its upper
+            # triangle (np.triu with 1 excludes the diagonal)
             if first == second:
                 block = np.triu(block)+np.triu(block, 1).T
             i = slice(first*nbin, (first+1)*nbin)
@@ -65,6 +78,8 @@ def test_realspace_wrapper_matches_blocks(nobs, nbin):
             expected[i, j] = block
             expected[j, i] = block.T
 
+    # .view(np.uint64) compares the 64-bit patterns: bit-for-bit equality
+    # with the block assembly and across thread counts
     baseline = None
     for threads in (1, 2, 4, 8):
         ci.set_omp_threads(n=threads)
@@ -93,6 +108,10 @@ def test_fourier_wrapper_matches_numpy():
     import cosmolike_lsst_y1_interface as ci
 
     spectra, noise, ell = inputs()
+    # four field pairs and three overlapping bands [2, 15], [12, 31],
+    # [20, 40]; the expected covariance is the Wick product of the
+    # observed spectra (signal plus noise on the diagonal) divided by
+    # (2l+1) f_sky, projected onto the bands
     pairs = np.array([[2, 2], [2, 3], [0, 2], [1, 1]], dtype=np.int32)
     operators = ci.covariance_bandpower_operator(
         first=np.array([2, 12, 20], dtype=np.int32),
@@ -152,7 +171,18 @@ def test_wrapper_rejects_invalid_shapes_and_fields():
 
 
 def notebook_layout(values, layout):
-    """Represent the same physical axes in common notebook array layouts."""
+    """Represent the same physical axes in common notebook array layouts.
+
+    Arguments:
+      values = numpy array.
+      layout = "c" (row-major copy), "fortran" (column-major copy),
+               "sliced" (a strided view taking every second element of a
+               larger array) or "readonly" (a row-major copy marked not
+               writable).
+
+    Returns:
+      an array with the values of values in the requested memory layout.
+    """
     if layout == 'fortran':
         return np.array(values, order='F', copy=True)
     if layout == 'sliced':
@@ -170,7 +200,13 @@ def notebook_layout(values, layout):
 
 @pytest.mark.parametrize('layout', ['c', 'fortran', 'sliced', 'readonly'])
 def test_armadillo_axes_and_input_ownership(layout):
-    """Conversions retain axes and leave both arrays and existing views intact."""
+    """Conversions retain axes and leave both arrays and existing views intact.
+
+    The compiled functions convert numpy arrays to Armadillo (the C++
+    matrix library) objects; whatever the memory layout of the input,
+    the result must use the same axes, the inputs must stay unchanged,
+    and the output must not share memory with them.
+    """
     import cosmolike_lsst_y1_interface as ci
 
     left = notebook_layout(np.arange(14.).reshape(2, 7), layout)
