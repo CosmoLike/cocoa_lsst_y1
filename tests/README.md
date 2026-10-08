@@ -7,6 +7,29 @@ The LSST Y1 tests are divided into two sectors.
 - [Covariance checks](covariance/README.md) cover forecast assembly and its
   documented component checks. Covariance generation must be compiled.
 
+```mermaid
+flowchart TB
+  A["tests/README.md: run both sectors"] --> B["data_vector/README.md"]
+  A --> C["covariance/README.md"]
+  B --> D["frozen/ + manifest_sha256.json: pinned inputs"]
+  D --> E["Asserted checks: Δχ² drift, race conditions, caches"]
+  D --> F["Advisory reports: accuracy, Halofit vs EE2, emulators"]
+  C --> G["Covariance build enabled"]
+  G --> H["Covariance checks: algebra, quadrature, production"]
+```
+
+Every data-vector test reads only the pinned snapshot in `frozen/`.
+Asserted checks fail the run when a number moves: the $\Delta\chi^2$
+checks against `frozen/reference_chi2.json`, the race conditions (OpenMP
+threading), the cache ladder, the FAST-PT and EuclidEmulator2
+comparisons, the baryonic-feedback drift tests, the photo-z and
+non-Limber switches, and the scale-cut diagnostics. Advisory checks print
+measurements without a pass limit: the accuracy scans (with and without
+feedback), Halofit versus EuclidEmulator2, and the hybrid emulators.
+
+The covariance sector does not read `frozen/`; it builds its own small
+inputs and needs the covariance build.
+
 We assume Cocoa and this project are installed, the Cocoa Conda environment
 is active, the shell is Bash, and the current folder is `cocoa/Cocoa/`.
 

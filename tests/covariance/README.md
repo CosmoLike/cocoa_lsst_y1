@@ -4,7 +4,7 @@ These tests require the optional covariance build. Follow the
 [project build instructions](../../README.md#computing_covariances): unset
 `IGNORE_COSMOLIKE_LSST_Y1_COVARIANCE` after activating Cocoa and rebuild.
 With the default data-vector-only build this sector reports skips; the
-separate `tests/data_vector` suite remains available.
+separate `tests/data_vector` tests remain available.
 
 These tests check covariance construction separately from the data-vector
 and likelihood tests in `../data_vector/`. A covariance describes the
@@ -40,6 +40,11 @@ We assume users have run `conda activate cocoa`, use Bash, and are in
 | `test_covariance_mask.py` | Pair area for a supplied survey footprint. |
 | `test_covariance_fourier.py` | Complete bandpower G/SSC/cNG assembly, two-sided band rebinning, Fourier means and thread determinism. |
 | `test_covariance_survey.py` | Survey row layouts, compressed angular projection and complete cross-lens cNG assembly against independent NumPy sums. |
+| `test_covariance_connected.py` | Connected projections over radial nodes: whole matrices equal block-by-block sums bit for bit at any thread count; invalid shapes are rejected before threaded access. |
+| `test_covariance_fftlog.py` | FFTLog spherical-Bessel transforms against closed-form integrals, including the lensing kernel near the observer. |
+| `test_covariance_nonlimber.py` | All-pairs Gaussian non-Limber spectra against direct spherical-Bessel sums; crossed pairs, symmetry and thread repeatability. |
+| `test_covariance_ia.py` | Gaussian NLA/TATT spectra: the TATT-to-NLA limit, E and B spectra against the data-vector integrator, B-mode covariance signs, and SSC/cNG unchanged by Gaussian options. |
+| `test_wynn_cosmologies.py` | Wynn low-mass extrapolation of the halo moment I11 against deep finite mass integrals, away from the fiducial cosmology. |
 
 The normally built LSST interface contains all tested C components. The
 independent references ship in `cosmolike_notebook_utils.covariance.reference`;

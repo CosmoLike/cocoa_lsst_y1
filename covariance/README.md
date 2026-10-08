@@ -13,6 +13,7 @@
    3. [FAQ: How can users check convergence?](#convergence)
    4. [FAQ: How can users reuse the calculation?](#reuse)
    5. [FAQ: Which accuracy settings are available?](#accuracy-settings)
+   6. [Choosing the Gaussian spectra](#gaussian_spectra)
 
 # Overview <a name="overview"></a>
 
@@ -107,9 +108,11 @@ The [evaluate YAML](../EXAMPLE_EVALUATE_COVARIANCE.yaml) uses Cobaya's YAML read
 values specify one cosmology; a parameter with a prior must be supplied
 explicitly in `sampler.evaluate.override`. No MCMC or random prior draw runs.
 
-In its `covariance` block, `accuracy_boost: 2` refines the project's
-`default.yaml` baseline. `integration_accuracy: 1` changes the quadrature
-level independently. Internal accuracy controls can also be set there.
+Its `covariance` block sets `accuracy_boost: 1` and
+`integration_accuracy: 0`, the project's `default.yaml` baseline. Raising
+`accuracy_boost` (for example to 2) refines that baseline;
+`integration_accuracy: 1` changes the quadrature level independently.
+Internal accuracy controls can also be set there.
 Use `space` for the measurement space. The OpenMP team comes only from
 the environment variable `OMP_NUM_THREADS`; do not put a thread key in
 the YAML.
@@ -175,6 +178,7 @@ These are matter terms before survey projection; G and SSC are separate.
 | Output in `covariance/` | Contents |
 | --- | --- |
 | `forecast_real.npz` | Full computed G, SSC, cNG, total, ordering and settings. |
+| `forecast_fourier.npz` | The same for the Fourier-space companion, when `spaces` includes `"fourier"`. |
 | `forecast_likelihood_selection.npz` | Cut components, supplied total, original entry indices and probe labels. |
 | `forecast_camb.npz` | CAMB tables used by the native calculation. |
 
@@ -271,7 +275,7 @@ plots and variance-ratio table.
 
 | Figure | What it teaches |
 | --- | --- |
-| Split-triangle correlation matrix | Compare the generated native-space covariance in the lower triangle with the supplied likelihood covariance in the upper triangle, after the same cuts. Each uses its own diagonal normalization. |
+| Split-triangle correlation matrix | Compare the generated native-space covariance, drawn above the diagonal, with the supplied likelihood covariance, drawn below it, after the same cuts. Index 0 sits at the bottom left, so the title's "Lower" and "Upper" name matrix triangles (row > column and row < column), not screen positions. Each uses its own diagonal normalization. |
 | G, SSC and cNG maps and histograms | Compare each component after normalization by the total diagonal variances. |
 | Halo trispectrum diagonal | See 1h, combined 2h, 3h, 4h and their sum at a chosen redshift, before survey projection. The signed axis retains negative terms. |
 | Error changes | With multiple boosts, compare first-source-bin standard deviations with the highest tested boost, in percent, for the native measurement. |
@@ -491,7 +495,7 @@ The C routines use OpenMP inside one process and never start MPI work.
 A future Python dispatcher can distribute those subblocks while keeping
 all cross correlations in the assembled matrix.
 
-## Choosing the Gaussian spectra
+## Choosing the Gaussian spectra <a name="gaussian_spectra"></a>
 
 The `gaussian` block selects the physics used in Gaussian covariance.
 `nonlimber: true` retains radial mode coupling for every galaxy–galaxy and
