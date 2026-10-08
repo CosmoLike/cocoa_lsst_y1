@@ -1,6 +1,6 @@
 """Maintainer tool: (re)create the frozen state the unit tests run on.
 
-Running this REDEFINES what the tests protect, so it refuses to run
+Running this redefines what the tests protect, so it refuses to run
 without the explicit --overwrite flag. Only run it when a change to
 the data vectors, n(z), covariance, examples, or likelihood defaults
 is deliberate, and review the printed chi2 values before committing:
@@ -9,12 +9,13 @@ they become the new references the tests compare against.
 What one run produces, all under tests/ (see cocoa_test_utils for how
 the tests consume each piece):
 
-  - frozen/data/: a copy of the CURRENT ../data folder.
-  - frozen/EXAMPLE_EVALUATE{1,2}.yaml: snapshots of the current
-    examples, kept for humans to diff (the tests never load them).
+  - frozen/data/: a copy of the current ../data folder.
+  - frozen/EXAMPLE_*.yaml: snapshots of the example yaml files the
+    EXAMPLES entries name as their provenance, kept for humans to diff
+    (the tests never load them).
   - frozen/frozen_config_*.py: for each configuration listed in
-    cocoa_test_utils.EXAMPLES, the model is built from the CURRENT
-    example yaml, cobaya resolves it against the CURRENT likelihood
+    cocoa_test_utils.EXAMPLES, the model is built from the current
+    example yaml, cobaya resolves it against the current likelihood
     defaults, and the complete resolved configuration is written back
     out as a yaml string, together with the exact evaluation point.
     Writing out every resolved option and parameter is what makes the
@@ -22,27 +23,43 @@ the tests consume each piece):
     entry starts from example2 with the likelihood block renamed; the
     EMUL2 entries carry the emulator theory stack with the network
     device forced to "cpu" (deterministic and machine-independent; the
-    trained network files themselves are NOT copied: they live in
+    trained network files themselves are not copied: they live in
     external_modules/data/emultrf and are pinned by the EMULTRF keys
     in set_installation_options.sh).
   - frozen/data/tatt_lsst_y1.{modelvector,dataset}: a data vector
-    GENERATED WITH TATT at the fiducial point, plus a dataset
-    descriptor pointing at it. Every TATT reference and test evaluates
-    against this vector so its chi2 sits at a minimum, where it is
-    stable; against the shipped NLA-based vector the TATT chi2 would
-    sit on the side of a hill, responding linearly to tiny numerical
-    changes.
+    generated with TATT at the fiducial point, plus a ".dataset" file
+    (the descriptor: the small text file naming the data files a
+    likelihood reads, one "key = filename" line each) pointing at it,
+    and one copy of that descriptor per scale-cut mask
+    (tatt_lsst_y1_M2.dataset ... tatt_lsst_y1_ones.dataset) for the
+    --mask option of the comparison sweeps. Every TATT reference and
+    test evaluates against this vector so its chi2 sits at a minimum,
+    where it is stable; against the shipped NLA-based vector the TATT
+    chi2 would sit on the side of a hill, responding linearly to tiny
+    numerical changes.
   - frozen/reference_chi2.json: the reference chi2 values, one per
     configuration and variant (NLA for all; TATT for the exact
     configurations; TATT with python FAST-PT for example1/2, plus the
-    saved FASTPT-minus-CFASTPT difference), computed FROM the frozen
+    saved FASTPT-minus-CFASTPT difference), computed from the frozen
     modules just written, exactly the way the tests will compute them.
   - manifest_sha256.json: the SHA-256 pin of every frozen file.
+
+--overwrite deletes frozen/ first, and it does not write the frozen
+baryonic-feedback vectors of test_baryons.py: those come from the
+incremental --baryons mode, run after it. The incremental modes change
+one part of an existing frozen state and re-pin the manifest:
+
+  --baryons     (re)write frozen/data/baryon_<method>.{modelvector,
+                dataset}, one pair per cocoa_test_utils.BARYON_METHODS
+                entry;
+  --tatt-masks  rewrite the per-mask TATT descriptors (text only, no
+                model is evaluated).
 
 Usage (from the Cocoa/ folder, cocoa environment active,
 start_cocoa.sh sourced):
 
     python ./projects/lsst_y1/tests/generate_frozen_reference.py --overwrite
+    python ./projects/lsst_y1/tests/generate_frozen_reference.py --baryons
 """
 
 import json
@@ -55,7 +72,7 @@ import time
 # the tests enforce, and before any cobaya/cosmolike import.
 os.environ["OMP_NUM_THREADS"] = "4"
 
-# tests/ is not a package; insert(0, ...) puts it FIRST on the import
+# tests/ is not a package; insert(0, ...) puts it first on the import
 # search path so cocoa_test_utils resolves from anywhere
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import cocoa_test_utils as u
@@ -100,12 +117,12 @@ def freeze_example(example, stamp):
     The expansion works by round trip through cobaya: build the model
     from the live example yaml (letting cobaya merge in the live
     likelihood defaults), then ask the model for its resolved
-    configuration with model.info() and store THAT. The resolved form
+    configuration with model.info() and store that. The resolved form
     lists every option and every parameter explicitly, so the frozen
-    module no longer depends on any live default.
+    module does not depend on any live default.
 
     Arguments:
-      example = "example1" or "example2" (a key of u.EXAMPLES).
+      example = a key of u.EXAMPLES, e.g. "example1".
       stamp   = the UTC time string written into the module header.
 
     Returns:
@@ -122,7 +139,7 @@ def freeze_example(example, stamp):
     live = yaml_load_file(os.path.join(PROJECT_DIR, cfg["provenance"]))
     # The evaluate sampler's override block is the example's fiducial
     # point; keep it before stripping the sampler from the info.
-    # dict(...) COPIES the block, so the pop below cannot take it
+    # dict(...) copies the block, so the pop below cannot take it
     # along; pop(key, None) removes a key without erroring when it
     # is already absent.
     override = dict(live["sampler"]["evaluate"]["override"])
@@ -136,7 +153,7 @@ def freeze_example(example, stamp):
     # .get falls back to its second argument when the key is
     # absent, so most entries rename nothing
     source_name = cfg.get("source_likelihood", cfg["likelihood"])
-    # pop removes the entry AND hands back its value: the block
+    # pop removes the entry and hands back its value: the block
     # leaves under its old name and is reinserted under the new one
     likelihood_block = live["likelihood"].pop(source_name)
     live["likelihood"][cfg["likelihood"]] = likelihood_block
@@ -204,16 +221,16 @@ def freeze_example(example, stamp):
 
 
 def generate_tatt_datavector():
-    """Write the TATT-generated data vector and its dataset descriptor.
+    """Write the TATT-generated data vector and its ".dataset" descriptor.
 
     The vector comes from the frozen 3x2pt (example2) configuration
     with the TATT point and datavector printing enabled: cosmolike
     writes the full-length theory vector, which the cosmic-shear and
-    2x2pt masks select from, so ONE generated vector serves every
+    2x2pt masks select from, so one generated vector serves every
     exact-physics configuration. It must be generated against the
-    ORIGINAL frozen dataset (the TATT dataset descriptor written here
-    does not exist yet; the printed theory vector does not depend on
-    which data vector it is compared against).
+    original frozen dataset (the TATT descriptor written here does not
+    exist yet; the printed theory vector does not depend on which
+    data vector it is compared against).
 
     Returns:
       nothing; frozen/data/ gains the .modelvector and .dataset files.
@@ -221,8 +238,8 @@ def generate_tatt_datavector():
     Raises:
       RuntimeError when the generated vector's length differs from
       the original data vector (a masking or probe mismatch), or when
-      the dataset descriptor does not contain exactly one data_file
-      line to replace.
+      the original descriptor holds more than one data_file line (one
+      with none fails earlier, with a TypeError from os.path.join).
     """
     from cobaya.yaml import yaml_load
 
@@ -234,7 +251,7 @@ def generate_tatt_datavector():
     original_dataset = frozen_info["likelihood"][cfg["likelihood"]]["data_file"]
 
     # str.replace swaps the extension, pairing the vector's file
-    # name with the descriptor's
+    # name with the descriptor's (tatt_lsst_y1.modelvector)
     vector_name = u.TATT_DATASET.replace(".dataset", ".modelvector")
     info = u.load_frozen_info(example, tatt=True)
     likelihood_block = info["likelihood"][cfg["likelihood"]]
@@ -266,7 +283,7 @@ def generate_tatt_datavector():
     # removed
     for line in descriptor.splitlines():
         if line.strip().startswith("data_file"):
-            # split("=", 1) cuts at the FIRST "=" only; [1] is the
+            # split("=", 1) cuts at the first "=" only; [1] is the
             # part after the cut, and strip() drops the blanks
             # around it
             original_vector = line.split("=", 1)[1].strip()
@@ -306,18 +323,19 @@ def generate_tatt_datavector():
 def generate_baryon_datavector(label):
     """Write one feedback method's frozen data vector and descriptor.
 
-    The vector is the example1 theory prediction WITH the bfmt theory
+    The vector is the example1 theory prediction with the bfmt theory
     block computing this method's suppression, at the frozen fiducial
     point plus the method's cosmology override
     (u.BARYON_POINT_OVERRIDES, e.g. BACCOemu's omegab shift into its
-    training box). The DRIFT tests of test_baryons.py evaluate
+    training box). The drift tests of test_baryons.py evaluate
     against this vector: at freeze time the chi2 is zero by
     construction, so any later chi2 above the tolerance means
     cosmolike or the theory block changed its prediction. (The
-    ACCURACY checks of test_accuracy_baryons.py do not use these
-    files: they regenerate their vector on the fly per run.) Runs
-    inside a --baryon-one worker subprocess for the same isolation
-    reasons as the other steps.
+    accuracy checks of test_accuracy_baryons.py do not use these
+    files: they regenerate their vector on the fly per run.) It runs
+    in the generator's own process: every model here has example1's
+    data-vector dimensions, so building them one after another is
+    safe (see main).
 
     Arguments:
       label = a u.BARYON_METHODS label.
@@ -327,8 +345,9 @@ def generate_baryon_datavector(label):
 
     Raises:
       RuntimeError when the generated vector's length differs from
-      the original data vector, or when the dataset descriptor does
-      not contain exactly one data_file line.
+      the original data vector, or when the original descriptor holds
+      more than one data_file line (one with none fails earlier, with
+      a TypeError from os.path.join).
     """
     from cobaya.yaml import yaml_load
 
@@ -445,17 +464,22 @@ def generate_tatt_mask_datasets():
 def main():
     """Rebuild tests/frozen/ and the manifest from the current project.
 
-    The steps, in order: refuse without --overwrite; delete and
-    recreate frozen/; copy the data and the example snapshots; write
-    the two expanded frozen-configuration modules; evaluate the four
-    reference chi2 values from those modules (the same code path the
-    tests use); write the reference file; hash everything into the
+    The --overwrite steps, in order: delete and recreate frozen/; copy
+    the data and the example snapshots; write one expanded
+    frozen-configuration module per EXAMPLES entry; generate the TATT
+    data vector and its per-mask descriptors; evaluate every reference
+    chi2 from those modules (the same code path the tests use; NLA for
+    every entry, TATT for the exact-physics ones, TATT with python
+    FAST-PT where an entry asks for it) and the FASTPT-minus-CFASTPT
+    differences; write the reference file; hash everything into the
     manifest. The manifest comes last so it covers every file the
-    earlier steps produced.
+    earlier steps produced. The flags --tatt-masks and --baryons
+    select the incremental modes instead (module docstring).
 
     Returns:
-      0 on success, 1 when --overwrite was not given (the usage text
-      and the refusal reason are printed).
+      0 after --overwrite, 1 when no mode flag was given (the usage
+      text and the refusal reason are printed), None (exit code 0)
+      after an incremental mode.
     """
     # `in` scans the argument list for the literal flag
     if "--tatt-masks" in sys.argv:
@@ -477,7 +501,7 @@ def main():
         return
     if "--baryons" in sys.argv:
         # incremental: add the per-method frozen baryon vectors of the
-        # DRIFT tests to an existing frozen state and re-pin the
+        # drift tests to an existing frozen state and re-pin the
         # manifest; nothing else changes. This project builds its
         # models in-process (all example1 dimensions), so no worker
         # subprocesses are needed.
@@ -519,7 +543,7 @@ def main():
         shutil.copy2(os.path.join(PROJECT_DIR, cfg["provenance"]),
                      os.path.join(u.FROZEN_DIR, cfg["provenance"]))
 
-    # iterating a dict yields its KEYS: each example name in turn
+    # iterating a dict yields its keys: each example name in turn
     for example in u.EXAMPLES:
         freeze_example(example, stamp)
 
@@ -578,7 +602,7 @@ def main():
         f.write("\n")
 
     # compute_manifest returns {relative path: sha256} for every file
-    # now under frozen/; writing it LAST means it covers every file
+    # now under frozen/; writing it last means it covers every file
     # the steps above produced
     manifest = {
         "_comment": "SHA-256 of every file under tests/frozen/; verified by "

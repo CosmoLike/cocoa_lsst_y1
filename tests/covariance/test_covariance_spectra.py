@@ -1,9 +1,20 @@
 """Validate covariance-owned all-pairs Limber spectra on shared survey inputs.
 
+The Gaussian covariance needs the Limber angular spectrum of every pair of
+fields, C_l^AB = integral dchi W_A(chi) W_B(chi) P((l + 1/2)/chi)/chi^2
+(with the radial windows W of galaxy density, magnification, lensing,
+intrinsic alignment and, optionally, redshift-space distortions, RSD).
+covariance_limber_spectra computes all ten pairs of the four fields
+(fields 0-1 lenses, 2-3 sources) on one shared set of radial nodes.
+
 Tests create a two-lens, two-source artificial survey and its CAMB tables
-in a temporary directory. This exposes overlapping lens bins independently
-of the LSST forecast configuration. The independent reference receives the archived CAMB tables and
-the C window samples; quadrature refinement is checked separately.
+in a temporary directory (survey_inputs.py). This exposes overlapping
+lens bins independently of the LSST forecast configuration. The
+independent reference (spectra_reference.py in
+cosmolike_notebook_utils/covariance/reference/) receives the archived CAMB
+tables and the C window samples; quadrature refinement is checked
+separately. A few core C functions are called directly through ctypes
+(argtypes and restype declare their C signatures).
 """
 
 import ctypes
@@ -25,6 +36,8 @@ class CovarianceSpectra(unittest.TestCase):
         from cosmolike_notebook_utils.covariance.reference import spectra_reference
         import survey_inputs as setup
 
+        # a temporary folder removed by the class cleanup (addClassCleanup
+        # runs it after the last test of the class, pass or fail)
         temporary = tempfile.TemporaryDirectory(prefix="cocoa_covariance_")
         cls.addClassCleanup(temporary.cleanup)
         directory = Path(temporary.name)
@@ -77,6 +90,9 @@ class CovarianceSpectra(unittest.TestCase):
                     linear=linear,
                 )
                 rsd = None
+                # the RSD window of each lens at each multipole and node,
+                # read from the core: W_RSD(l + 1/2, a, a_shift, lens),
+                # with a_shift the scale factor at chi (l + 3/2)/(l + 1/2)
                 if include_rsd:
                     rsd = np.empty((len(self.ell), 2, geometry.shape[1]))
                     for index, ell in enumerate(self.ell):
@@ -91,6 +107,9 @@ class CovarianceSpectra(unittest.TestCase):
                     ell=self.ell, geometry=geometry, windows=result["windows"],
                     nlens=2, power=power, rsd=rsd,
                 )
+                # scale[l, i, j] = sqrt(C_ii C_jj) at each multipole (the
+                # einsum is an outer product per l): the errors are relative
+                # to the auto spectra, so near-zero crosses do not inflate them
                 scale = np.sqrt(np.einsum(
                     "ei,ej->eij", np.diagonal(expected, axis1=1, axis2=2),
                     np.diagonal(expected, axis1=1, axis2=2),
@@ -98,6 +117,8 @@ class CovarianceSpectra(unittest.TestCase):
                 np.testing.assert_array_less(
                     np.abs(result["spectra"]-expected), 2.e-12*scale+1.e-30
                 )
+                # the same reference in Mpc (c/H0 = 2997.92458/0.7 Mpc for
+                # h = 0.7): the dimensionless C_l must not change
                 converted = self.reference.limber_matrix(
                     ell=self.ell, geometry=geometry, windows=result["windows"],
                     nlens=2, power=power, rsd=rsd, distance_unit=2997.92458/0.7,
@@ -119,6 +140,8 @@ class CovarianceSpectra(unittest.TestCase):
                 np.testing.assert_array_equal(spectra, reference)
             # ell=1 has identically zero shear; inspect only nonzero fields.
             for matrix in spectra:
+                # np.ix_(active, active) keeps the rows and columns of the
+                # fields with nonzero auto spectra
                 active = np.diag(matrix) > 0.0
                 selected = matrix[np.ix_(active, active)]
                 normalization = np.sqrt(np.outer(np.diag(selected), np.diag(selected)))
@@ -144,8 +167,8 @@ class CovarianceSpectra(unittest.TestCase):
         scale = np.sqrt(np.einsum("ei,ej->eij", diagonal, diagonal))
         error = np.max(np.abs(coarse-fine)/(scale+1.e-30))
         print(f"  common-node 256 -> 512 normalized spectrum change = {error:.6e}")
-        # This is an initial spectra check, not the final covariance
-        # convergence contract or an accepted production node setting.
+        # This checks the spectra alone; it is not the covariance
+        # convergence contract or a production node setting.
         self.assertLess(error, 2.e-5)
 
     def test_lensing_efficiency_and_window_refinement(self):
@@ -166,6 +189,10 @@ class CovarianceSpectra(unittest.TestCase):
             node = np.argmin(np.abs(redshift-target_z))
             foreground_z = redshift[node]
             distance = geometry[1, node]
+            # lensing-window prefactor (3/2) Omega_m chi/a in c/H0 units,
+            # Omega_m = 0.3 of survey_inputs.py; a lens window carries its
+            # magnification coefficient on top. The expected efficiency
+            # integrates n(z) on 24 panels of 128 Gauss-Legendre nodes.
             prefactor = 1.5*0.3*distance/geometry[0, node]
             for field in range(4):
                 sample = "source"
@@ -224,6 +251,8 @@ class CovarianceSpectra(unittest.TestCase):
                             include_rsd=include_rsd, linear=linear,
                             batch_size=batch_size,
                         )
+                        # .view(np.uint64) compares the 64-bit patterns:
+                        # bit-for-bit equality
                         for name in ("spectra", "windows", "geometry"):
                             np.testing.assert_array_equal(actual[name].view(np.uint64),
                                                           expected[name].view(np.uint64))
@@ -231,5 +260,7 @@ class CovarianceSpectra(unittest.TestCase):
                         self.assertEqual(actual["nsource"], expected["nsource"])
 
 
+# __name__ is "__main__" only when this file runs directly as a
+# script; pytest imports the module instead
 if __name__ == "__main__":
     unittest.main()

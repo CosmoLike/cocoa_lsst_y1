@@ -1,4 +1,14 @@
-"""Gaussian NLA/TATT spectra and parity-aware real-space covariance checks."""
+"""Gaussian NLA/TATT spectra and parity-aware real-space covariance checks.
+
+Intrinsic alignments (IA) add to the shear spectra. NLA (nonlinear
+alignment) adds E-mode power only; TATT (tidal alignment and tidal
+torquing) also adds B-mode power through its quadratic (A2) and
+density-weighting (B_TA) terms, and reduces to NLA when both are zero.
+In real space xi+ combines E + B power and xi- combines E - B, so B-mode
+power enters the covariance with sign +1 in the (xi+, xi+) and (xi-, xi-)
+blocks and -1 in the cross block. The survey fixture and the spectra
+helper come from test_covariance_nonlimber.py.
+"""
 
 import ctypes
 
@@ -10,7 +20,19 @@ from test_covariance_nonlimber import survey, spectra
 
 
 def set_alignment(model, a2=(0.0, 0.0), bta=(0.0, 0.0)):
-    """Use independent per-bin amplitudes in the core's established convention."""
+    """Use independent per-bin amplitudes in the core's established convention.
+
+    ia_redshift_evolution = 2 is one amplitude per source bin; ia_code =
+    0 is the C FAST-PT; A1 = (0.6, 0.8) are the NLA amplitudes of
+    survey_inputs.py.
+
+    Arguments:
+      model = 0 (NLA) or 1 (TATT).
+      a2, bta = per-bin TATT amplitudes A2 and B_TA.
+
+    Returns:
+      nothing; cosmolike's IA state is changed.
+    """
     ci.init_IA(ia_model=model, ia_redshift_evolution=2, ia_code=0)
     ci.set_nuisance_ia(A1=[0.6, 0.8], A2=list(a2), B_TA=list(bta))
 
@@ -33,6 +55,8 @@ def test_tatt_against_data_vector_projection(survey):
     edges, library = survey
     ell = np.array([10., 50., 200., 1000., 5000.])
     ci.init_accuracy_boost(accuracy_boost=2, integration_accuracy=2)
+    # the data-vector integrator, called through ctypes:
+    # C_ss_tomo_limber_nointerp_ells(ell[], n_ell, n_pairs, EE[][], BB[][])
     pointer = ctypes.POINTER(ctypes.c_double)
     library.C_ss_tomo_limber_nointerp_ells.argtypes = [
         pointer, ctypes.c_int, ctypes.c_int,
@@ -48,13 +72,17 @@ def test_tatt_against_data_vector_projection(survey):
             ell.ctypes.data_as(pointer), len(ell), 3,
             row_addresses(values=ee), row_addresses(values=bb),
         )
+        # the three source pairs, as field indices of the covariance
+        # spectra (lenses are fields 0-1, sources 2-3); the comparison
+        # error is relative to each pair's largest |value| (5e-4 allows
+        # for the different radial grids of the two integrators)
         source_pairs = ((2, 2), (2, 3), (3, 3))
         measured_e = np.array([actual["spectra"][:, i, j] for i, j in source_pairs])
         measured_b = np.array([actual["b_spectra"][:, i, j] for i, j in source_pairs])
         if base is None:
             base = (measured_e.copy(), ee.copy())
         else:
-            # Subtract NLA from both projections to isolate the new TATT
+            # Subtract NLA from both projections to isolate the TATT
             # contribution, independently of their lensing-window grids.
             expected_e = ee-base[1]
             change_e = measured_e-base[0]
@@ -76,13 +104,24 @@ def test_tatt_against_data_vector_projection(survey):
 
 
 def test_b_covariance_signs_and_noise_once():
-    """Compare the added BB Wick covariance with a direct finite ell sum."""
+    """Compare the added BB Wick covariance with a direct finite ell sum.
+
+    B-mode power B_l adds 2 (B_l^2 + 2 B_l N)/((2l+1) f_sky) per multipole
+    (the Gaussian, or Wick, covariance of a B field with shape noise N;
+    f_sky = area/4pi), projected by the angular-bin operators with sign +1
+    in the (xi+, xi+) and (xi-, xi-) blocks and -1 across. The pure-noise
+    N^2 term belongs to the E part and must not be added a second time
+    ("noise once").
+    """
     ell = np.arange(2, 21, dtype=float)
     spectra_e = np.zeros((len(ell), 3, 3))
     spectra_b = np.zeros_like(spectra_e)
     spectra_e[:, 1, 1] = 2.e-5/(ell+1)
     spectra_b[:, 1, 1] = 3.e-6/(ell+1)
     noise = np.array([1.e-8, 4.e-7, 5.e-7])
+    # rows (probe, A, B): xi+ and xi- of field 1 (a source), and gamma_t
+    # of field 0 (a lens) with field 1; operators = per-probe angular-bin
+    # weights [probe, angular bin, multipole]
     rows = np.array([[0, 1, 1], [1, 1, 1], [2, 0, 1]], dtype=np.int32)
     operators = np.ones((4, 2, len(ell)))
     operators[:, 1] *= np.linspace(0.5, 1.2, len(ell))
@@ -154,6 +193,8 @@ def test_gaussian_options_leave_ssc_cng_unchanged(survey):
             np.testing.assert_array_equal(actual["ssc_normalization_signal"],
                                           reference["ssc_normalization_signal"])
             assert np.any(actual["gaussian"] != reference["gaussian"])
+        # the total, normalized to unit diagonal (a correlation matrix),
+        # must be positive definite: its smallest eigenvalue is positive
         scale = np.sqrt(np.outer(np.diag(actual["total"]), np.diag(actual["total"])))
         assert np.linalg.eigvalsh(actual["total"]/scale)[0] > 0.0
     set_alignment(model=0)

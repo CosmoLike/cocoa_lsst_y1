@@ -1,4 +1,18 @@
-"""Check mask-derived pair counts against direct spherical geometry."""
+"""Check mask-derived pair counts against direct spherical geometry.
+
+The pure shot/shape-noise part of the Gaussian covariance of a
+correlation function is inversely proportional to the pair area of its
+angular bin: the area, in sr^2, of all ordered pairs of points inside the
+survey footprint whose separation falls in the bin. On the full sky it is
+4 pi x 2 pi (cos theta_low - cos theta_high); a finite footprint loses
+the pairs that cross its boundary, which mask_pair_area_cov
+(cosmolike/covariances/mask_cov.c) computes from the harmonic spectrum of
+the mask. The tests compare it with the full-sky formula and with an
+independent high-precision calculation for a spherical cap (a circular
+footprint) in cosmolike_notebook_utils/covariance/reference/. The C
+functions are called through ctypes (argtypes and restype declare each
+function's C signature).
+"""
 
 import ctypes
 import unittest
@@ -20,7 +34,12 @@ class CovarianceMask(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        """Load the repository references and project C symbols."""
+        """Load the repository references and project C symbols.
+
+        Declares the C signatures of mask_pair_area_cov,
+        gaussian_noise_pair_cov and realspace_operator_cov, and starts
+        with four OpenMP threads.
+        """
         import cosmolike_lsst_y1_interface as ci
         from cosmolike_notebook_utils.covariance.reference import mask_reference
         from cosmolike_notebook_utils.covariance.reference import ssc_reference
@@ -48,7 +67,19 @@ class CovarianceMask(unittest.TestCase):
         cls.library.omp_set_num_threads(4)
 
     def kernels(self, edges, ell_max):
-        """Build scalar bin operators with mask monopole and dipole retained."""
+        """Build scalar bin operators with mask monopole and dipole retained.
+
+        realspace_operator_cov writes four blocks of nbin rows (one per
+        probe; 256 quadrature nodes per bin); the last block is the
+        scalar (spin-0) bin average that the pair area needs.
+
+        Arguments:
+          edges   = angular bin edges [radians].
+          ell_max = largest multipole of the operators.
+
+        Returns:
+          array [nbin, ell_max + 1].
+        """
         edges = np.ascontiguousarray(edges, dtype=float)
         nbin = len(edges)-1
         output = np.empty((4*nbin, ell_max+1))
@@ -59,7 +90,21 @@ class CovarianceMask(unittest.TestCase):
         return output[3*nbin:].copy()
 
     def pair_areas(self, area, edges, mask, kernel):
-        """Return C pair areas with sentinel-protected output and live inputs."""
+        """Return C pair areas with sentinel-protected output and live inputs.
+
+        The output array has three more slots than bins, prefilled with
+        the sentinel 887.5 (a value the C function never writes); they
+        must keep it, which detects a write past the last bin.
+
+        Arguments:
+          area   = footprint area [sr].
+          edges  = angular bin edges [radians].
+          mask   = harmonic spectrum of the mask, multipoles 0..L.
+          kernel = the scalar operators of kernels().
+
+        Returns:
+          pair areas [sr^2], one per bin.
+        """
         pointer = ctypes.POINTER(ctypes.c_double)
         edges = np.ascontiguousarray(edges, dtype=float)
         mask = np.ascontiguousarray(mask, dtype=float)
@@ -76,11 +121,16 @@ class CovarianceMask(unittest.TestCase):
         """All-sky pair area and the auto-clustering Wick factor are analytic."""
         edges = np.array([0.0, 0.001, 0.002, 0.1, 0.5, np.pi])
         kernel = self.kernels(edges=edges, ell_max=2)
+        # the full-sky mask spectrum: monopole 4 pi, nothing else; then
+        # pair area = 8 pi^2 (cos lower - cos upper), written as
+        # 2 sin(mid) sin(width/2) to avoid cancellation
         actual = self.pair_areas(area=4*np.pi, edges=edges,
                                  mask=np.array([4*np.pi, 0.0, 0.0]), kernel=kernel)
         width = 2*np.sin((edges[1:]+edges[:-1])/2)*np.sin(np.diff(edges)/2)
         expected = 8*np.pi**2*width
         np.testing.assert_allclose(actual, expected, rtol=3.e-15)
+        # one lens catalog (all four field IDs 0): the auto-clustering
+        # noise covariance is 2 N^2/pair area (two Wick pairings)
         fields = np.zeros(4, dtype=np.int32)
         noise = np.array([2.e-7, 2.e-7])
         result = self.library.gaussian_noise_pair_cov(
@@ -91,6 +141,10 @@ class CovarianceMask(unittest.TestCase):
 
     def test_cap_geometry_and_mask_refinement(self):
         """Harmonic mask sums converge to independent 60-digit cap intersections."""
+        # 20 log-spaced bins from 2.5 to 250 arcmin, in radians, and the
+        # LSST Y1 area of 12300 deg^2 in sr; the error must fall below
+        # 2e-7 and 100 times below its value at L = 1024 as the mask's
+        # multipole cutoff L grows
         edges = np.geomspace(2.5, 250.0, 21)*np.pi/(180*60)
         area = 12300*(np.pi/180)**2
         kernel = self.kernels(edges=edges, ell_max=32768)
@@ -130,5 +184,7 @@ class CovarianceMask(unittest.TestCase):
         self.library.omp_set_num_threads(4)
 
 
+# __name__ is "__main__" only when this file runs directly as a
+# script; pytest imports the module instead
 if __name__ == "__main__":
     unittest.main()

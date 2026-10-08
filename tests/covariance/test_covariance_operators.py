@@ -1,8 +1,19 @@
 """Independent checks of full-sky spin-bin and discrete Fourier operators.
 
+An operator turns harmonic quantities into binned observables. The
+real-space operator K_l(bin) gives a bin-averaged correlation function
+from the angular power spectrum, xi(bin) = sum_l K_l(bin) C_l; its four
+probes use spin-weighted functions of the angle with spin pairs (2, 2)
+for xi+, (2, -2) for xi-, (2, 0) for gamma_t and (0, 0) for w(theta),
+written as Jacobi polynomials. The bandpower operator averages C_l over
+an integer band [first, last] with weights (2l + 1)/sum(2l + 1). The
+same operators project the harmonic covariance onto binned observables.
+
 The independent reference integrates Jacobi polynomials and independently
 checks their spin convention with high-precision factorial rotation sums.
-This test does not certify a survey covariance or its ell cutoff.
+This test does not certify a survey covariance or its ell cutoff. The C
+functions are called through ctypes (argtypes and restype declare their
+C signatures).
 """
 
 import ctypes
@@ -49,7 +60,21 @@ class CovarianceOperators(unittest.TestCase):
         cls.library.omp_set_num_threads(4)
 
     def angular(self, edges, ell_max, nquad):
-        """Build four operators with sentinel columns after every output row."""
+        """Build four operators with sentinel columns after every output row.
+
+        Each output row has three extra columns prefilled with the sentinel
+        713.25, which the C code must leave in place (a write past the row
+        would overwrite it).
+
+        Arguments:
+          edges   = angular bin edges [radians].
+          ell_max = largest multipole.
+          nquad   = Gauss-Legendre nodes per angular integration panel.
+
+        Returns:
+          array [4 probes, nbin, ell_max + 1], probes in the order xi+,
+          xi-, gamma_t, w.
+        """
         edges = np.ascontiguousarray(edges, dtype=float)
         nbin = len(edges)-1
         storage = np.full((4*nbin, ell_max+4), 713.25)
@@ -61,7 +86,17 @@ class CovarianceOperators(unittest.TestCase):
         return storage[:, :ell_max+1].reshape(4, nbin, ell_max+1).copy()
 
     def bands(self, first, last, ell_min, nell):
-        """Build inclusive integer bands, preserving padding and input arrays."""
+        """Build inclusive integer bands, preserving padding and input arrays.
+
+        Arguments:
+          first, last = first and last multipole of each band (inclusive).
+          ell_min = the multipole of column 0.
+          nell    = number of multipole columns.
+
+        Returns:
+          array [n_band, nell] of band weights; the three sentinel
+          columns (-719.5) must survive the call.
+        """
         first = np.ascontiguousarray(first, dtype=np.int32)
         last = np.ascontiguousarray(last, dtype=np.int32)
         storage = np.full((len(first), nell+3), -719.5)
@@ -77,6 +112,7 @@ class CovarianceOperators(unittest.TestCase):
         """Check low degrees, tiny xi- and broad bins at 60-digit precision."""
         edges = np.array([0.0007, 0.001, 0.1, 0.5])
         actual = self.angular(edges=edges, ell_max=9, nquad=64)
+        # the spin pairs of the four probes: xi+, xi-, gamma_t, w
         pairs = [(2, 2), (2, -2), (2, 0), (0, 0)]
         for probe, (first, second) in enumerate(pairs):
             for row in range(3):
@@ -88,11 +124,15 @@ class CovarianceOperators(unittest.TestCase):
                     np.testing.assert_allclose(
                         actual[probe, row, ell], expected, rtol=5.e-13, atol=0,
                     )
+        # spin-2 probes have no l = 0, 1 modes; the scalar monopole of a
+        # bin average is 1/(4 pi)
         np.testing.assert_array_equal(actual[:3, :, :2], 0.0)
         np.testing.assert_allclose(actual[3, :, 0], 1/(4*np.pi), rtol=3.e-15)
 
     def test_high_ell_independent_polynomials(self):
         """Check every bin through ell=50000 with SciPy's polynomial evaluator."""
+        # 20 log-spaced bins from 2.5 to 250 arcmin, in radians; errors
+        # are measured relative to the mode density (2l+1)/(4 pi)
         edges = np.geomspace(2.5, 250.0, 21)*np.pi/(180*60)
         multipoles = np.array([2, 3, 10, 100, 1000, 10000, 30000, 50000])
         actual = self.angular(edges=edges, ell_max=50000, nquad=512)
@@ -136,6 +176,7 @@ class CovarianceOperators(unittest.TestCase):
 
     def test_high_multipole_wide_bin_against_antiderivative(self):
         """Resolve the widest LSST bin through ell=100000 independently of GL."""
+        # the last of the 26 LSST-Y1 bins (2.5 to 900 arcmin), in radians
         edges = np.geomspace(2.5, 900.0, 27)[-2:]*np.pi/(180*60)
         ell = np.arange(20000, 100001, 500)
         lower, upper = np.cos(edges)
@@ -155,6 +196,9 @@ class CovarianceOperators(unittest.TestCase):
     def test_precomputed_rule_floor_and_polynomial_integrals(self):
         """Accept only tabulated rules >=64, checking their nodes and weights."""
         import cosmolike_lsst_y1_interface as ci
+        # each tabulated Gauss-Legendre rule on [-1, 1] must integrate
+        # x^degree exactly: 2/(degree+1) for even degrees; other node
+        # counts are refused
         for count in (64, 96, 128, 256, 512, 1024):
             nodes, weights = ci.covariance_integration_rule(nquad=count)
             self.assertTrue(np.all(np.diff(nodes) > 0.0))
@@ -197,6 +241,12 @@ class CovarianceOperators(unittest.TestCase):
         # Their one-rounding difference can reach one binary64 ulp.
         np.testing.assert_allclose(operators, expected, rtol=5.e-16, atol=0)
         np.testing.assert_allclose(operators.sum(axis=1), 1, rtol=3.e-16)
+        # a Gaussian harmonic covariance wick/((2l+1) f_sky) projected
+        # onto the bands: np.einsum("il,l,jl->ij", A, w, A) is
+        # sum_l A[i,l] w[l] A[j,l], the matrix A diag(w) A^T (optimize=False
+        # keeps a fixed summation order). Bands that share no multipole
+        # (bands 0 and 1) are uncorrelated; overlapping ones (1 and 3)
+        # are positively correlated.
         fsky = 0.3
         wick = 7.0
         covariance = np.einsum("il,l,jl->ij", operators, wick/((2*ell+1)*fsky),
@@ -205,10 +255,14 @@ class CovarianceOperators(unittest.TestCase):
                                    rtol=3.e-16)
         self.assertEqual(covariance[0, 1], 0.0)
         self.assertGreater(covariance[1, 3], 0.0)
+        # a constant connected covariance (2.5 for every l, m) stays 2.5
+        # after projection, because every band's weights sum to one
         connected = np.einsum("il,lm,jm->ij", operators,
                               np.full((len(ell), len(ell)), 2.5), operators)
         np.testing.assert_allclose(connected, 2.5, rtol=6.e-16)
 
 
+# __name__ is "__main__" only when this file runs directly as a
+# script; pytest imports the module instead
 if __name__ == "__main__":
     unittest.main()

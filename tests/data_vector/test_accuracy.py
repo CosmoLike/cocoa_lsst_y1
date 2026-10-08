@@ -4,14 +4,14 @@ Every reference in this suite is computed with the examples' default
 numerical settings. These checks answer: how much numerical error do
 those defaults carry? Each one re-evaluates a frozen configuration at
 its frozen point with the numerical knobs pushed far beyond the
-defaults (cosmolike: accuracyboost 2, integration_accuracy 10,
-lmax 200000, kmax_boltzmann 40; CAMB: AccuracyBoost 2.0,
-k_per_logint 50, kmax 50; the exact values live in
+defaults (cosmolike: accuracyboost 3, internal_accuracyboost 2,
+integration_accuracy 10, lmax 200000, kmax_boltzmann 40; CAMB:
+AccuracyBoost 2.0, k_per_logint 50, kmax 50; the exact values live in
 cocoa_test_utils.HIGH_ACCURACY_*) and reports
 
     delta chi2 = chi2(high accuracy) - chi2(default, frozen)
 
-There is NO pass/fail: how much numerical error an analysis tolerates
+There is no pass/fail: how much numerical error an analysis tolerates
 is a judgment call. The six checks cover the three probes with both
 IA models:
 
@@ -25,11 +25,11 @@ chi2 sits at a minimum and the delta is a stable, quadratic response
 instead of a linear one.
 
 Before the all-knobs checks, one scan (K) evaluates each accuracy
-knob ALONE on the example2 NLA configuration, so a large all-knobs
+knob alone on the example2 NLA configuration, so a large all-knobs
 delta can be attributed to the knob causing it. The scan includes
-accuracyboost 5 as a stress knob: past experience (desy1xplanck) is
-that extreme boosts can break an interface rather than refine it,
-and the one-at-a-time delta is what tells those cases apart.
+accuracyboost 5 as a stress knob: in desy1xplanck that boost breaks
+the interface instead of refining it (a suspected fixed-size table),
+and the one-at-a-time delta is what tells such cases apart.
 
 One opt-in check extends the scan beyond the fiducial: the
 N-random-models check evaluates the same delta at N reproducible
@@ -63,7 +63,7 @@ and to run the rest of the suite without it:
 import os
 
 # OpenMP reads OMP_NUM_THREADS when the compiled libraries load, so
-# this must run before ANY cobaya/cosmolike import in the process.
+# this must run before any cobaya/cosmolike import in the process.
 os.environ["OMP_NUM_THREADS"] = "4"
 
 import math
@@ -72,7 +72,7 @@ import unittest
 
 # The tests folder is not a package; put it on the import path so the
 # shared harness resolves no matter where pytest was launched from.
-# insert(0, ...) puts the folder FIRST in the search order, ahead of
+# insert(0, ...) puts the folder first in the search order, ahead of
 # every other place a same-named module could hide.
 sys.path.insert(0, os.path.dirname(os.path.dirname(
     os.path.abspath(__file__))))
@@ -93,6 +93,7 @@ class TestAccuracyAdvisory(unittest.TestCase):
     # the first test of the class
     @classmethod
     def setUpClass(cls):
+        """Move to ROOTDIR, verify the frozen state, load the references."""
         u.require_cocoa_environment()
         u.verify_frozen()
         cls.reference = u.load_reference()
@@ -107,6 +108,9 @@ class TestAccuracyAdvisory(unittest.TestCase):
           tatt    = True evaluates the TATT variant against the
                     TATT-generated data vector, False the NLA one.
           label   = one line naming the probe and IA model.
+
+        Returns:
+          nothing; the delta is printed and nothing is asserted.
         """
         chi2_high = u.single_model_chi2(example, tatt, high_accuracy=True)
         # ternary: the reference key ends in "tatt" or "nla", the
@@ -170,7 +174,7 @@ class TestAccuracyAdvisory(unittest.TestCase):
         the one frozen fiducial point. This check measures it at N
         reproducible random points across the prior of the example2
         (3x2pt, NLA) configuration instead. For each point a
-        synthetic data vector is generated AT that point with the
+        synthetic data vector is generated at that point with the
         default settings, so the default chi2 against it is zero by
         construction and the high-accuracy chi2 against it is the
         delta directly (the mechanism lives in

@@ -1,4 +1,4 @@
-"""Regenerate the photo-z convention figures the tests README shows.
+"""Regenerate the photo-z convention figures stored in tests/.
 
 Evaluates the frozen cosmic-shear fiducial under the four runtime
 photo-z settings (cspline/Z_LOW default, linear, Steffen, Z_MID; see
@@ -24,20 +24,31 @@ start_cocoa.sh sourced):
 
 import os
 
+# OpenMP reads OMP_NUM_THREADS when the compiled libraries load, so
+# this must run before any cobaya/cosmolike import in the process
+# (4 threads, the count the frozen references were generated with)
 os.environ["OMP_NUM_THREADS"] = "4"
 
 import sys
 import shutil
 import tempfile
 
+# "Agg" is matplotlib's file-only backend: figures are written to PNG
+# files without opening a window, so the script also runs on a machine
+# without a display. It must be chosen before pyplot is imported.
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
+# tests/ is not a package; put it first on the import path so
+# cocoa_test_utils resolves from any working directory
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import cocoa_test_utils as u
 
+# The frozen cosmic-shear configuration and its binning: NTOMO source
+# bins, NTHETA log-spaced angular bins between THETA_MIN and THETA_MAX
+# [arcmin], and the M1 scale-cut mask of the frozen contract.
 EXAMPLE = "example1"
 NTOMO = 5
 NTHETA = 26
@@ -46,12 +57,22 @@ MASK_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                          "frozen", "data",
                          "lsst_y1_M1_GGLOLAP0.05.mask")
 
+# (report tag, photoz_interpolation_type, photoz_zmid_convention); the
+# first entry is the default every other setting is compared with
 SETTINGS = (("cspline/Z_LOW (default)", 0, 0), ("linear", 1, 0),
             ("steffen", 2, 0), ("Z_MID", 0, 1))
 
 
 def datavectors():
-    """The printed theory vector under each setting, keyed by tag."""
+    """Return the printed theory vector under each setting, keyed by tag.
+
+    Builds one model per SETTINGS entry on the frozen fiducial, with
+    print_datavector writing the theory vector into a temporary folder
+    that is removed afterwards, also after an error.
+
+    Returns:
+      {tag: 1D float array of the full data-vector length}.
+    """
     vectors_dir = tempfile.mkdtemp(prefix="photoz_conventions_fig_")
     out = {}
     try:
@@ -74,19 +95,41 @@ def datavectors():
 
 
 def plot(curves, fname, title, scale=100.0, unit="%", ylim=None):
-    """One 3x5 per-pair panel grid in the notebook-plotter layout.
+    """Draw one 3x5 grid of panels, one per source pair, and save it.
 
-    curves = {label: (dxi_plus, dxi_minus)}, each a (npair, NTHETA)
-    fractional-difference array with NaN at masked bins.
+    The layout of the notebook plotters: 15 source pairs (i <= j),
+    panels glued edge to edge, solid xi_+ and dashed xi_- curves.
+
+    Arguments:
+      curves = {label: (dxi_plus, dxi_minus)}, each a (npair, NTHETA)
+               fractional-difference array with NaN at masked bins.
+      fname  = PNG file name, written next to this script (tests/).
+      title  = figure title.
+      scale  = factor applied to the fractions before plotting (100
+               for percent).
+      unit   = text of the y-axis unit.
+      ylim   = None, or the half-width of a fixed y range in plotted
+               units.
+
+    Returns:
+      nothing; the PNG file is written and the figure closed.
     """
+    # theta = the area-weighted centers of the log-spaced bins,
+    # (2/3)(t_max^3 - t_min^3)/(t_max^2 - t_min^2) for each bin, the
+    # convention of cosmolike's angular bins
     theta = np.geomspace(THETA_MIN, THETA_MAX, NTHETA + 1)
     theta = (2.0 / 3.0) * (theta[1:]**3 - theta[:-1]**3) \
                         / (theta[1:]**2 - theta[:-1]**2)
+    # every source pair (i, j) with i <= j, in data-vector order
     pairs = [(i, j) for i in range(NTOMO) for j in range(i, NTOMO)]
     fig, axes = plt.subplots(nrows=3, ncols=5, figsize=(20, 9),
                              sharex=True, sharey=True,
                              gridspec_kw={"wspace": 0, "hspace": 0})
     cm = plt.get_cmap("gist_rainbow")
+    # axes.ravel() lists the 15 panels row by row; panel p shows pair p.
+    # Only panel 0 labels its curves, so the legend lists each once;
+    # panels 10-14 form the bottom row (x labels), and p % 5 == 0 is
+    # the first column (y labels).
     for p, (i, j) in enumerate(pairs):
         ax = axes.ravel()[p]
         for q, (label, (dp, dm)) in enumerate(curves.items()):
@@ -116,22 +159,39 @@ def plot(curves, fname, title, scale=100.0, unit="%", ylim=None):
 
 
 def main():
+    """Evaluate the four settings and write the two figures.
+
+    Returns:
+      nothing; photoz_zmid_dxi.png and photoz_interp_dxi.png are
+      written into tests/.
+
+    Raises:
+      RuntimeError when Cocoa is not activated; AssertionError when
+      the frozen state does not match the manifest.
+    """
     u.require_cocoa_environment()
     u.verify_frozen()
     dv = datavectors()
 
+    # the mask file has two columns (entry index, 0/1); keep the second
     mask = np.loadtxt(MASK_FILE)
     mask = mask[:, 1] if mask.ndim == 2 else mask
+    # npair = 15 source pairs; nxi = entries of one xi block (xi_+ or
+    # xi_-), 15 x 26 = 390
     npair = NTOMO * (NTOMO + 1) // 2
     nxi = npair * NTHETA
 
     def frac(tag):
+        """Return [dxi_plus, dxi_minus] of one setting, each (npair, NTHETA)."""
         # first the xi_plus block, then xi_minus; fractional difference
         # against the default, NaN where the mask removes the point
         ref, cur = dv[SETTINGS[0][0]], dv[tag]
         out = []
         for s in range(2):
             sl = slice(s * nxi, (s + 1) * nxi)
+            # errstate silences numpy's divide-by-zero warnings inside
+            # the with-block: masked entries are 0 in both vectors, and
+            # np.where replaces their 0/0 by NaN
             with np.errstate(divide="ignore", invalid="ignore"):
                 d = np.where(mask[sl] > 0, cur[sl] / ref[sl] - 1.0, np.nan)
             out.append(d.reshape(npair, NTHETA))
@@ -148,5 +208,7 @@ def main():
          unit=r"$10^{-4}$", ylim=8.0)
 
 
+# __name__ is "__main__" only when this file runs directly as a
+# script, not when it is imported
 if __name__ == "__main__":
     main()

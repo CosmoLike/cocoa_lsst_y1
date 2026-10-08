@@ -12,19 +12,34 @@ The tests answer two questions about the lsst_y1 likelihoods:
      fresh evaluation of the same point. That class of bug is called a
      race condition or a state leak.
 
-Beyond the eight pass/fail tests, the suite carries: three FASTPT
-comparison tests (the TATT terms computed by the python FAST-PT
-package instead of the C implementation cfastpt: two at the frozen
-fiducial point against frozen references, and one sweep comparing the
-two implementations directly at 20 hard-coded points across the
-intrinsic-alignment prior), a quartet of tests on the 2x2pt
-likelihood (example2 with the probe selection reduced to clustering
-plus galaxy-galaxy lensing), and ADVISORY checks of the EMUL2
-examples (machine-learning emulators in place of the Boltzmann code;
-see test_emul2.py: no pass/fail, only the measured accuracy and a
-recommendation).
+Beyond these eight pass/fail tests (test_example1.py and
+test_example2.py), the data_vector folder holds more checks built on
+this harness:
 
-Everything a test evaluates is FROZEN: stored under tests/frozen/ and
+  - test_example2_2x2pt.py (tests 11-14): tests 5-8 on the 2x2pt
+    likelihood (example2 with the probe selection reduced to
+    clustering plus galaxy-galaxy lensing);
+  - test_fastpt.py (tests 9, 10 and 15-17): the TATT terms computed by
+    the python FAST-PT package instead of cfastpt, the C
+    implementation inside cosmolike: two tests at the frozen fiducial
+    point against frozen references, and three sweeps comparing the
+    two implementations directly at the 30 FASTPT_COMPARISON_POINTS;
+  - test_ee2.py (tests 18, 19): the installed EuclidEmulator2 against
+    its unmodified original, and the race check with EE2 on;
+  - test_nonlinear.py (NL1, NL2), test_emul2.py (E1-E4, the EMUL2
+    examples: machine-learning emulators in place of the Boltzmann
+    code), test_accuracy.py (A0-A6 and the N-random-models check) and
+    test_accuracy_baryons.py (BF0-BF7): advisory checks, which print
+    measurements and do not fail on their size;
+  - test_baryons.py (BD1-BD7): the baryonic-feedback predictions
+    against vectors frozen with them;
+  - test_cache_consistency.py, test_photoz_conventions.py,
+    test_nonlimber_gg.py, test_nonlimber_ggl.py and
+    test_scale_cut_diagnostics.py: checks of single cosmolike features
+    (cache invalidation, n(z) conventions, non-Limber projections,
+    scale-cut diagnostics).
+
+Everything a test evaluates is frozen: stored under tests/frozen/ and
 pinned by a SHA-256 hash (a 64-character fingerprint that changes when
 any byte of the file changes) in tests/manifest_sha256.json. The live
 project configuration is never read, so a user can edit the examples,
@@ -42,7 +57,11 @@ tests. The frozen state has three parts:
     copy, a later edit to a live default file is shadowed and cannot
     reach the test.
   - frozen/data/: the tests' own copy of the data vectors, covariance,
-    n(z), and masks. (The EMUL2 trained-network files are NOT copied:
+    n(z), and masks, plus the vectors the generator wrote (the TATT
+    and baryonic-feedback ones) and their ".dataset" files (the small
+    text files that name a likelihood's data files, one
+    "key = filename" line each). (The EMUL2 trained-network files are
+    not copied:
     they live in external_modules/data/emultrf, pinned by the EMULTRF
     keys in set_installation_options.sh. When a retrained network
     replaces them the emulator chi2 changes, and measuring that
@@ -51,9 +70,10 @@ tests. The frozen state has three parts:
     freeze time, kept only so a human can diff what changed in the live examples
     since the freeze; no test reads them.
 
-Every test first verifies the manifest and refuses to run when any
-frozen file changed. Refreshing the frozen state is a deliberate
-maintainer action: generate_frozen_reference.py --overwrite.
+Every test class (all but test_scale_cut_diagnostics.py) first
+verifies the manifest and refuses to run when any frozen file
+changed. Refreshing the frozen state is a deliberate maintainer
+action: generate_frozen_reference.py --overwrite.
 
 Call flow, top to bottom (the MAP OF THIS FILE below the imports says
 where each definition lives):
@@ -119,17 +139,21 @@ import tempfile
 # =============================================================================
 # MAP OF THIS FILE
 # =============================================================================
-# Section 1: CONSTANTS
+# Section 1: CONSTANTS (and two small lookup helpers)
 #   paths               TESTS_DIR, FROZEN_DIR, MANIFEST_FILE, REFERENCE_FILE
 #   tolerances          REQUIRED_OMP_THREADS, CHI2_TOLERANCE, RACE_TOLERANCE
-#   TATT                TATT_POINT, TATT_DATASET
-#   FASTPT sweep        FASTPT_COMPARISON_POINTS,
-#                       FASTPT_COMPARISON_TOLERANCE, FASTPT_MASK_DATASETS
+#   TATT                TATT_POINT, TATT_DATASET, FASTPT_MASK_DATASETS
 #   Halofit vs EE2      NONLINEAR_COMPARISON_POINTS
+#   FASTPT sweep        FASTPT_COMPARISON_POINTS,
+#                       FASTPT_COMPARISON_TOLERANCE, FASTPT_LOW_SETTINGS,
+#                       FASTPT_HIGH_SETTINGS, FASTPT_FROZEN_SETTINGS
 #   configurations      EXAMPLES
 #   race perturbations  RACE_PERTURBATIONS
 #   accuracy knobs      HIGH_ACCURACY_LIKELIHOOD,
 #                       HIGH_ACCURACY_CAMB_EXTRA_ARGS, ACCURACY_KNOBS
+#   baryonic feedback   BARYON_METHODS, _baryon_method (lookup by label),
+#                       BARYON_POINT_OVERRIDES, _baryon_dataset (the
+#                       frozen ".dataset" file of one method)
 #   random models       RANDOM_MODEL_SEED
 #
 # Section 2: ENVIRONMENT CHECKS
@@ -155,10 +179,23 @@ import tempfile
 #
 # Section 5: TEST QUANTITIES (what the test methods call)
 #   single_model_chi2  chi2 of the fiducial point on a fresh model
-#   ten_in_a_row_chi2  fiducial fresh vs fiducial as 10th of 10 (race)
-#   cfastpt_vs_fastpt_chi2s  the 20 comparison points evaluated per
+#   _load_datavector   read one printed theory vector as an array
+#   cfastpt_vs_fastpt_chi2s  the 30 comparison points evaluated per
 #                            implementation, one subprocess each
-#                            (_fastpt_comparison_block is the worker)
+#                            (_run_fastpt_comparison_worker starts the
+#                            subprocess, _fastpt_comparison_block is
+#                            the work it runs)
+#   halofit_vs_ee2_dchi2s    the ten cosmologies of NL1-NL2 per
+#                            nonlinear-P(k) source, the same pattern
+#                            (_run_nonlinear_comparison_worker,
+#                            _nonlinear_comparison_block);
+#                            report_nonlinear_comparison prints them
+#   test 18 (EE2 builds)     EE2_ORIGINAL_COMMIT, EE2_ORIGINAL_SHIM,
+#                            build_original_ee2, _ee2_comparison_block,
+#                            ee2_original_vs_cocoa_dchi2s
+#   baryon checks            baryon_accuracy_delta and baryon_drift_chi2
+#                            (the work is in their _impl functions)
+#   ten_in_a_row_chi2  fiducial fresh vs fiducial as 10th of 10 (race)
 #
 # Section 6: TERMINAL REPORTS (printers; the assertions live in the tests)
 #   report_chi2_test       pass/fail block for tests 1, 3, 5, 7
@@ -231,8 +268,8 @@ TATT_DATASET = "tatt_lsst_y1.dataset"
 
 # The comparison sweeps (tests 15-17) can rerun under a different
 # scale-cut mask (the --mask option): each entry names a frozen TATT
-# dataset descriptor identical to TATT_DATASET except for its
-# mask_file line. "frozen" is the M1 mask of the frozen contract
+# ".dataset" file identical to TATT_DATASET except for its mask_file
+# line. "frozen" is the M1 mask of the frozen contract
 # (959 of the 1,560 data points kept); M2-M5 cut progressively more
 # points (854, 749, 659, 569), M6 cuts fewer (1,378), and "ones"
 # keeps every point (no scale cuts), the strictest comparison: the
@@ -250,14 +287,14 @@ FASTPT_MASK_DATASETS = {
 
 # ---- Halofit vs EE2 comparison points ---------------------------------------
 
-# Advisory checks NL1-NL2 evaluate the SAME ten cosmologies with the two
-# nonlinear-P(k) sources the likelihood can consume (EuclidEmulator2,
+# Advisory checks NL1-NL2 evaluate the same ten cosmologies with the
+# two nonlinear-P(k) sources the likelihood can consume (EuclidEmulator2,
 # non_linear_emul: 1, and CAMB's Takahashi halofit,
-# non_linear_emul: 2, the frozen contract's setting) and compares the
-# data vectors. The points are hard-coded draws: drawn ONCE,
+# non_linear_emul: 2, the frozen contract's setting) and compare the
+# data vectors. The points are hard-coded draws: drawn once,
 # uniformly in omegam [0.26, 0.38], ns [0.93, 0.99], and As_1e9
-# [1.8, 2.4] with numpy.random.default_rng(20260923) - inside both
-# the sampled priors and EE2's training box - and written out here so
+# [1.8, 2.4] with numpy.random.default_rng(20260923) (inside both
+# the sampled priors and EE2's training box), and written out here so
 # every run evaluates exactly these cosmologies. Every other
 # parameter keeps its frozen fiducial value.
 NONLINEAR_COMPARISON_POINTS = [
@@ -275,16 +312,18 @@ NONLINEAR_COMPARISON_POINTS = [
 
 # ---- CFASTPT vs FASTPT comparison points ------------------------------------
 
-# Test 15 evaluates the SAME intrinsic-alignment points with the two
+# Tests 15-17 evaluate the same intrinsic-alignment points with the two
 # TATT perturbation-theory implementations (cfastpt, the C code inside
 # the compiled cosmolike interface, and the python FAST-PT package) and
-# compares the chi2 of each pair. The first 20 points are hard-coded
-# draws: drawn ONCE, uniformly across the prior boxes of the five TATT
-# parameters in the frozen configuration (LSST_A1_1, LSST_A1_2,
-# LSST_A2_1, LSST_A2_2 in [-5, 5]; LSST_BTA_1 in [0, 2]) with
-# numpy.random.default_rng(20250922), and written out here so every run
-# of the test evaluates exactly these points; a run-time draw would let
-# two runs disagree about what was tested. Every other parameter keeps
+# compare the two data vectors at each point. The first 20 points are
+# hard-coded draws: drawn once, uniformly across the prior boxes of
+# the five TATT parameters in the frozen configuration (LSST_A1_1,
+# LSST_A1_2, LSST_A2_1, LSST_A2_2 in [-5, 5]; LSST_BTA_1 in [0, 2])
+# with numpy.random.default_rng(20250922), and written out here so
+# every run of the test evaluates exactly these points; a run-time
+# draw would let two runs disagree about what was tested. The seed
+# values 20250922 and 20260923 above carry no meaning beyond being
+# fixed. Every other parameter keeps
 # its frozen fiducial value, so the Boltzmann cosmology is shared by
 # all the points and each evaluation only reassembles the data vector
 # with new IA amplitudes.
@@ -357,10 +396,10 @@ FASTPT_COMPARISON_POINTS = [
     # and must agree exactly: the machinery's null. The tidal
     # alignment amplitude a1 (LSST_A1_1) and the tidal torquing
     # amplitude a2 (LSST_A2_1) act alone, both signs. The remaining
-    # three parameters are exact nulls on their own - the redshift
+    # three parameters are exact nulls on their own (the redshift
     # powers LSST_A1_2 and LSST_A2_2 multiply their amplitude's
     # z-evolution, and the tidal-alignment bias LSST_BTA_1 weights
-    # the a1 term - so each rides on the amplitude that activates it,
+    # the a1 term), so each rides on the amplitude that activates it,
     # and its effect is read against the matching amplitude-only
     # point (26 and 27 against 22; 28 and 29 against 24; 30 against
     # 22). The amplitude 4 sits inside the [-5, 5] prior box at the
@@ -402,7 +441,7 @@ FASTPT_COMPARISON_POINTS = [
 # two implementations: at each comparison point both blocks print
 # their theory data vector, and the tested number is
 # delta^T C^-1 delta with delta = dv(FASTPT low) - dv(CFASTPT) and
-# C^-1 the masked inverse covariance - the chi2 OF the implementation
+# C^-1 the masked inverse covariance: the chi2 of the implementation
 # difference, zero when the vectors agree. The raw chi2 values are
 # also printed, but only as information: across the IA prior they are
 # large (the points sit far from the data vector), so their
@@ -411,14 +450,13 @@ FASTPT_COMPARISON_POINTS = [
 # measures the distance from the data, not the numerics (the same
 # reason the accuracy checks evaluate at a chi2 minimum).
 #
-# The value 0.2 is the house comfort band of the reference tests,
-# reachable because FASTPT_LOW_SETTINGS carries the converged
-# two-grid configuration (decision record, 2026-09-22: max delta
-# chi2 over the comparison points 0.008185 at the rebased defaults;
-# the historical single-grid default reached 21.4 across the entire
-# prior, and the divergence was the density of the table cosmolike
-# interpolates linearly, not the FFTLog convolutions - see the
-# settings comment below).
+# The value 0.2 equals CHI2_TOLERANCE, the band of the reference
+# tests. FASTPT_LOW_SETTINGS (two grids, below) stays far inside it:
+# its largest delta chi2 over the comparison points is 0.008185. A
+# single grid shared by the convolutions and the output table reaches
+# 21.4 across the prior, because the density of the table cosmolike
+# interpolates linearly, not the FFTLog convolutions, limits the
+# accuracy (see the settings comment below).
 FASTPT_COMPARISON_TOLERANCE = 0.2
 
 # The python FAST-PT side has numerical settings of its own, read by
@@ -430,15 +468,17 @@ FASTPT_COMPARISON_TOLERANCE = 0.2
 # internal_accuracyboost the density of the internal grid the FFTLog
 # convolutions run on; a cubic spline in log k upsamples the terms
 # from one grid onto the other. Both boosts default to 1.0 = the
-# converged configuration, so low IS the default; it is hard-coded
+# converged configuration, so low is the default; it is hard-coded
 # here so the test keeps evaluating this exact configuration even if
 # the defaults later move (the same reasoning as the hard-coded
 # comparison points). High doubles both boosts, so the advisory
-# column shows the residual grid response of low. The camb/cosmolike
-# settings are a SEPARATE axis (the --high=1 option); the full
-# comparison covers both axes: the points go through the FASTPT side
-# four times (fastpt low and high, under the default and the
-# HIGH_ACCURACY camb/cosmolike settings).
+# column shows the residual grid response of low. kmax_boltzmann
+# [1/Mpc] is the largest k of the linear P(k) the block requests, and
+# extrap_kmax [1/Mpc] the end of its log-extrapolation (the block's
+# own defaults). The camb/cosmolike settings are a separate axis (the
+# --high=1 option); the full comparison covers both axes: the points
+# go through the FASTPT side four times (fastpt low and high, under
+# the default and the HIGH_ACCURACY camb/cosmolike settings).
 FASTPT_LOW_SETTINGS = {
     "accuracyboost": 1.0,
     "internal_accuracyboost": 1.0,
@@ -452,12 +492,12 @@ FASTPT_HIGH_SETTINGS = {
     "extrap_kmax": 250.0,
 }
 
-# The frozen references of tests 9 and 10 were generated on the
-# fastpt block's historical default: one shared 1100-point grid for
-# the convolutions and the table. Under the rebased boost semantics
-# (1.0 = the converged two-grid configuration) that grid is the
-# output density 1/5120, pinned here so the frozen chi2 values keep
-# meaning what they meant when they were generated.
+# The frozen references of tests 9 and 10 were computed on one
+# 1100-point grid shared by the convolutions and the output table. In
+# the fastpt block's boost convention (1.0 = the converged two-grid
+# configuration) that table is accuracyboost = 1/5120; pinning it
+# here keeps these tests on the configuration their references were
+# computed with.
 FASTPT_FROZEN_SETTINGS = {
     "accuracyboost": 1.0 / 5120.0,
     "internal_accuracyboost": 1.0,
@@ -471,8 +511,10 @@ FASTPT_FROZEN_SETTINGS = {
 #   "likelihood"        = the cobaya component name, needed to reach that
 #                         block inside the loaded info dictionary;
 #   "provenance"        = the human-readable snapshot (never loaded);
+#   "frozen_module"     = the file, under frozen/, holding the frozen
+#                         configuration and point;
 #   "source_likelihood" = when the frozen configuration is derived from an
-#                         example that ships a DIFFERENT likelihood (the
+#                         example that ships a different likelihood (the
 #                         2x2pt entry reuses example2 with the likelihood
 #                         swapped), the generator renames this block;
 #   "fastpt_reference"  = also freeze a TATT reference computed with the
@@ -480,7 +522,7 @@ FASTPT_FROZEN_SETTINGS = {
 #                         FASTPT tests have their own baseline;
 #   "emulator"          = an EMUL2 configuration: machine-learning
 #                         emulators replace the Boltzmann code. These are
-#                         ADVISORY (no pass/fail; see test_emul2.py), and
+#                         advisory (no pass/fail; see test_emul2.py), and
 #                         "exact_reference" names the exact-physics
 #                         reference chi2 their accuracy is judged against.
 EXAMPLES = {
@@ -538,12 +580,12 @@ RACE_PERTURBATIONS = [
     {"omegab": 0.052, "mnu": 0.15},
 ]
 
-# ---- accuracy knobs ---------------------------------------------------------
+# ---- accuracy knobs: the high-accuracy settings -----------------------------
 
 # High-accuracy settings for the accuracy advisory checks
 # (test_accuracy.py): the same physics evaluated with the numerical
 # knobs pushed far beyond the defaults. The difference to the default
-# reference chi2 measures the numerical error of the DEFAULT settings.
+# reference chi2 measures the numerical error of the default settings.
 HIGH_ACCURACY_LIKELIHOOD = {
     # boost 3 is the highest value that stays healthy in every project
     # scanned (desy1xplanck breaks down above it), so the all-knobs
@@ -564,20 +606,6 @@ HIGH_ACCURACY_CAMB_EXTRA_ARGS = {
     "kmax": 50.0,               # default 5.0
 }
 
-# The one-at-a-time scan of test_accuracy.py: each entry is (label,
-# likelihood overrides, camb extra_args overrides), evaluated alone on
-# the example2 NLA configuration before the all-knobs checks, so a
-# large all-knobs delta can be attributed to the knob causing it. The
-# accuracyboost=5 entry is a stress knob: it exceeds what measuring
-# the default numerics needs, and it is kept because it exposed an
-# interface breakdown (a suspected fixed-size table) in desy1xplanck.
-# Investigation order when several knobs move the chi2: raise the
-# cosmolike accuracyboost first (cheap), then camb k_per_logint, and
-# only then camb AccuracyBoost (expensive at run time): an apparent
-# CAMB sensitivity can masquerade as unresolved cosmolike-side
-# resolution, so the cheap knobs must be settled before the expensive
-# one is blamed. kmax_boltzmann and camb kmax are one physical cutoff
-# seen from the two sides, so the scan moves them together.
 # ---- baryonic feedback methods (bfmt theory block) --------------------------
 
 # One entry per feedback method the bfmt theory block implements:
@@ -631,17 +659,19 @@ def _baryon_method(label):
     Raises:
       ValueError when label names no entry.
     """
+    # the comprehension keeps every entry whose first field equals
+    # label: a one-entry list for a known label, empty otherwise
     matches = [b for b in BARYON_METHODS if b[0] == label]
     if len(matches) != 1:
         raise ValueError(f"unknown baryon method {label!r}")
     return matches[0]
 
 
-# Cosmology shifts a method needs so its OWN training box contains
+# Cosmology shifts a method needs so its own training box contains
 # the evaluation point. BACCOemu's omega_baryon floor is 0.04001,
-# exactly above the fiducial omegab = 0.04, so its checks (and its
-# generated data vector) evaluate at omegab = 0.049 - inside the box
-# and inside the yaml prior. Generator and checks apply the SAME
+# just above the fiducial omegab = 0.04, so its checks (and its
+# generated data vector) evaluate at omegab = 0.049, inside the box
+# and inside the yaml prior. Generator and checks apply the same
 # override, so the chi2 still sits at the minimum by construction.
 BARYON_POINT_OVERRIDES = {
     "baccoemu": {"omegab": 0.049},
@@ -649,24 +679,38 @@ BARYON_POINT_OVERRIDES = {
 
 
 def _baryon_dataset(label):
-    """Dataset descriptor name for one feedback method's own vector.
+    """Return the ".dataset" file name of one feedback method's vector.
+
+    A ".dataset" file (also called a descriptor in this module) is the
+    small text file a likelihood reads first: one "key = filename" line
+    per ingredient (data vector, covariance, n(z), mask).
 
     Arguments:
       label = a BARYON_METHODS label.
 
     Returns:
-      the frozen/data descriptor file name, e.g.
-      baryon_spk_akino.dataset for "spk akino".
+      the frozen/data file name, e.g. baryon_spk_akino.dataset for
+      "spk akino" (each blank becomes "_").
     """
     return "baryon_" + label.replace(" ", "_") + ".dataset"
 
 
-# ---- accuracy knobs ---------------------------------------------------------
+# ---- accuracy knobs: the one-at-a-time scan ---------------------------------
 
 # The one-at-a-time scan of test_accuracy.py: each entry is (label,
-# likelihood overrides, camb extra_args overrides), evaluated alone
-# so a large all-knobs delta can be attributed to the knob causing
-# it.
+# likelihood overrides, camb extra_args overrides), evaluated alone on
+# the example2 NLA configuration before the all-knobs checks, so a
+# large all-knobs delta can be attributed to the knob causing it. The
+# accuracyboost=5 entry is a stress knob: it exceeds what measuring
+# the default numerics needs, and it is kept because it exposed an
+# interface breakdown (a suspected fixed-size table) in desy1xplanck.
+# Investigation order when several knobs move the chi2: raise the
+# cosmolike accuracyboost first (cheap), then camb k_per_logint, and
+# only then camb AccuracyBoost (expensive at run time): an apparent
+# CAMB sensitivity can masquerade as unresolved cosmolike-side
+# resolution, so the cheap knobs must be settled before the expensive
+# one is blamed. kmax_boltzmann and camb kmax are one physical cutoff
+# seen from the two sides, so the scan moves them together.
 ACCURACY_KNOBS = [
     ("accuracyboost 1->3", {"accuracyboost": 3.0}, {}),
     ("accuracyboost 1->5 (stress)", {"accuracyboost": 5.0}, {}),
@@ -854,7 +898,7 @@ def verify_frozen():
         elif actual[rel] != digest:
             # the file exists but at least one byte differs
             problems.append(f"CHANGED  {rel}")
-    # both directions matter: a file ADDED to frozen/ is as suspicious
+    # both directions matter: a file added to frozen/ is as suspicious
     # as an edited one, so the reverse scan runs too
     for rel in actual:
         if rel not in expected:
@@ -875,10 +919,15 @@ def load_reference():
     """Read the frozen reference chi2 values.
 
     Returns:
-      the dictionary stored in frozen/reference_chi2.json: one entry
-      per configuration ("example1_nla", "example1_tatt",
-      "example2_nla", "example2_tatt") plus a "_meta" entry recording
-      when and how the references were generated. The file sits inside
+      the dictionary stored in frozen/reference_chi2.json: one chi2
+      per variant ("example1_nla", "example1_tatt", "example2_nla",
+      "example2_tatt", the 2x2pt, FAST-PT and EMUL2 variants such as
+      "example2_2x2pt_nla", "example1_tatt_fastpt" or
+      "emul2_example1_nla", and the frozen FAST-PT minus cfastpt
+      differences "example1_fastpt_minus_cfastpt" and
+      "example2_fastpt_minus_cfastpt") plus a "_meta" entry recording
+      when and how the references were generated (the tolerance, the
+      UTC time, the OpenMP thread count). The file sits inside
       frozen/, so verify_frozen() also protects it from editing.
     """
     # json.load parses the file's JSON text back into the dictionary
@@ -893,7 +942,7 @@ def load_reference():
 # cobaya and numpy are imported inside the functions below, not at the
 # top of this module. The reason is OpenMP: OMP_NUM_THREADS must be in
 # the environment before the compiled libraries load, and it is the
-# TEST modules that set it, on their first line, before importing this
+# test modules that set it, on their first line, before importing this
 # module's callers.
 def _frozen_module(example):
     """Load one frozen configuration module from its file path.
@@ -905,7 +954,7 @@ def _frozen_module(example):
     the file being executed.
 
     Arguments:
-      example = "example1" or "example2" (a key of EXAMPLES).
+      example = a key of EXAMPLES, e.g. "example1".
 
     Returns:
       the loaded module, carrying the attributes `yaml_string` (the
@@ -929,19 +978,21 @@ def load_frozen_info(example, tatt, fastpt=False, high_accuracy=False,
                      overrides=None, baryon=None, fastpt_extra_args=None):
     """Build the cobaya input dictionary for one frozen configuration.
 
-    Starts from the frozen module's yaml string and applies the only
-    three run-time adjustments the tests need:
+    Starts from the frozen module's yaml string and applies the three
+    run-time adjustments every test needs:
 
       - the likelihood `path` is pointed at the absolute location of
         frozen/data on this machine (the frozen string stores the
         ROOTDIR-relative form, which would also resolve, but the
         absolute path is independent of the working directory);
       - `IA_model` selects the intrinsic-alignment model: 0 keeps NLA,
-        1 selects TATT;
+        1 selects TATT (which also swaps in TATT_DATASET);
       - cobaya's log level is raised to WARNING (debug: 30) so the
         component-loading chatter does not bury the test reports.
 
-    A fourth adjustment exists for the FASTPT comparison tests:
+    The other arguments add optional adjustments (high_accuracy,
+    overrides and baryon are described under Arguments). The one the
+    FASTPT comparison tests use:
     `fastpt=True` sets `IA_code: 1` (the likelihood then asks the
     python FAST-PT package for the TATT perturbation-theory terms
     instead of the C implementation cfastpt built into cosmolike) and
@@ -963,12 +1014,20 @@ def load_frozen_info(example, tatt, fastpt=False, high_accuracy=False,
                 extra_args overrides) applied on top of the frozen
                 configuration; single_model_chi2 builds this pair
                 from one ACCURACY_KNOBS entry.
+      baryon  = None, or a BARYON_METHODS label: turns
+                external_baryon_suppression on, adds the bfmt theory
+                block with that method's options, and fixes the
+                method's feedback parameters at its point.
       fastpt_extra_args = None pins the block on
-                FASTPT_FROZEN_SETTINGS, the historical grid of the
-                frozen references (see its comment); a dictionary
-                (FASTPT_LOW_SETTINGS or FASTPT_HIGH_SETTINGS) becomes
-                the block's extra_args. Only meaningful with
+                FASTPT_FROZEN_SETTINGS, the single grid the frozen
+                references were computed on (see its comment); a
+                dictionary (FASTPT_LOW_SETTINGS or FASTPT_HIGH_SETTINGS)
+                becomes the block's extra_args. Only meaningful with
                 fastpt=True.
+
+    Raises:
+      ValueError when high_accuracy is requested for an emulator
+      configuration.
 
     Returns:
       the input dictionary ready for cobaya's get_model.
@@ -1032,14 +1091,15 @@ def load_frozen_info(example, tatt, fastpt=False, high_accuracy=False,
             "path": "./external_modules/code/FAST-PT",
         }
         if fastpt_extra_args is None:
-            # the frozen references were generated on the historical
-            # default grid; FASTPT_FROZEN_SETTINGS pins it under the
-            # rebased boost semantics (see its comment)
+            # the frozen references were computed on one shared grid;
+            # FASTPT_FROZEN_SETTINGS reproduces it (see its comment)
             fastpt_extra_args = FASTPT_FROZEN_SETTINGS
         # dict(...) copies, so a caller's settings table is never
         # shared with (or mutated through) the built model
         info["theory"]["fastpt"]["extra_args"] = dict(fastpt_extra_args)
     if baryon is not None:
+        # _baryon_method returns (label, theory options, point); the
+        # label is not needed here, so it goes to the throwaway name _
         _, theory_options, baryon_point = _baryon_method(baryon)
         # the likelihood requests the suppression product only when
         # this switch is on (see external_baryon_suppression in
@@ -1083,7 +1143,7 @@ def load_frozen_point(example):
       a fresh {parameter name: value} dictionary (copied, so a caller
       may modify it without affecting later calls).
     """
-    # dict(...) builds a NEW dictionary with the same entries: the
+    # dict(...) builds a new dictionary with the same entries: the
     # caller may edit the copy without touching the frozen module
     return dict(_frozen_module(example).point)
 
@@ -1099,7 +1159,7 @@ def build_point(model, example, tatt):
 
     Arguments:
       model   = the cobaya Model the point will be evaluated on.
-      example = "example1" or "example2" (a key of EXAMPLES).
+      example = a key of EXAMPLES, e.g. "example1".
       tatt    = True replaces the TATT_POINT values (nonzero A2/BTA)
                 in the frozen point; False evaluates it unchanged.
 
@@ -1115,10 +1175,10 @@ def build_point(model, example, tatt):
     # load_frozen_point returns a copy of the frozen module's point:
     # the exact {parameter: value} table the references were computed at
     point = load_frozen_point(example)
-    # sampled = the parameters THIS model, built from today's code,
+    # sampled = the parameters this model, built from today's code,
     # expects to receive; the frozen point must cover them exactly.
     # set() collects the names for comparison by content, order
-    # ignored, and set(point) is the set of the dictionary's KEYS
+    # ignored, and set(point) is the set of the dictionary's keys
     sampled = set(model.parameterization.sampled_params())
     if sampled != set(point):
         # sampled - set(point) is set difference: the names in the
@@ -1156,7 +1216,7 @@ def evaluate_chi2(model, point, cached=False):
       cached = False recomputes every component at the point; True
                reuses stored products of components whose inputs are
                unchanged (never pass True in a test that must compare
-               two INDEPENDENT computations of the same point).
+               two independent computations of the same point).
 
     Returns:
       chi2 = -2 ln L of the single likelihood, as a plain float.
@@ -1188,7 +1248,7 @@ def draw_uniform_point(info, example, rng):
     In this project every freely varied parameter carries a uniform
     box prior (a `prior` block with `min` and `max`, for example
     As_1e9 in [0.5, 5]), so drawing each of them uniformly across its
-    box IS a draw from the prior. Two kinds of sampled parameters are
+    box is a draw from the prior. Two kinds of sampled parameters are
     not drawn and keep their frozen point value instead: those whose
     prior is a Gaussian rather than a box (`dist: norm`, no min/max;
     the photo-z shifts LSST_DZ_* and the shear calibrations LSST_M*),
@@ -1231,37 +1291,37 @@ def draw_uniform_point(info, example, rng):
 
 
 def random_model_accuracy(example, n_models, seed=RANDOM_MODEL_SEED):
-    """Delta chi2 at N random prior points, each against its own vector.
+    """Return delta chi2 at N random prior points, each against its own vector.
 
     The A1-A6 checks of test_accuracy.py measure the numerical error
-    of the default settings at ONE frozen fiducial point. This
+    of the default settings at one frozen fiducial point. This
     measures it at n_models random points across the prior instead.
     Per model m, in order:
 
       1. draw a point with draw_uniform_point, seeded with seed + m
          (see RANDOM_MODEL_SEED for why per model);
-      2. generate a synthetic data vector AT that point: a
-         DEFAULT-settings model with print_datavector enabled writes
+      2. generate a synthetic data vector at that point: a
+         default-settings model with print_datavector enabled writes
          the full-length theory vector during its evaluation. The
          vector goes into a temporary directory, never into frozen/
          (the manifest pins every byte there, so a write into it
          would fail every later test). Because the default model
          itself produced the vector, the default-settings chi2
          against it is zero by construction;
-      3. write a ".dataset" file for that vector into the same
-         temporary directory. A ".dataset" file is the small text
-         file a likelihood reads first: one "key = filename" line
+      3. write a ".dataset" file (the descriptor) for that vector into
+         the same temporary directory. A ".dataset" file is the small
+         text file a likelihood reads first: one "key = filename" line
          per ingredient (data_file = the data vector to fit, plus
          the covariance, n(z) tables, masks, baryon files). The one
          written here is the frozen ".dataset" text with a single
-         change: its data_file line now names the new vector. The
+         change: its data_file line names the new vector. The
          filenames in it are joined onto the likelihood's `path`
          option, so the temporary directory must look like a
          complete data folder: every file of frozen/data is
          symlinked in;
       4. evaluate a HIGH_ACCURACY model at the same point against the
          new descriptor. Since the vector is exact for the default
-         settings, that chi2 IS
+         settings, that chi2 is
          delta chi2 = chi2(high accuracy) - chi2(default);
       5. remove the temporary directory, also when a step failed.
 
@@ -1294,7 +1354,8 @@ def random_model_accuracy(example, n_models, seed=RANDOM_MODEL_SEED):
       generated vector's line count differs from the frozen data
       vector's (a masking or probe mismatch: the covariance and the
       masks would select the wrong entries), or when the frozen
-      descriptor does not contain exactly one data_file line;
+      descriptor holds more than one data_file line (a descriptor
+      with none fails earlier, with a TypeError from os.path.join);
       AssertionError when the drawn point and the model disagree on
       which parameters are sampled, meaning the likelihood or theory
       code gained or lost a sampled parameter since the freeze (the
@@ -1308,7 +1369,7 @@ def random_model_accuracy(example, n_models, seed=RANDOM_MODEL_SEED):
     deltas = []
     for m in range(n_models):
         rng = np.random.default_rng(seed + m)
-        # the DEFAULT-settings configuration; its params block also
+        # the default-settings configuration; its params block also
         # supplies the prior boxes the draw reads
         info = load_frozen_info(example, tatt=False)
         likelihood_block = info["likelihood"][cfg["likelihood"]]
@@ -1317,7 +1378,7 @@ def random_model_accuracy(example, n_models, seed=RANDOM_MODEL_SEED):
         # vector, descriptor, and symlinks live and die inside it
         workdir = tempfile.mkdtemp(prefix="cocoa_random_model_")
         try:
-            # the likelihood joins path + filename for EVERY file a
+            # the likelihood joins path + filename for every file a
             # descriptor names, so the temporary directory must look
             # like a complete data folder: symlink each frozen data
             # file in (a symlink reads as the original file)
@@ -1339,7 +1400,7 @@ def random_model_accuracy(example, n_models, seed=RANDOM_MODEL_SEED):
                   "default-settings model ...", flush=True)
             model = make_model(info)
             # Before evaluating, confirm the drawn point and the
-            # model agree on WHICH parameters are sampled. The point's
+            # model agree on which parameters are sampled. The point's
             # names come from the frozen configuration; the model was
             # just built from today's code. If the code gained or lost
             # a sampled parameter since the freeze, evaluating would
@@ -1382,7 +1443,7 @@ def random_model_accuracy(example, n_models, seed=RANDOM_MODEL_SEED):
             # the newline characters removed
             for line in descriptor.splitlines():
                 if line.strip().startswith("data_file"):
-                    # split("=", 1) cuts at the FIRST "=" only, so a
+                    # split("=", 1) cuts at the first "=" only, so a
                     # value containing "=" survives whole; [1] is the
                     # part after the cut, and strip() drops the
                     # blanks around it
@@ -1435,7 +1496,7 @@ def random_model_accuracy(example, n_models, seed=RANDOM_MODEL_SEED):
                   "point at high accuracy ...", flush=True)
             chi2_high = evaluate_chi2(model_high, point)
         finally:
-            # a finally block runs on EVERY exit from the try: after
+            # a finally block runs on every exit from the try: after
             # success and while an exception is on its way out alike,
             # so no failure mode leaves the directory behind to pile
             # up across runs
@@ -1450,7 +1511,7 @@ def random_model_accuracy(example, n_models, seed=RANDOM_MODEL_SEED):
 # =============================================================================
 def single_model_chi2(example, tatt, fastpt=False, high_accuracy=False,
                       knob=None, baryon=None):
-    """chi2 of the frozen fiducial point on a freshly built model.
+    """Return the chi2 of the frozen fiducial point on a freshly built model.
 
     This is the quantity tests 1, 3, 5, and 7 compare against the
     frozen reference, and the quantity the generator stores as that
@@ -1468,9 +1529,13 @@ def single_model_chi2(example, tatt, fastpt=False, high_accuracy=False,
       knob    = None, or the label of one ACCURACY_KNOBS entry; that
                 knob's overrides are applied alone (the one-at-a-time
                 scan of test_accuracy.py).
+      baryon  = None, or a BARYON_METHODS label: the feedback method
+                is switched on (see load_frozen_info) and the point
+                receives the method's BARYON_POINT_OVERRIDES entry.
 
     Returns:
-      the chi2 as a float.
+      the chi2 as a float; with baryon, None when the method rejects
+      the point (the chi2 comes out non-finite).
 
     Raises:
       ValueError when knob names no ACCURACY_KNOBS entry.
@@ -1515,8 +1580,9 @@ def single_model_chi2(example, tatt, fastpt=False, high_accuracy=False,
     print("  evaluating the fiducial point ...", flush=True)
     if baryon is not None:
         # With the feedback on, a non-finite chi2 means the method
-        # REJECTED the frozen fiducial (a training-box violation; the
-        # warning above names the offending parameter). The B-checks
+        # rejected the frozen fiducial (a training-box violation; the
+        # bfmt block's warning names the offending parameter). The
+        # baryon checks (test_baryons.py, test_accuracy_baryons.py)
         # report that as documented behavior, so hand back None
         # instead of dying on the assertion.
         try:
@@ -1560,7 +1626,7 @@ def _load_datavector(path):
 def _fastpt_comparison_block(example, fastpt, high, fastpt_settings=None,
                              label=None, vectors_dir=None,
                              reference_label=None, mask="frozen"):
-    """The 30-point sweep on ONE model: the worker half of tests 15-17.
+    """Run the 30-point sweep on one model: the worker half of tests 15-17.
 
     Builds the frozen TATT configuration with one perturbation-theory
     implementation selected (IA_code 0 = cfastpt, the C code inside
@@ -1575,18 +1641,18 @@ def _fastpt_comparison_block(example, fastpt, high, fastpt_settings=None,
 
     with C^-1 the masked inverse covariance from the compiled
     interface. That is exactly the chi2 this block would score
-    against a dataset whose data vector IS the reference block's
+    against a dataset whose data vector is the reference block's
     prediction at the same point (the construction the
     N-random-models accuracy check uses): the reference block's own
     chi2 against it is zero, so the number is a pure second-order
-    deviation - a Taylor expansion of the chi2 around its minimum
-    starts at the quadratic term - and never rides the slope of the
+    deviation (a Taylor expansion of the chi2 around its minimum
+    starts at the quadratic term) and never rides the slope of the
     distance to the shipped data.
 
-    This function is meant to run inside a FRESH python process (see
+    This function is meant to run inside a fresh python process (see
     cfastpt_vs_fastpt_chi2s): process isolation is what guarantees
     that nothing computed under the other implementation, or under
-    the other accuracy settings, survives into this block - cobaya's
+    the other accuracy settings, survives into this block. cobaya's
     caches, CAMB's state, and the C globals of the compiled cosmolike
     interface all die with their process, so there is no cache to
     flush by hand.
@@ -1723,7 +1789,7 @@ def _fastpt_comparison_block(example, fastpt, high, fastpt_settings=None,
     chi2s = []
     eval_seconds = []
     # enumerate pairs each point with a counter; start=1 makes the
-    # printed rows read 1..20 instead of 0..19
+    # printed rows read 1..30 instead of 0..29
     for i, ia_values in enumerate(FASTPT_COMPARISON_POINTS, start=1):
         for name in ia_values:
             if name not in base:
@@ -1734,7 +1800,7 @@ def _fastpt_comparison_block(example, fastpt, high, fastpt_settings=None,
         # perf_counter is a monotonic wall clock; the difference of
         # two readings is the elapsed time of the evaluation alone
         started = time.perf_counter()
-        # {**base, **ia_values} builds a NEW dictionary: the fiducial
+        # {**base, **ia_values} builds a new dictionary: the fiducial
         # entries first, then the five drawn IA values replacing their
         # fiducial counterparts; base itself stays untouched for the
         # next point
@@ -1756,7 +1822,7 @@ def _fastpt_comparison_block(example, fastpt, high, fastpt_settings=None,
         if fiducial_truth is not None:
             # the reported chi2 is measured against the regenerated
             # baseline: the quadratic form of this point's printed
-            # vector against the CFASTPT fiducial vector, which IS
+            # vector against the CFASTPT fiducial vector, which is
             # the chi2 against a dataset whose data vector is that
             # fiducial (the likelihood's own chi2 rides the stale
             # frozen-mask data vector and is discarded)
@@ -1821,9 +1887,9 @@ def _run_fastpt_comparison_worker(example, fastpt, high, fastpt_settings,
     _fastpt_comparison_block, and writes the result as json into a
     temporary file the parent reads back; its per-point progress
     lines stream to the same terminal because stdout is inherited.
-    Only the json travels through the temporary file - the printed
+    Only the json travels through the temporary file; the printed
     data vectors go into the caller's shared vectors_dir, where the
-    NEXT block reads them.
+    next block reads them.
 
     Arguments:
       example, fastpt, high, fastpt_settings, label, vectors_dir,
@@ -1831,7 +1897,8 @@ def _run_fastpt_comparison_worker(example, fastpt, high, fastpt_settings,
                 (see there).
 
     Returns:
-      the block's {"chi2s": ..., "dchi2_vs_reference": ...} result.
+      the block's {"chi2s": ..., "dchi2_vs_reference": ...,
+      "eval_seconds": ...} result.
 
     Raises:
       subprocess.CalledProcessError when the worker fails (its
@@ -1845,7 +1912,7 @@ def _run_fastpt_comparison_worker(example, fastpt, high, fastpt_settings,
     workdir = tempfile.mkdtemp(prefix="cocoa_fastpt_compare_")
     out_path = os.path.join(workdir, "result.json")
     # the child program, line by line: pin the OpenMP thread count
-    # BEFORE any import can load the compiled libraries, make tests/
+    # before any import can load the compiled libraries, make tests/
     # importable, run the block, dump the result. !r prints each
     # interpolated value as python source (quoted strings, True/False,
     # dictionaries of floats), so the generated program is valid
@@ -1873,7 +1940,7 @@ def _run_fastpt_comparison_worker(example, fastpt, high, fastpt_settings,
         with open(out_path) as f:
             result = json.load(f)
     finally:
-        # a finally block runs on EVERY exit from the try, so no
+        # a finally block runs on every exit from the try, so no
         # failure mode leaves the temporary directory behind
         shutil.rmtree(workdir, ignore_errors=True)
     if len(result["chi2s"]) != len(FASTPT_COMPARISON_POINTS):
@@ -1884,11 +1951,11 @@ def _run_fastpt_comparison_worker(example, fastpt, high, fastpt_settings,
 
 
 def cfastpt_vs_fastpt_chi2s(example, high=False, mask="frozen"):
-    """The comparison-point quantities under the three configurations.
+    """Return the comparison-point quantities under the three configurations.
 
     Tests 15-17's machinery: the same 30 hard-coded intrinsic-alignment
     points (FASTPT_COMPARISON_POINTS) evaluated three times with
-    everything else identical -
+    everything else identical:
 
       1. cfastpt (IA_code 0), the reference: its printed data vector
          at each point becomes the fiducial the other blocks are
@@ -1930,7 +1997,7 @@ def cfastpt_vs_fastpt_chi2s(example, high=False, mask="frozen"):
     Returns:
       (chi2_cfastpt, chi2_fastpt_low, chi2_fastpt_high, dchi2_low,
       dchi2_high): five lists index-aligned with
-      FASTPT_COMPARISON_POINTS - the three raw chi2 lists against
+      FASTPT_COMPARISON_POINTS: the three raw chi2 lists against
       the shipped data (informational) and the two delta^T C^-1
       delta lists against the cfastpt vectors.
     """
@@ -1962,7 +2029,7 @@ def cfastpt_vs_fastpt_chi2s(example, high=False, mask="frozen"):
 def _nonlinear_comparison_block(example, emul, label=None,
                                 vectors_dir=None, reference_label=None,
                                 mask="frozen"):
-    """The ten-cosmology sweep on ONE nonlinear-P(k) source (NL1-NL2).
+    """Run the ten-cosmology sweep on one nonlinear-P(k) source (NL1-NL2).
 
     Builds the frozen NLA configuration with one nonlinear-P(k)
     source selected (non_linear_emul 1 = EuclidEmulator2, 2 = CAMB's
@@ -1977,13 +2044,13 @@ def _nonlinear_comparison_block(example, emul, label=None,
 
     with C^-1 the masked inverse covariance of the chosen mask. The
     reference block's own chi2 against its vector is zero by
-    construction, so the number IS the chi2 the Halofit vector would
+    construction, so the number is the chi2 the Halofit vector would
     score against a dataset whose data vector is the EE2 prediction
     at the same cosmology: a zero-baseline measurement at every
     point. Each cosmology carries its own regenerated fiducial, so
     no stored data vector enters the metric anywhere.
 
-    Runs inside a FRESH python process
+    Runs inside a fresh python process
     (_run_nonlinear_comparison_worker): cobaya's caches, CAMB's
     state, and the C globals of the compiled interface die with the
     process, so nothing computed under the other P(k) source
@@ -2139,7 +2206,7 @@ def _run_nonlinear_comparison_worker(example, emul, label, vectors_dir,
 
 
 def halofit_vs_ee2_dchi2s(example, mask="frozen"):
-    """The per-cosmology Halofit-vs-EE2 differences (NL1-NL2).
+    """Return the per-cosmology Halofit-vs-EE2 differences (NL1-NL2).
 
     The ten hard-coded cosmologies (NONLINEAR_COMPARISON_POINTS)
     evaluated twice with everything else identical:
@@ -2213,20 +2280,21 @@ def report_nonlinear_comparison(label, dchi2s):
 
 # ---- the EE2 modifications check (test 18) ----------------------------------
 
-# The commit of vivianmiranda/EuclidEmulator2 BEFORE the Cocoa
-# modifications (the commented-out EE2_GIT_COMMIT alternative in
-# set_installation_options.sh). Test 18 builds it side by side and
-# scores the installed, modified EE2 against it.
+# The EuclidEmulator2 commit that precedes the Cocoa modifications,
+# in the repository EE2_URL of set_installation_options.sh (the
+# commented-out EE2_GIT_COMMIT alternative there). Test 18 builds it
+# side by side and scores the installed, modified EE2 against it.
 EE2_ORIGINAL_COMMIT = "ff59f6683069417f6b4d2fb5d59197044d424445"
 
 # The compatibility patch the original needs to run inside Cocoa at
-# all, injected into the original-EE2 worker before the model builds:
+# all, injected into the original-EE2 worker before the model builds
+# (it replaces euclidemu2.get_boost2 in the child process only):
 #   - the original has no get_boost2 (the Cocoa addition that takes a
 #     pre-built PyEuclidEmulator), so the adapter maps it onto the
 #     original get_boost, which builds its own emulator internally;
-#   - the original computes AT MOST 101 redshifts per call (its
-#     training-grid size) and silently overflows beyond that - the
-#     likelihood sends about 110 - so the adapter batches the
+#   - the original computes at most 101 redshifts per call (its
+#     training-grid size) and silently overflows beyond that (the
+#     likelihood sends about 110), so the adapter batches the
 #     redshifts in chunks of 100 and stacks the per-chunk results
 #     (the original returns a per-redshift dict, the likelihood
 #     expects a 2D array). The numerics inside each chunk are the
@@ -2254,10 +2322,10 @@ euclidemu2.get_boost2 = _get_boost2
 def build_original_ee2(prefix_dir):
     """Build the pre-modification EE2 into prefix_dir, offline.
 
-    Clones the LOCAL euclidemu2 checkout (no internet: the pinned
+    Clones the local euclidemu2 checkout (no internet: the pinned
     clone's history carries the original commit), checks out
     EE2_ORIGINAL_COMMIT, and pip-installs it with the offline flags
-    the compile scripts use PLUS --ignore-installed: without that
+    the compile scripts use plus --ignore-installed: without that
     flag pip uninstalls the same-name distribution from .local
     before installing into the prefix, breaking the environment.
 
@@ -2311,7 +2379,7 @@ def build_original_ee2(prefix_dir):
 
 def _ee2_comparison_block(example, label, vectors_dir, reference_label,
                           original_site=None):
-    """The ten-cosmology sweep on ONE EE2 build (test 18's worker).
+    """Run the ten-cosmology sweep on one EE2 build (test 18's worker).
 
     The same construction as the Halofit-vs-EE2 blocks: the frozen
     NLA configuration with non_linear_emul: 1, evaluated at every
@@ -2320,8 +2388,10 @@ def _ee2_comparison_block(example, label, vectors_dir, reference_label,
     per-cosmology delta^T C^-1 delta against the reference block's
     vectors (the reference is the installed, modified EE2, so its
     own chi2 against itself is zero by construction). The worker
-    asserts WHICH euclidemu2 binary it imported, so a path mistake
-    cannot silently compare a build against itself.
+    asserts which euclidemu2 binary it imported, so a path mistake
+    cannot silently compare a build against itself. Unlike the other
+    workers, the child program here is written out in full (it does
+    not call a block function of this module).
 
     Arguments:
       example = a key of EXAMPLES; test 18 uses "example1".
@@ -2345,6 +2415,10 @@ def _ee2_comparison_block(example, label, vectors_dir, reference_label,
 
     workdir = tempfile.mkdtemp(prefix="cocoa_ee2_check_")
     out_path = os.path.join(workdir, "result.json")
+    # expect = a path fragment the child's euclidemu2 file must contain:
+    # the original build's site-packages, or .local (where Cocoa
+    # installs the modified EE2); shim = the EE2_ORIGINAL_SHIM text,
+    # pasted into the child program for the original build only
     expect = original_site if original_site else ".local"
     shim = EE2_ORIGINAL_SHIM if original_site else ""
     child_code = (
@@ -2394,6 +2468,9 @@ def _ee2_comparison_block(example, label, vectors_dir, reference_label,
         f"with open({out_path!r}, 'w') as f:\n"
         "    json.dump(result, f)\n"
     )
+    # the child's environment is a copy of this one; for the original
+    # build its site-packages goes first on PYTHONPATH, so the child's
+    # `import euclidemu2` finds the original before the installed one
     env = dict(os.environ)
     if original_site:
         env["PYTHONPATH"] = (original_site + os.pathsep
@@ -2408,7 +2485,7 @@ def _ee2_comparison_block(example, label, vectors_dir, reference_label,
 
 
 def ee2_original_vs_cocoa_dchi2s(example):
-    """The per-cosmology differences of the two EE2 builds (test 18).
+    """Return the per-cosmology differences of the two EE2 builds (test 18).
 
     Builds the pre-modification EE2 into a temporary prefix
     (build_original_ee2), then runs the two blocks: the installed,
@@ -2446,15 +2523,16 @@ def ee2_original_vs_cocoa_dchi2s(example):
 
 
 def _baryon_accuracy_delta_impl(baryon, knob=None):
-    """Delta chi2 for one feedback method, against its own vector.
+    """Return the delta chi2 of one feedback method, against its own vector.
 
     The N-random-models mechanism at the frozen fiducial: a
-    DEFAULT-settings model with this method's feedback on writes its
+    default-settings model with this method's feedback on writes its
     theory vector during evaluation (print_datavector); that vector
-    becomes the data of a temporary dataset descriptor, so the
-    default chi2 against it is zero by construction; a second model -
-    high accuracy, or one accuracy knob alone - evaluates at the SAME
-    point against that descriptor, and its chi2 IS
+    becomes the data of a temporary ".dataset" file (the descriptor,
+    see _baryon_dataset), so the default chi2 against it is zero by
+    construction; a second model (high accuracy, or one accuracy knob
+    alone) evaluates at the same point against that descriptor, and
+    its chi2 is
 
         delta chi2 = chi2(pushed settings) - chi2(default)
 
@@ -2464,7 +2542,7 @@ def _baryon_accuracy_delta_impl(baryon, knob=None):
     temporary directory. The evaluation point is the frozen fiducial
     plus the method's cosmology override (BARYON_POINT_OVERRIDES,
     e.g. BACCOemu's omegab shift into its training box), applied to
-    BOTH evaluations. Both models share example1's data-vector
+    both evaluations. Both models share example1's data-vector
     dimensions, so building them one after another inside one worker
     process is safe.
 
@@ -2475,6 +2553,14 @@ def _baryon_accuracy_delta_impl(baryon, knob=None):
 
     Returns:
       the delta chi2 as a float.
+
+    Raises:
+      RuntimeError when print_datavector wrote no file, when the
+      generated vector's line count differs from the frozen data
+      vector's, or when the frozen descriptor holds more than one
+      data_file line (a descriptor with none fails earlier, with a
+      TypeError from os.path.join); ValueError when knob names no
+      ACCURACY_KNOBS entry.
     """
     import numpy as np
     import shutil
@@ -2489,7 +2575,7 @@ def _baryon_accuracy_delta_impl(baryon, knob=None):
         slug = baryon.replace(" ", "_")
         vector_name = f"baryon_{slug}.modelvector"
         descriptor_name = f"baryon_{slug}.dataset"
-        # the likelihood joins path + filename for EVERY file a
+        # the likelihood joins path + filename for every file a
         # descriptor names, so the temporary directory must look like
         # a complete data folder: symlink each frozen data file in,
         # except the vector and descriptor this function writes (a
@@ -2576,15 +2662,16 @@ def _baryon_accuracy_delta_impl(baryon, knob=None):
 
 
 def _baryon_drift_chi2_impl(baryon):
-    """Drift chi2 of one feedback method against its FROZEN vector.
+    """Return the drift chi2 of one feedback method against its frozen vector.
 
+    "Drift" here means a change of the prediction since the freeze.
     The frozen vector was written at freeze time by
     generate_frozen_reference.py --baryons: the default-settings
     theory prediction with this method's feedback on, at the frozen
     fiducial plus the method's cosmology override. At freeze time
     the chi2 against it was zero by construction, so any chi2 above
     the tolerance today means cosmolike or the bfmt theory block
-    changed its prediction since the freeze - the same pinning idea
+    changed its prediction since the freeze: the same pinning idea
     as the reference tests, applied to the feedback pipeline.
 
     Arguments:
@@ -2609,28 +2696,37 @@ def _baryon_drift_chi2_impl(baryon):
 
 
 def baryon_accuracy_delta(baryon, knob=None):
-    """Delta chi2 of one feedback method (see the impl above)."""
+    """Return the delta chi2 of one feedback method as a float.
+
+    The public name test_accuracy_baryons.py calls; the work and its
+    explanation are in _baryon_accuracy_delta_impl (same arguments).
+    """
     return float(_baryon_accuracy_delta_impl(baryon, knob=knob))
 
 
 def baryon_drift_chi2(baryon):
-    """Drift chi2 of one feedback method (see the impl above)."""
+    """Return the drift chi2 of one feedback method as a float.
+
+    The public name test_baryons.py calls; the work and its
+    explanation are in _baryon_drift_chi2_impl (same argument).
+    """
     return float(_baryon_drift_chi2_impl(baryon))
 
 
 def ten_in_a_row_chi2(example, tatt, ee2=False):
-    """Race check: the fiducial evaluated fresh and as 10th of a row.
+    """Return the fiducial chi2 evaluated fresh and as 10th of a row.
 
-    On ONE model instance, in order: the fiducial point (the fresh
-    value), then the nine RACE_PERTURBATIONS cosmologies, then the
-    fiducial again as the 10th point of the row. State leaked between
-    evaluations, or an OpenMP race under REQUIRED_OMP_THREADS threads,
-    shifts the second fiducial value away from the first; correct
-    code reproduces it to float noise. Each evaluation prints its
-    chi2, so a stuck or slow run is visible line by line.
+    The race check. On one model instance, in order: the fiducial
+    point (the fresh value), then the nine RACE_PERTURBATIONS
+    cosmologies, then the fiducial again as the 10th point of the
+    row. State leaked between evaluations, or an OpenMP race under
+    REQUIRED_OMP_THREADS threads, shifts the second fiducial value
+    away from the first; correct code reproduces it to float noise.
+    Each evaluation prints its chi2, so a stuck or slow run is
+    visible line by line.
 
     Arguments:
-      example = "example1" or "example2" (a key of EXAMPLES).
+      example = a key of EXAMPLES, e.g. "example1".
       tatt    = True runs the TATT variant, False the NLA one.
       ee2     = True sources the nonlinear P(k) from EuclidEmulator2
                 (non_linear_emul: 1) instead of the frozen setting
@@ -2671,7 +2767,7 @@ def ten_in_a_row_chi2(example, tatt, ee2=False):
         # the dict comprehension rebuilds the table with only the
         # keys the point carries
         applied = {k: v for k, v in perturbation.items() if k in point}
-        # {**point, **applied} builds a NEW dict: point's entries
+        # {**point, **applied} builds a new dict: point's entries
         # first, then applied's on top of any shared key; point
         # itself stays untouched for the final fiducial evaluation
         chi2 = evaluate_chi2(model, {**point, **applied})
@@ -2802,7 +2898,7 @@ def report_fastpt_comparison(number, label, chi2_cfastpt,
     the tested quantities: the chi2 of each FASTPT vector against
     the CFASTPT vector at the same point (delta^T C^-1 delta, zero
     for identical vectors). The fastpt-defaults entry is the
-    pass/fail quantity; the pushed-grid entry is advisory - it shows
+    pass/fail quantity; the pushed-grid entry is advisory: it shows
     how much of the deviation the FAST-PT default grid itself
     carries (the role the low-vs-high accuracy checks play for
     camb/cosmolike).
@@ -2835,7 +2931,7 @@ def report_fastpt_comparison(number, label, chi2_cfastpt,
 {'-' * 66}
 TEST {number}: {label}""", flush=True)
     # zip walks the five lists in step, handing every per-point
-    # quantity at once; start=1 makes the rows read 1..20
+    # quantity at once; start=1 makes the rows read 1..30
     for i, (c, fl, fh, dl, dh) in enumerate(
             zip(chi2_cfastpt, chi2_fastpt_low, chi2_fastpt_high,
                 dchi2_low, dchi2_high), start=1):
@@ -2860,8 +2956,8 @@ def report_emul2_advisory(label, chi2, frozen_ref, exact_ref, limit):
 
     There is no pass/fail here. An emulator is an approximation, so
     the useful outputs are the numbers themselves: the change against
-    the frozen emulator reference (nonzero: the installed emulator no
-    longer reproduces the chi2 it gave at freeze time),
+    the frozen emulator reference (nonzero: the installed emulator
+    does not reproduce the chi2 it gave at freeze time),
     the difference against the exact-physics chi2 at the same
     cosmology (how accurate the emulator is), and the recommendation
     derived from that accuracy.
@@ -2942,6 +3038,8 @@ def report_accuracy(label, chi2_high, default_ref,
       label       = one line naming the probe and IA model.
       chi2_high   = chi2 with HIGH_ACCURACY settings, this run.
       default_ref = the frozen default-settings reference chi2.
+      default_name = the text naming default_ref in the printed line;
+                    the callers keep the default "default, frozen".
 
     Returns:
       chi2_high - default_ref, the printed difference.
@@ -2986,7 +3084,7 @@ def report_random_model(index, n_models, point, chi2_high):
     No subtraction happens here: the synthetic data vector was
     generated by the default-settings model at this exact point, so
     the default chi2 against it is zero by construction and the
-    high-accuracy chi2 already IS
+    high-accuracy chi2 already is
     delta chi2 = chi2(high accuracy) - chi2(default). The three
     printed parameters locate the point inside the prior at a glance;
     the full point is reproducible from RANDOM_MODEL_SEED + index.

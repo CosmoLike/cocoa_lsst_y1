@@ -7,7 +7,7 @@ writes its own theory vector during evaluation, that vector becomes
 the data of a temporary dataset (so the default chi2 against it is
 zero by construction, and nothing is stored in frozen/), and the
 pushed-settings model evaluates at the same point against it. Its
-chi2 IS the reported quantity,
+chi2 is the reported quantity,
 
     delta chi2 = chi2(high accuracy) - chi2(default)
 
@@ -19,7 +19,8 @@ additionally runs the one-knob-at-a-time scan with the Akino SP(k)
 method on, so a large delta names the knob causing it.
 
 The seven checks cover every method the bfmt theory block
-implements:
+implements (fb = the baryon fraction of haloes, the quantity SP(k)
+maps to a suppression of the matter power):
 
   BF1. SP(k), power-law fb relation      BF2. SP(k), Akino et al. 2022
   BF3. SP(k), double power-law relation  BF4. BCEmu
@@ -33,7 +34,7 @@ cocoa_test_utils.BARYON_METHODS.
 
 Every configuration here is measurable by construction: BACCOemu's
 check evaluates at omegab = 0.049, inside its omega_baryon training
-box (the floor, 0.04001, sits exactly above the fiducial
+box (the floor, 0.04001, sits just above the fiducial
 omegab = 0.04), and the double-power-law point keeps the baryon
 fraction inside SP(k)'s calibrated band over the full redshift grid
 (pyspk's documented example exits it at z >~ 1.4). The exact points
@@ -51,7 +52,7 @@ cocoa environment active, start_cocoa.sh sourced):
 import os
 
 # OpenMP reads OMP_NUM_THREADS when the compiled libraries load, so
-# this must run before ANY cobaya/cosmolike import in the process.
+# this must run before any cobaya/cosmolike import in the process.
 os.environ["OMP_NUM_THREADS"] = "4"
 
 import sys
@@ -73,21 +74,28 @@ class TestBaryonAccuracyAdvisory(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
+        """Move to ROOTDIR and verify the frozen state, once per class."""
         u.require_cocoa_environment()
         u.verify_frozen()
 
     def _baryon_accuracy_check(self, name, baryon, label):
-        """Default vs high accuracy with one feedback method on.
+        """Print the default-vs-high-accuracy delta with one method on.
 
         Arguments:
           name   = the advisory label (BF1-BF7) for the report.
           baryon = a label of cocoa_test_utils.BARYON_METHODS.
           label  = one line naming the feedback method.
+
+        Returns:
+          nothing; only a non-finite delta fails the check.
         """
         # the default chi2 is zero by construction (the default
         # model produced the very vector it is compared with), so the
-        # pushed evaluation's chi2 IS the delta; only that is printed
+        # pushed evaluation's chi2 is the delta; only that is printed
         delta = u.baryon_accuracy_delta(baryon)
+        # delta == delta is False only for NaN (NaN compares unequal
+        # to itself); with the infinity check, the assertion demands a
+        # finite delta
         self.assertTrue(
             delta == delta and abs(delta) != float("inf"),
             f"{name}: non-finite delta")
@@ -107,8 +115,11 @@ ACCURACY: {name}: {label}
         of the numerical error under feedback.
         """
         print("", flush=True)
+        # each entry is (label, likelihood overrides, camb overrides);
+        # the two _ discard the tables, which baryon_accuracy_delta
+        # looks up again by label
         for label, _, _ in u.ACCURACY_KNOBS:
-            # each knob's chi2 against the on-the-fly vector IS its
+            # each knob's chi2 against the on-the-fly vector is its
             # delta (the default against that vector is zero)
             delta = u.baryon_accuracy_delta("spk akino", knob=label)
             print(f"  KNOB {label:30s} delta chi2 = {delta:+12.6f}",
@@ -147,5 +158,8 @@ ACCURACY: {name}: {label}
         self._baryon_accuracy_check("BF7", "bcemu2025", "BCemu2025")
 
 
+# __name__ is "__main__" only when this file runs directly as a
+# script; pytest imports the module instead, so this block stays
+# idle under pytest
 if __name__ == "__main__":
     unittest.main(verbosity=2)

@@ -26,7 +26,7 @@ start_cocoa.sh sourced):
 import os
 
 # OpenMP reads OMP_NUM_THREADS when the compiled libraries load, so
-# this must run before ANY cobaya/cosmolike import in the process.
+# this must run before any cobaya/cosmolike import in the process.
 os.environ["OMP_NUM_THREADS"] = "4"
 
 import sys
@@ -34,7 +34,7 @@ import unittest
 
 # The tests folder is not a package; put it on the import path so the
 # shared harness resolves no matter where pytest was launched from.
-# insert(0, ...) puts the folder FIRST in the search order, ahead of
+# insert(0, ...) puts the folder first in the search order, ahead of
 # every other place a same-named module could hide.
 sys.path.insert(0, os.path.dirname(os.path.dirname(
     os.path.abspath(__file__))))
@@ -57,6 +57,7 @@ class TestExample2ThreeXTwo(unittest.TestCase):
     # the first test of the class
     @classmethod
     def setUpClass(cls):
+        """Move to ROOTDIR, verify the frozen state, load the references."""
         u.require_cocoa_environment()
         u.verify_frozen()
         cls.reference = u.load_reference()

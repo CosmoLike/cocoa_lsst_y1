@@ -10,9 +10,9 @@ so their chi2 values at the same point differ by a small amount.
 
 Tests 9 and 10 evaluate the frozen TATT point with FASTPT and:
 
-  - compare the chi2 against its own frozen FASTPT reference within
-    CHI2_TOLERANCE (0.2) of its own frozen reference, the same
-    pass rule as tests 1-8;
+  - compare the chi2 with its own frozen FASTPT reference: the
+    difference must stay below CHI2_TOLERANCE (0.2), the same pass
+    rule as tests 1-8;
   - print the FASTPT-minus-CFASTPT difference next to the frozen
     value of that difference, so a numerics change in either
     implementation is visible at a glance.
@@ -20,9 +20,9 @@ Tests 9 and 10 evaluate the frozen TATT point with FASTPT and:
   9. example1 (cosmic shear), TATT with LSST_A2_1 = 0.05,
      LSST_BTA_1 = 0.05, LSST_A2_2 = -1.51541.
  10. example2 (3x2pt), same TATT point.
- 15. example1 (cosmic shear): the SAME 30 hard-coded points across
+ 15. example1 (cosmic shear): the same 30 hard-coded points across
      the intrinsic-alignment prior (FASTPT_COMPARISON_POINTS;
-     cosmology fixed at the frozen fiducial) evaluated three times -
+     cosmology fixed at the frozen fiducial) evaluated three times:
      with cfastpt, with FASTPT at the converged two-grid defaults
      (FASTPT_LOW_SETTINGS, hard-coded), and with FASTPT at the
      doubled boosts (FASTPT_HIGH_SETTINGS). Every block
@@ -78,7 +78,7 @@ applies unchanged:
 import os
 
 # OpenMP reads OMP_NUM_THREADS when the compiled libraries load, so
-# this must run before ANY cobaya/cosmolike import in the process.
+# this must run before any cobaya/cosmolike import in the process.
 os.environ["OMP_NUM_THREADS"] = "4"
 
 import sys
@@ -86,7 +86,7 @@ import unittest
 
 # The tests folder is not a package; put it on the import path so the
 # shared harness resolves no matter where pytest was launched from.
-# insert(0, ...) puts the folder FIRST in the search order, ahead of
+# insert(0, ...) puts the folder first in the search order, ahead of
 # every other place a same-named module could hide.
 sys.path.insert(0, os.path.dirname(os.path.dirname(
     os.path.abspath(__file__))))
@@ -107,6 +107,7 @@ class TestFastptTatt(unittest.TestCase):
     # the first test of the class
     @classmethod
     def setUpClass(cls):
+        """Move to ROOTDIR, verify the frozen state, load the references."""
         u.require_cocoa_environment()
         u.verify_frozen()
         cls.reference = u.load_reference()
@@ -121,6 +122,10 @@ class TestFastptTatt(unittest.TestCase):
           number  = the test number shown in the report header.
           example = a key of cocoa_test_utils.EXAMPLES.
           label   = one line naming the example and probe.
+
+        Returns:
+          nothing; the assertion fails the test when |chi2 - ref| >=
+          CHI2_TOLERANCE.
         """
         chi2 = u.single_model_chi2(example, tatt=True, fastpt=True)
         ref = self.reference[f"{example}_tatt_fastpt"]
@@ -168,6 +173,7 @@ class TestCfastptVsFastptSweep(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
+        """Move to ROOTDIR and verify the frozen state, once per class."""
         u.require_cocoa_environment()
         u.verify_frozen()
 
@@ -204,8 +210,8 @@ class TestCfastptVsFastptSweep(unittest.TestCase):
         """3x2pt: cfastpt and FASTPT agree at the same 30 IA points.
 
         Test 15 on example2: the same three blocks, the same points,
-        the same pass rule, with the TATT terms now entering
-        galaxy-galaxy lensing as well and the difference weighted by
+        the same pass rule, with the TATT terms also entering
+        galaxy-galaxy lensing and the difference weighted by
         the 3x2pt masked inverse covariance. The method name carries
         the x prefix only so unittest's alphabetical ordering runs it
         after test 15.

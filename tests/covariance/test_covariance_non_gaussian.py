@@ -1,8 +1,23 @@
 """Validate halo response conventions and the five trispectrum partitions.
 
-Independent checks use explicit labelled halo partitions and EdS Wick
-diagrams. The response test differentiates a specified halo-power model;
-it does not certify that model's nonlinear calibration.
+Two C routines of cosmolike/covariances/non_gaussian_cov.c are checked:
+
+  halo_trispectrum_cov: the connected matter trispectrum T(k, q) (the
+    four-point function the non-Gaussian covariance needs) as five
+    halo-model terms, by how the four density legs (k, -k, q, -q) are
+    shared among halos: one halo (T_1h), two halos as 1+3 (T_13) or 2+2
+    (T_22), three halos (T_3h) and four halos (T_4h, the tree-level
+    perturbation-theory term);
+  halo_response_cov: the response D = dP/d(delta_b) of the power spectrum
+    to a long-wavelength background density mode delta_b, which the
+    super-sample covariance (SSC) needs; growth and dilation are the
+    coefficients of D = (growth - dilation x slope) P_2h + I12.
+
+Independent checks use explicit labelled halo partitions and EdS
+(Einstein-de Sitter perturbation theory) Wick diagrams. The response test
+differentiates a specified halo-power model; it does not certify that
+model's nonlinear calibration. The C routines are called through ctypes
+(argtypes and restype declare their C signatures).
 """
 
 import ctypes
@@ -21,7 +36,14 @@ def rows(array):
 
 
 def power(k):
-    """A regular linear test spectrum with a turnover near k=1."""
+    """A regular linear test spectrum with a turnover near k=1.
+
+    Arguments:
+      k = wavenumber (arbitrary units).
+
+    Returns:
+      k/(1 + k^2)^2.
+    """
     return k/(1+k*k)**2
 
 
@@ -30,7 +52,13 @@ class NonGaussianCovariance(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        """Load the repository references and project C symbols."""
+        """Load the repository references and project C symbols.
+
+        Declares halo_response_cov(n, growth, dilation, fractional,
+        inputs[][], output[][]) and halo_trispectrum_cov(n, pk[][],
+        i11[][], moments[][], tree[][], output[][]), and saves the
+        caller's OpenMP thread count.
+        """
         import cosmolike_lsst_y1_interface as ci
         from cosmolike_notebook_utils.covariance.reference import cng_reference
         from cosmolike_notebook_utils.covariance.reference import non_gaussian_reference
@@ -58,7 +86,20 @@ class NonGaussianCovariance(unittest.TestCase):
         cls.library.omp_set_num_threads(cls.original_threads)
 
     def response(self, inputs, growth, dilation, fractional):
-        """Call the C response builder and check padded output canaries."""
+        """Call the C response builder and check padded output canaries.
+
+        The output gets three extra NaN columns (canaries) the C code
+        must not touch.
+
+        Arguments:
+          inputs   = six rows [P_lin, P_target, I11, I02, I12, slope],
+                     slope = dlnP/dlnk.
+          growth, dilation = the response coefficients.
+          fractional = True rescales the halo response to P_target.
+
+        Returns:
+          array [2, n]: P_halo and the response D.
+        """
         count = inputs.shape[1]
         output = np.full((2, count+3), np.nan)
         self.library.halo_response_cov(count, growth, dilation, int(fractional),
@@ -67,7 +108,18 @@ class NonGaussianCovariance(unittest.TestCase):
         return output[:, :count].copy()
 
     def trispectrum(self, pk, i11, moments, tree):
-        """Call the C assembler, retaining all five contributions separately."""
+        """Call the C assembler, retaining all five contributions separately.
+
+        Arguments:
+          pk      = linear power at K and Q [2, n].
+          i11     = the halo moment I11 at K and Q [2, n].
+          moments = rows I02, I12, I13(K,Q,Q), I13(K,K,Q), I04 [5, n].
+          tree    = angle-averaged tree-level power, bispectrum and
+                    trispectrum [3, n].
+
+        Returns:
+          array [5, n]: T_1h, T_13, T_22, T_3h, T_4h.
+        """
         count = pk.shape[1]
         output = np.full((5, count+3), np.nan)
         self.library.halo_trispectrum_cov(count, rows(pk), rows(i11), rows(moments),
@@ -79,6 +131,10 @@ class NonGaussianCovariance(unittest.TestCase):
         """Enumerate the four 1+3 partitions and every other halo grouping."""
         tree_reference = self.modules["cng_reference"]
         reference = self.modules["non_gaussian_reference"]
+        # three labelled halo species: number density, volume (mass over
+        # mean density), bias and radius of a Gaussian profile
+        # u(k) = exp(-k^2 r^2/2); the moments below are the halo-model
+        # mass integrals written as sums over the species
         count = np.array([0.2, 0.3, 0.1])
         volume = np.array([0.7, 1.1, 1.8])
         bias = np.array([0.8, 1.3, 1.9])
@@ -109,7 +165,14 @@ class NonGaussianCovariance(unittest.TestCase):
             np.testing.assert_allclose(actual[:, 0], expected, rtol=2.e-12)
 
     def test_response_by_power_differentiation(self):
-        """Use the published two-halo slope, including the I11 scale dependence."""
+        """Use the published two-halo slope, including the I11 scale dependence.
+
+        growth = 47/21 and dilation = 1/3 are the isotropic halo response
+        of Takada & Hu (2013). The expected derivative is a centered finite
+        difference (step 1e-5) of the power after a background mode
+        delta: amplitude exp(47 delta/21), wavenumbers dilated by
+        exp(-delta/3), one-halo term shifted by delta I12.
+        """
         k = np.geomspace(0.1, 2., 13)
         exponent = -1.3
         halo_exponent = -0.15
@@ -138,7 +201,12 @@ class NonGaussianCovariance(unittest.TestCase):
                                    rtol=3.e-15)
 
     def test_projected_tree_limit(self):
-        """R1+RK/6 equals 17/7-n/2 in the linear regime, independently of code."""
+        """R1+RK/6 equals 17/7-n/2 in the linear regime, independently of code.
+
+        R1 = 1 + 26/21 - n/3 (isotropic) and RK = 8/7 - n (tidal) are the
+        tree-level responses for a spectrum of slope n; with growth 17/7
+        and dilation 1/2 the C response must reproduce R1 + RK/6.
+        """
         slopes = np.array([-2.5, -2., -1.5, -1., 0., 1., 2.])
         pk = np.linspace(0.1, 1., len(slopes))
         inputs = np.array([pk, pk, np.ones_like(pk), np.zeros_like(pk),
@@ -150,7 +218,14 @@ class NonGaussianCovariance(unittest.TestCase):
         np.testing.assert_allclose(actual[1]/pk, isotropic+tidal/6, rtol=3.e-15)
 
     def test_length_dimensions_and_negative_terms(self):
-        """All halo terms have length^9, and a negative tree term is retained."""
+        """All halo terms have length^9, and a negative tree term is retained.
+
+        scale = 4282.7494 is c/H0 in Mpc for h = 0.7 (2997.92458/0.7): a
+        change of length unit multiplies each input by scale to its length
+        power (P: 3; moments: 3, 3, 6, 6, 9; tree: 3, 6, 9), and every
+        trispectrum term must then change by scale^9. The seeds of this
+        test and the next only fix the random draws.
+        """
         generator = np.random.default_rng(seed=1302699425)
         pk = generator.uniform(0.1, 0.9, size=(2, 17))
         i11 = generator.uniform(0.5, 1.1, size=(2, 17))
@@ -189,5 +264,7 @@ class NonGaussianCovariance(unittest.TestCase):
                 np.testing.assert_array_equal(actual, expected)
 
 
+# __name__ is "__main__" only when this file runs directly as a
+# script; pytest imports the module instead
 if __name__ == "__main__":
     unittest.main()

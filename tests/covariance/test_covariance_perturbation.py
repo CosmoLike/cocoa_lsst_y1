@@ -1,8 +1,19 @@
 """Validate cNG tree-level angular averages before adding halo moments.
 
-The independent reference enumerates Wick diagrams and the EdS recursion.
-The C code uses reduced formulas, precomputed input powers and SIMDe.
-No halo or full covariance prediction is certified by these angular tests.
+The covariance of the power spectrum at wavenumbers k and q depends only
+on their magnitudes K and Q, so the connected non-Gaussian (cNG) terms
+are averaged over the angle between k and q. tree_averages_cov
+(cosmolike/covariances/perturbation_cov.c) returns three such averages
+of tree-level perturbation theory: the power term (AvgP), the
+bispectrum term (AvgB) and the trispectrum term (AvgT), built from the
+second- and third-order kernels F2 and F3.
+
+The independent reference enumerates Wick diagrams (the pairings of
+Gaussian fields) and the EdS (Einstein-de Sitter) recursion for the
+kernels. The C code uses reduced formulas, precomputed input powers and
+SIMDe (portable vector instructions). No halo or full covariance
+prediction is certified by these angular tests. The C function is called
+through ctypes (argtypes and restype declare its C signature).
 """
 
 import ctypes
@@ -30,7 +41,12 @@ class PerturbationCovariance(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        """Load explicitly supplied independent reference and project C library."""
+        """Load explicitly supplied independent reference and project C library.
+
+        Declares tree_averages_cov(npair, nangle, k[][], pk[][],
+        corner[], weights[], ps[][], output[][]) and saves the caller's
+        OpenMP thread count.
+        """
         import cosmolike_lsst_y1_interface as ci
         from cosmolike_notebook_utils.covariance.reference import cng_reference
 
@@ -60,12 +76,19 @@ class PerturbationCovariance(unittest.TestCase):
         Returns: [3,npair] P/B/T averages, with input/output canaries checked.
         """
         pairs = np.asarray(pairs, dtype=float)
+        # angle nodes theta in (0, pi), weights dtheta/pi, and
+        # corner = 1 + cos(theta), computed without cancellation
         theta, weights, corner = self.reference.angle_rule(nquad=nquad, npanel=npanel)
         k = np.ascontiguousarray(pairs.T/scale)
         pk = np.ascontiguousarray(power(pairs.T)*scale**3)
+        # magnitude [npair, nangle] = |k + q| = sqrt((K - Q)^2 +
+        # 2 K Q (1 + cos theta)), the internal wavenumber of the averages;
+        # the [:, None] indexing turns each column into a column vector so
+        # it combines with the row of angles
         magnitude = np.sqrt((pairs[:, 0, None]-pairs[:, 1, None])**2
                             +2*pairs[:, 0, None]*pairs[:, 1, None]*corner)
         ps = power(magnitude)*scale**3
+        # three extra NaN columns (canaries) must survive the call
         output = np.full((3, len(pairs)+3), np.nan)
         pointer = ctypes.POINTER(ctypes.c_double)
         self.library.tree_averages_cov(
@@ -152,6 +175,8 @@ class PerturbationCovariance(unittest.TestCase):
         pairs = np.array([[0.1, 0.3], [0.3, 0.1], [1., 1.0001], [10., 0.5]])
         actual = self.averages(pairs=pairs)
         np.testing.assert_allclose(actual[:, 0], actual[:, 1], rtol=2.e-13)
+        # c/H0 in Mpc for h = 0.7 (2997.92458/0.7): an arbitrary change of
+        # length unit
         scale = 4282.7494
         converted = self.averages(pairs=pairs, scale=scale)
         for role in range(3):
@@ -171,5 +196,7 @@ class PerturbationCovariance(unittest.TestCase):
             np.testing.assert_array_equal(actual, original)
 
 
+# __name__ is "__main__" only when this file runs directly as a
+# script; pytest imports the module instead
 if __name__ == "__main__":
     unittest.main()

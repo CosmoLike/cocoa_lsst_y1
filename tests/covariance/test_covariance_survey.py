@@ -1,6 +1,10 @@
 """Check survey assembly against independently expanded small matrices.
 
-These checks test interpolation, angular/radial contraction and row coverage.
+The survey assembly (cosmolike_notebook_utils/covariance/survey.py) lays
+out the observable rows (probe, A, B) of the data vector, compresses the
+angular operators onto a coarse multipole grid for the connected term,
+and projects the connected covariance onto every pair of rows. These
+checks test interpolation, angular/radial contraction and row coverage.
 They do not establish numerical convergence of a physical survey forecast.
 """
 
@@ -15,6 +19,9 @@ from cosmolike_notebook_utils.covariance.survey import (
 
 def test_observable_layout():
     """Retain the actual survey dimensions and only measured pair exclusions."""
+    # LSST Y1 (5 lens, 5 source bins): 15 xi+ + 15 xi- + 25 gamma_t + 5 w
+    # = 60 rows; an 8 + 8 bin layout with three gamma_t pairs excluded:
+    # 36 + 36 + (64 - 3) + 8 = 141 rows, 61 of them gamma_t (probe 2)
     lsst = observable_rows(nlens=5, nsource=5)
     roman = observable_rows(
         nlens=8, nsource=8, excluded_gammat=((6, 0), (7, 0), (7, 1))
@@ -25,7 +32,17 @@ def test_observable_layout():
 
 
 def test_compressed_transform():
-    """Compare B T B^T with a dense explicitly interpolated signed spectrum."""
+    """Compare B T B^T with a dense explicitly interpolated signed spectrum.
+
+    The connected trispectrum T is tabulated on a coarse multipole grid
+    and interpolated linearly in ln(l + 1/2) to every integer l.
+    compress_operators folds that interpolation, and the spin factor
+    (l-1)(l+2)/(l+1/2)^2 (twice for xi+ and xi-, once for gamma_t, never
+    for w), into the angular operators B, so that B T B^T equals the
+    projection of the densely interpolated trispectrum.
+    """
+    # the seeds of this file only fix the random draws; 7 coarse nodes
+    # log-spaced in l + 1/2, with the end nodes on the first and last l
     rng = np.random.default_rng(seed=729)
     ell = np.arange(2., 60.)
     coarse = np.exp(np.linspace(np.log(2.5), np.log(59.5), 7))-0.5
@@ -33,6 +50,8 @@ def test_compressed_transform():
     kernels = rng.normal(size=(4, 3, len(ell)))
     raw = rng.normal(size=(7, 7))
     trispectrum = raw+raw.T
+    # hats[:, node] = the linear-interpolation "hat" function of one
+    # coarse node evaluated at every l (1 at the node, 0 at the others)
     hats = np.empty((len(ell), len(coarse)))
     for node in range(len(coarse)):
         basis = np.zeros(len(coarse))
@@ -84,4 +103,6 @@ def test_complete_connected_projection():
         np.testing.assert_array_equal(actual, actual.T)
         if baseline is None:
             baseline = actual
+        # .view(np.uint64) compares the 64-bit patterns: every thread
+        # count must give the same bits
         np.testing.assert_array_equal(actual.view(np.uint64), baseline.view(np.uint64))

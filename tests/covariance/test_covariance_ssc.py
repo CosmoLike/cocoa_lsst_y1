@@ -1,5 +1,21 @@
 """Check the mask normalization and supplied-response SSC calculation.
 
+Super-sample covariance (SSC): density modes larger than the survey
+change the mean density delta_b inside the footprint, and every measured
+power spectrum responds to it coherently. In the Limber form,
+
+    Cov_SSC[A, B] = integral dchi R_A(chi) R_B(chi) sigma_b^2(chi),
+
+with R the response of each observable to delta_b in a radial shell and
+sigma_b^2 the variance of delta_b over the footprint, computed from the
+harmonic spectrum C_L of the mask (ssc_mask_variance_cov). Galaxy
+statistics are normalized by the measured mean density, which subtracts
+-(b_A + b_B) P from their response (ssc_shell_response_cov). The
+projection reuses gaussian_project_cov; a general background covariance
+between shells (S K S^T) is checked as well. The C functions live in
+cosmolike/covariances/ssc_cov.c and are called through ctypes (argtypes
+and restype declare their C signatures).
+
 The independent NumPy/mpmath reference is independent of the compiled code.
 These checks validate mask and response algebra, including a correlated
 radial-kernel hook. They do not certify a halo response, nonlinear tidal
@@ -31,7 +47,12 @@ class SuperSampleCovariance(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        """Load only explicitly supplied independent reference and C library."""
+        """Load only explicitly supplied independent reference and C library.
+
+        Declares the C signatures of ssc_mask_variance_cov,
+        ssc_shell_response_cov and gaussian_project_cov, and saves the
+        caller's OpenMP thread count.
+        """
         import cosmolike_lsst_y1_interface as ci
         from cosmolike_notebook_utils.covariance.reference import ssc_reference
 
@@ -63,7 +84,17 @@ class SuperSampleCovariance(unittest.TestCase):
         cls.library.omp_set_num_threads(cls.original_threads)
 
     def variance(self, mask, area, distance, power):
-        """Call C for an explicit power table and preserve an output canary."""
+        """Call C for an explicit power table and preserve an output canary.
+
+        Arguments:
+          mask     = harmonic spectrum C_L of the mask, L = 0..L_max.
+          area     = footprint area [sr].
+          distance = comoving distance of each radial node.
+          power    = linear power [n_node, L_max + 1] at k = (L + 1/2)/chi.
+
+        Returns:
+          sigma_b^2 at each node; two extra NaN slots must survive.
+        """
         output = np.full(len(distance)+2, np.nan)
         self.library.ssc_mask_variance_cov(
             len(distance), len(mask), area, vector_pointer(mask),
@@ -73,7 +104,18 @@ class SuperSampleCovariance(unittest.TestCase):
         return output[:len(distance)].copy()
 
     def response(self, distance, signal, pair, mean, dp):
-        """Call C with padded writable rows; return only the physical entries."""
+        """Call C with padded writable rows; return only the physical entries.
+
+        Arguments:
+          distance = comoving distance of each radial node [n_node].
+          signal   = the projected signal of each row [n_row].
+          pair     = pair window of each row [n_row, n_node].
+          mean     = mean-density window, sum of the two galaxy legs.
+          dp       = power response dP/d(delta_b) [n_row, n_node].
+
+        Returns:
+          the shell response [n_row, n_node].
+        """
         output = np.full((len(signal), len(distance)+3), np.nan)
         self.library.ssc_shell_response_cov(
             len(signal), len(distance), vector_pointer(distance),
@@ -102,6 +144,9 @@ class SuperSampleCovariance(unittest.TestCase):
         """Check the cap coefficients against 60-digit direct angular integrals."""
         import mpmath as mp
 
+        # a spherical cap of the LSST Y1 area (12300 deg^2, in sr): its
+        # mask harmonics are C_L = pi [integral_edge^1 P_L(x) dx]^2, with
+        # edge = cos(cap radius); mp.workdps(60) sets mpmath to 60 digits
         area = 12300*(np.pi/180)**2
         mask = self.reference.cap_mask(area_sr=area, ell_max=128)
         with mp.workdps(60):
@@ -176,6 +221,8 @@ class SuperSampleCovariance(unittest.TestCase):
         finite_difference = (values[1]-values[0])/(2*step)
         predicted = np.sum(actual*weights*direction, axis=1)
         np.testing.assert_allclose(predicted, finite_difference, rtol=2.e-8)
+        # a change of length unit (c/H0 in Mpc for h = 0.7) rescales each
+        # input by its length dimension; the response must follow
         scale = 4282.7494
         converted = self.response(distance=distance*scale, signal=signal,
                                    pair=pair/scale**2, mean=mean/scale,
@@ -225,6 +272,8 @@ class SuperSampleCovariance(unittest.TestCase):
             background=factor.T @ factor,
         )
         np.testing.assert_allclose(correlated, expected, rtol=2.e-13, atol=1.e-16)
+        # both matrices are positive semidefinite correlation matrices
+        # that still contain negative (anti-correlated) entries
         for covariance in (actual, correlated):
             scale = np.sqrt(np.diag(covariance))
             correlation = covariance/np.outer(scale, scale)
@@ -270,6 +319,8 @@ class SuperSampleCovariance(unittest.TestCase):
             np.testing.assert_allclose(
                 actual=assembled, desired=expected, rtol=2.e-13, atol=1.e-16
             )
+            # the Cholesky factorization exists only for a positive
+            # definite matrix; numpy raises LinAlgError otherwise
             np.linalg.cholesky(a=assembled)
 
     def test_repetition_and_threads(self):
@@ -296,5 +347,7 @@ class SuperSampleCovariance(unittest.TestCase):
                 np.testing.assert_array_equal(actual, expected)
 
 
+# __name__ is "__main__" only when this file runs directly as a
+# script; pytest imports the module instead
 if __name__ == "__main__":
     unittest.main()

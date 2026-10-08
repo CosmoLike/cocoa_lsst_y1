@@ -22,6 +22,9 @@ def tables():
     lengths exposes accidental transposes or replacing cb with matter power.
     The actual halo prescription is irrelevant to this interpolation test.
     """
+    # ln P tables on 3 redshifts x 7 log10 k nodes, flattened in Fortran
+    # order (ravel(order="F"): redshift index fastest), the layout
+    # set_cosmology reads; np.log1p(z) = ln(1 + z)
     log10k = np.linspace(-4.0, 1.0, 7)
     redshift = np.array([0.0, 0.5, 2.0])
     growth = -2*np.log1p(redshift[:, None])
@@ -58,6 +61,8 @@ def test_nested_natural_cubic_all_fields(tables, refinement):
     nz = len(tables["z_2D"])
     result = refine_power_tables(tables=tables, refinement=refinement)
     dense_k = result["log10k_2D"]
+    # refinement r splits each k interval into r: r (n - 1) + 1 nodes,
+    # and every r-th node ([::refinement]) is an original node
     assert len(dense_k) == refinement*(original_nk-1)+1
     np.testing.assert_array_equal(dense_k[::refinement], original_k)
     for name in ("lnP_linear", "lnP_nonlinear", "lnP_linear_cb"):

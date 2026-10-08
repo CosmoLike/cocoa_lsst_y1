@@ -1,8 +1,23 @@
-"""Check the isolated covariance algebra before a survey driver is integrated.
+"""Check the isolated Gaussian covariance algebra the survey assembly calls.
 
-The repository supplies independent NumPy and mpmath oracles. Tests call
-symbols from the normally built project interface, including padded output
-checks at the C boundary. No separate development library is required.
+The Gaussian covariance of two angular power spectra at one multipole is
+the Wick (Gaussian-field) pairing
+
+    Cov[C_AB, C_CD](l) = [S_AC S_BD + S_AD S_BC]/((2l + 1) f_sky),
+    S_XY = C_XY + N_X delta_XY  (signal plus shot or shape noise),
+
+computed by gaussian_wick_cov; include_nn chooses whether the pure noise
+product N N stays in (the real-space covariance takes it instead from
+pair counts, gaussian_noise_pair_cov and annulus_pair_area_cov).
+gaussian_project_cov projects a harmonic covariance onto bins,
+Cov_ij = sum_l K_i(l) Cov(l) K_j(l). The functions live in
+cosmolike/covariances/gaussian_cov.c and are called through ctypes
+(argtypes and restype declare their C signatures).
+
+The repository supplies independent NumPy and mpmath (arbitrary
+precision) oracles. Tests call symbols from the normally built project
+interface, including padded output checks at the C boundary. No separate
+development library is required.
 """
 
 import ctypes
@@ -32,7 +47,13 @@ class CovariancePrimitives(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        """Load the repository oracle and normally built project interface."""
+        """Load the repository oracle and normally built project interface.
+
+        Declares the C signatures of gaussian_wick_cov,
+        gaussian_project_cov, annulus_pair_area_cov and
+        gaussian_noise_pair_cov, and saves the caller's OpenMP thread
+        count.
+        """
         import cosmolike_lsst_y1_interface as ci
         from cosmolike_notebook_utils.covariance.reference import gaussian_reference
 
@@ -119,8 +140,9 @@ class CovariancePrimitives(unittest.TestCase):
         """Return the C projection using padded scratch and output rows.
 
         Arguments: left [nleft,nell], right [nright,nell], harmonic [nell].
-        Returns: float64 [nleft,nright]. Padding canaries are checked to
-            detect writes beyond the physical columns in house-style rows.
+        Returns: float64 [nleft,nright]. Padding canaries (three NaN
+            columns after each row) are checked to detect writes beyond
+            the physical columns.
         """
         nleft, nell = left.shape
         nright = len(right)
@@ -138,6 +160,9 @@ class CovariancePrimitives(unittest.TestCase):
 
     def test_all_pairs_wick_and_psd(self):
         """Keep every field pair, signed correlations, both NN choices, and PSD."""
+        # the seeds of this file only fix the random draws. signal[i, j, l]
+        # = sum_k F[i, k, l] F[j, k, l] (np.einsum spells out the index
+        # sum) is a positive-semidefinite 4 x 4 field matrix at every l
         generator = np.random.default_rng(seed=60105779)
         factors = generator.normal(size=(4, 4, 37))
         signal = np.einsum("ikl,jkl->ijl", factors, factors)*1.e-8
@@ -162,6 +187,9 @@ class CovariancePrimitives(unittest.TestCase):
             np.testing.assert_allclose(
                 actual, actual.swapaxes(0, 1), rtol=3.e-14, atol=1.e-29
             )
+            # positive semidefinite at every multipole: the smallest
+            # eigenvalue of the unit-diagonal (correlation) matrix is not
+            # negative beyond rounding
             for node in range(signal.shape[-1]):
                 matrix = actual[:, :, node]
                 scale = np.sqrt(np.outer(np.diag(matrix), np.diag(matrix)))
@@ -176,6 +204,9 @@ class CovariancePrimitives(unittest.TestCase):
             signal=signal, noise=noise, left=(0, 0), right=(0, 0),
             ell_min=2, include_nn=True,
         )
+        # two disjoint bands with (2l+1) weights: each band's variance is
+        # 2 (S + N)^2/(f_sky x number of modes), and the bands are
+        # uncorrelated
         ell = np.arange(2, 32)
         operators = np.zeros((2, len(ell)))
         expected_diagonal = []
@@ -219,6 +250,10 @@ class CovariancePrimitives(unittest.TestCase):
     def test_pure_noise_catalogs_and_components(self):
         """Audit ordered pairs, shear components, reversed pairs and zero cross blocks."""
         pointer = ctypes.POINTER(ctypes.c_double)
+        # noise N = sigma^2/n for two catalogs, pair area [sr^2], and the
+        # catalog IDs A, B, C, D of the two observables (2 and 3 are two
+        # different catalogs; the probe indices 0-3 are xi+, xi-,
+        # gamma_t, w)
         noise = np.array([0.09/2.e7, 0.04/3.e7])
         area = 2.e-6
         direct_ids = np.array([2, 3, 2, 3], dtype=np.int32)
@@ -315,5 +350,7 @@ class CovariancePrimitives(unittest.TestCase):
         self.assertLess(abs(ordered_pairs_sr/ordered_pairs_arcmin-1), 1.e-12)
 
 
+# __name__ is "__main__" only when this file runs directly as a
+# script; pytest imports the module instead
 if __name__ == "__main__":
     unittest.main()

@@ -2,7 +2,7 @@
 
 Each test evaluates the example1 configuration (NLA) with the bfmt
 theory block computing one feedback method, against that method's
-FROZEN data vector - the default-settings theory prediction written
+frozen data vector: the default-settings theory prediction written
 at freeze time by generate_frozen_reference.py --baryons, at the
 frozen fiducial point plus the method's cosmology override
 (cocoa_test_utils.BARYON_POINT_OVERRIDES). At freeze time the chi2
@@ -11,7 +11,8 @@ against that vector was zero by construction, so the assertion
     chi2 <= chi2_tolerance
 
 pins the whole feedback pipeline: a failure means cosmolike or the
-bfmt theory block changed its prediction since the freeze. This is
+bfmt theory block changed its prediction since the freeze (a drift,
+in the language of this file). This is
 the reference-test idea (test_example1.py) applied to the feedback
 pipeline, and it complements test_accuracy_baryons.py: the accuracy
 checks regenerate their vector on the fly per run, so they measure
@@ -33,7 +34,7 @@ active, start_cocoa.sh sourced):
 import os
 
 # OpenMP reads OMP_NUM_THREADS when the compiled libraries load, so
-# this must run before ANY cobaya/cosmolike import in the process.
+# this must run before any cobaya/cosmolike import in the process.
 os.environ["OMP_NUM_THREADS"] = "4"
 
 import sys
@@ -55,16 +56,21 @@ class TestBaryonDrift(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
+        """Move to ROOTDIR and verify the frozen state, once per class."""
         u.require_cocoa_environment()
         u.verify_frozen()
 
     def _baryon_drift_check(self, name, baryon, label):
-        """One method's chi2 against its frozen feedback vector.
+        """Check one method's chi2 against its frozen feedback vector.
 
         Arguments:
           name   = the test label (BD1-BD7) for the report.
           baryon = a label of cocoa_test_utils.BARYON_METHODS.
           label  = one line naming the feedback method.
+
+        Returns:
+          nothing; the assertion fails when the chi2 exceeds
+          CHI2_TOLERANCE.
         """
         chi2 = u.baryon_drift_chi2(baryon)
         print(f"""
@@ -112,5 +118,8 @@ DRIFT: {name}: {label}
         self._baryon_drift_check("BD7", "bcemu2025", "BCemu2025")
 
 
+# __name__ is "__main__" only when this file runs directly as a
+# script; pytest imports the module instead, so this block stays
+# idle under pytest
 if __name__ == "__main__":
     unittest.main(verbosity=2)

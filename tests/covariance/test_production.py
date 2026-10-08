@@ -1,13 +1,20 @@
 """Check the production interface against the notebook calculation.
 
-Small grids exercise both measurement spaces and one/eight-thread execution.
-The project catalogs and all internal field pairs remain present; these
-checks establish API equivalence, not survey numerical convergence.
+The production interface is the covariance part of the compiled module
+(ci.covariance), which compute_covariance.py calls with numpy arrays; the
+notebook calculation reaches the same C code through the notebook
+bindings. Small grids exercise both measurement spaces and one/eight-thread
+execution. The project catalogs and all internal field pairs remain
+present; these checks establish API equivalence, not survey numerical
+convergence. check_project_forecast lives in
+cosmolike_core/cocoa_covariance_testing.py, shared by the projects.
 """
 
 from pathlib import Path
 import sys
 
+# project = projects/lsst_y1; its covariance/ folder holds the survey
+# adapter lsst_y1_covariance.py
 project = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(project/"covariance"))
 
@@ -18,6 +25,8 @@ from cocoa_covariance_testing import check_project_forecast
 
 def test_production_matches_notebook(tmp_path):
     """Both entry points retain the same components, axes and saved settings."""
+    # the full layouts: 1560 rows in real space, 675 bandpowers in Fourier
+    # space; tmp_path is a fresh temporary folder pytest creates
     check_project_forecast(
         interface=ci, survey=survey, expected_sizes=(1560, 675),
         directory=tmp_path,

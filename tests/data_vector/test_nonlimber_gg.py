@@ -17,8 +17,8 @@ lens galaxy redshift distributions are narrow, so the Limber
 approximation fails at low l for the clustering auto spectra; this
 test measures by how much.
 
-It evaluates the frozen 3x2pt fiducial (NLA) three times IN ONE
-PROCESS: the default, the other setting, the default again, and
+It evaluates the frozen 3x2pt fiducial (NLA) three times in one
+process: the default, the other setting, the default again, and
 computes
 
     delta chi2 = delta^T C^-1 delta,
@@ -53,7 +53,7 @@ start_cocoa.sh sourced):
 import os
 
 # OpenMP reads OMP_NUM_THREADS when the compiled libraries load, so
-# this must run before ANY cobaya/cosmolike import in the process.
+# this must run before any cobaya/cosmolike import in the process.
 os.environ["OMP_NUM_THREADS"] = "4"
 
 import sys
@@ -86,8 +86,8 @@ SETTINGS = (
 # dead flag.
 DCHI2_FLOOR = 1.0e-6
 
-# delta chi2 measured on 2026-10-01 (macOS, arm64), and the relative band
-# assertion 4 allows around it.
+# delta chi2 measured for this project's frozen fiducial (macOS, arm64),
+# and the relative band assertion 4 allows around it.
 DCHI2_MEASURED = 151.8
 DCHI2_RTOL = 0.05
 
@@ -97,11 +97,13 @@ class TestNonLimberGG(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
+        """Move to ROOTDIR, verify the frozen state, load the references."""
         u.require_cocoa_environment()
         u.verify_frozen()
         cls.reference = u.load_reference()
 
     def test_nonlimber_gg(self):
+        """Limber vs non-Limber clustering: assertions 1-5 above."""
         import numpy as np
         import cosmolike_lsst_y1_interface as ci
 
@@ -137,6 +139,8 @@ class TestNonLimberGG(unittest.TestCase):
                     sizes = ci.compute_data_vector_3x2pt_fourier_sizes()
                     nlen = int(like.ncl)
 
+        # tags = {flag value: report tag} of the first two settings, so
+        # tags[0] names the non-Limber run and tags[1] the Limber one
         tags = {flag: tag for tag, flag in SETTINGS[:2]}
         dv_default = vectors[SETTINGS[0][0]]
         delta = vectors[tags[0]] - vectors[tags[1]]
@@ -156,6 +160,8 @@ class TestNonLimberGG(unittest.TestCase):
         print(f"    delta^T C^-1 delta = {dchi2:.4f} "
               f"(measured {DCHI2_MEASURED:.4f})")
         print("    per lens bin (the bin's block alone):")
+        # per-bin contributions, printed largest first; the loop stops
+        # at the first one below 0.1% of the total
         rows = []
         for b in range(nbins):
             block = np.zeros_like(delta)
@@ -199,5 +205,8 @@ class TestNonLimberGG(unittest.TestCase):
             f"reference {self.reference[REFERENCE_KEY]:.6f}")
 
 
+# __name__ is "__main__" only when this file runs directly as a
+# script; pytest imports the module instead, so this block stays
+# idle under pytest
 if __name__ == "__main__":
     unittest.main(verbosity=2)

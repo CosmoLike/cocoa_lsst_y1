@@ -1,3 +1,21 @@
+"""Compares the nuisance-parameter posteriors of four samplers (example 2).
+
+Uses the four chains of EXAMPLE_PLOT_COMPARE_CHAINS_EMUL2.py (Planck 2018
+CMB + DESI DR2 BAO + DES Y5 SN + LSST-Y1 cosmic shear: Cobaya
+Metropolis-Hastings, Nautilus, emcee and PolyChord) and plots nuisance
+parameters: the photo-z shifts LSST_DZ_S1 to LSST_DZ_S4 of the n(z) of the
+first four source bins and the multiplicative shear calibrations LSST_M1
+to LSST_M4. The chi2v2 column (-2 log posterior) is added as in that script
+but not plotted.
+
+Input: EXAMPLE_EMUL_MCMC2, EXAMPLE_EMUL_NAUTILUS2, EXAMPLE_EMUL_EMCEE2 and
+EXAMPLE_EMUL_POLY2 in $ROOTDIR/projects/lsst_y1/chains/ (ROOTDIR = the
+Cocoa/ folder, set by start_cocoa.sh). Output, in the same folder: the
+hidden files .VM_P2_TMP2 to .VM_P2_TMP5 (the files
+EXAMPLE_PLOT_COMPARE_CHAINS_EMUL2.py also writes) and
+example_compare_chains_emul2v2.pdf. Run from any folder with Cocoa
+activated.
+"""
 import getdist.plots as gplot
 from getdist import MCSamples
 from getdist import loadMCSamples
@@ -7,7 +25,9 @@ import subprocess
 import matplotlib.pyplot as plt
 import numpy as np
 
-# GENERAL PLOT OPTIONS
+# General plot options: matplotlib.rcParams is matplotlib's table of default
+# styles (fonts, ticks, grid, output format); the entries below apply to
+# every figure of this script, saved as PDF with the white margins cropped.
 matplotlib.rcParams['mathtext.fontset'] = 'stix'
 matplotlib.rcParams['font.family'] = 'STIXGeneral'
 matplotlib.rcParams['mathtext.rm'] = 'Bitstream Vera Sans'
@@ -27,20 +47,38 @@ matplotlib.rcParams['legend.labelspacing'] = 0.77
 matplotlib.rcParams['savefig.bbox'] = 'tight'
 matplotlib.rcParams['savefig.format'] = 'pdf'
 
+# parameter = the chain columns to plot, by their Cobaya names; chaindir =
+# the project's chains folder, from ROOTDIR (the Cocoa/ folder, set by
+# start_cocoa.sh)
 parameter = [u'LSST_DZ_S1', u'LSST_DZ_S2', u'LSST_DZ_S3', u'LSST_DZ_S4', 
              u'LSST_M1', u'LSST_M2', u'LSST_M3', u'LSST_M4']
 chaindir  = os.environ['ROOTDIR'] + "/projects/lsst_y1/chains/"
 
+# getdist analysis settings:
+#   ignore_rows = fraction of each chain removed from its start as burn-in,
+#       applied when the chain is loaded;
+#   smooth_scale_1D, smooth_scale_2D = width of the Gaussian kernel that
+#       smooths the 1D and 2D densities, in standard deviations of each
+#       parameter;
+#   range_confidence = tail probability that sets the plotted range of each
+#       parameter;
+# analysissettings (ignore_rows = 0.3) is for the Metropolis-Hastings chains.
 analysissettings={'smooth_scale_1D':0.25, 
                   'smooth_scale_2D':0.25,
                   'ignore_rows': u'0.3',
                   'range_confidence' : u'0.005'}
 
+# analysissettings2 (ignore_rows = 0) is for samples without burn-in: the
+# nested samplers (Nautilus, PolyChord), the output of the emcee script
+# (which removes burn-in itself), and the files saved below, whose burn-in
+# was removed when their chain was loaded.
 analysissettings2={'smooth_scale_1D':0.25,
                    'smooth_scale_2D':0.25,
                    'ignore_rows': u'0.0',
                    'range_confidence' : u'0.005'}
 
+# root_chains = chain names (file prefixes) in chaindir, in the order of the
+# legend labels below
 root_chains = (
   'EXAMPLE_EMUL_MCMC2',
   'EXAMPLE_EMUL_NAUTILUS2',
@@ -49,28 +87,43 @@ root_chains = (
 )
 
 # --------------------------------------------------------------------------------
+# Each block loads one chain (burn-in removed by its settings), adds the
+# derived column chi2v2 = -2 log posterior (p.<name> is the array of column
+# <name>, one entry per sample) and saves the chain as hidden getdist text
+# files (names starting with a dot) in chaindir.
+# EXAMPLE_EMUL_MCMC2, a Cobaya Metropolis-Hastings chain: chi2 = -2 log
+# likelihood and minuslogprior = -log prior, so chi2v2 = chi2 + 2 minuslogprior
 samples=loadMCSamples(chaindir + root_chains[0],settings=analysissettings)
 p = samples.getParams()
 samples.addDerived(p.chi2+2*p.minuslogprior,name='chi2v2', label='{\\chi^2_{\\rm post}}')
 samples.saveAsText(chaindir + '/.VM_P2_TMP2')
 # --------------------------------------------------------------------------------
+# EXAMPLE_EMUL_NAUTILUS2, written by EXAMPLE_EMUL_NAUTILUS2.py: no burn-in, and
+# its chi2 column already holds -2 log posterior
 samples=loadMCSamples(chaindir+ root_chains[1], settings=analysissettings2)
 p = samples.getParams()
 samples.addDerived(p.chi2, name='chi2v2',label='{\\chi^2_{\\rm post}}')
 samples.saveAsText(chaindir + '/.VM_P2_TMP3')
 # --------------------------------------------------------------------------------
+# EXAMPLE_EMUL_EMCEE2, written by EXAMPLE_EMUL_EMCEE2.py: burn-in already
+# removed, and its chi2 column already holds -2 log posterior
 samples=loadMCSamples(chaindir+ root_chains[2],settings=analysissettings2)
 p = samples.getParams()
 samples.addDerived(p.chi2, name='chi2v2', label='{\\chi^2_{\\rm post}}')
 samples.saveAsText(chaindir + '/.VM_P2_TMP4')
 # --------------------------------------------------------------------------------
+# EXAMPLE_EMUL_POLY2, a Cobaya PolyChord chain (no burn-in): chi2v2 = chi2 + 2
+# minuslogprior
 samples=loadMCSamples(chaindir+ root_chains[3],settings=analysissettings2)
 p = samples.getParams()
 samples.addDerived(p.chi2+2*p.minuslogprior,name='chi2v2',label='{\\chi^2_{\\rm post}}')
 samples.saveAsText(chaindir + '/.VM_P2_TMP5')
 # --------------------------------------------------------------------------------
 
-#GET DIST PLOT SETUP
+# getdist plotter: it reads the hidden files with analysissettings2
+# (ignore_rows = 0), since their burn-in is already removed; width_inch =
+# figure width in inches; g.settings sets fonts, line widths, the rotation of
+# the x tick labels and the legend style.
 g=gplot.getSubplotPlotter(chain_dir=chaindir,
                           analysis_settings=analysissettings2,
                           width_inch=10.5)
@@ -84,6 +137,16 @@ g.settings.alpha_filled_add = 0.85
 g.settings.lab_fontsize=15.5
 g.legend_labels=False
 
+# triangle_plot draws the 1D marginalized posterior of each parameter on the
+# diagonal and the 68% and 95% contours of each pair below it. line_args
+# (1D curves), contour_colors, contour_ls, contour_lws and filled hold one
+# style per chain, in the order of roots; extra entries are not used. The
+# legend labels are plain text written for these runs.
+# In them, R-1 = the Gelman-Rubin convergence statistic of the MH chains (the
+# Rminus1_stop and Rminus1_cl_stop limits of the yaml); n_live = live points
+# and log(Z) = log evidence of the nested samplers; n_repeat = 3D =
+# PolyChord's num_repeats, 3 times the number of parameters; n_eval =
+# posterior evaluations.
 g.triangle_plot(
   params=parameter,
   roots=[chaindir + '/.VM_P2_TMP2',
