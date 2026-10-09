@@ -18,6 +18,7 @@ modeling.
 """
 
 import numpy as np
+from abort_check import assert_aborts
 import pytest
 
 
@@ -201,16 +202,18 @@ def test_connected_rejects_invalid_inputs():
     for name, value in invalid:
         arguments = dict(valid)
         arguments[name] = value
-        with pytest.raises(ValueError):
+        def attempt():
             ci.covariance_project_connected(**arguments)
+        assert_aborts(attempt)
 
     # The high-level helper must not truncate fractional or overflowing
     # probe IDs while converting an integer array to the C int32 type.
     for dtype, value in ((float, 0.5), (np.int64, 2**32)):
         rows = np.zeros((len(probes), 3), dtype=dtype)
         rows[:, 0] = value
-        with pytest.raises(ValueError):
+        def attempt():
             project_connected(
                 interface=ci, rows=rows, pair_window=window,
                 projected=projected, measure=measure,
             )
+        assert_aborts(attempt)

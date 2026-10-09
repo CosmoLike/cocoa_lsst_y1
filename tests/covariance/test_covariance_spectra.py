@@ -21,6 +21,7 @@ import ctypes
 from pathlib import Path
 import unittest
 
+from abort_check import assert_aborts
 import numpy as np
 
 
@@ -228,8 +229,10 @@ class CovarianceSpectra(unittest.TestCase):
             (self.ell, self.edges[::-1].copy(), 128),
             (self.ell, self.edges, 63),
         ):
-            with self.assertRaises(ValueError):
-                self.ci.covariance_limber_spectra(ell=ell, a_edges=edges, nquad=nquad)
+            def attempt():
+                self.ci.covariance_limber_spectra(
+                    ell=ell, a_edges=edges, nquad=nquad)
+            assert_aborts(attempt)
 
     def test_multipole_batches_preserve_every_spectrum(self):
         """Batch boundaries and worker counts leave all radial sums unchanged."""

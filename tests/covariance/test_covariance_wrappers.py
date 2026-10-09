@@ -10,6 +10,7 @@ observable list contains only a subset of field pairs.
 """
 
 import numpy as np
+from abort_check import assert_aborts
 import pytest
 
 from cosmolike_notebook_utils.covariance.gaussian import realspace_block
@@ -166,8 +167,9 @@ def test_wrapper_rejects_invalid_shapes_and_fields():
     ):
         invalid = dict(kwargs)
         invalid[key] = value
-        with pytest.raises(ValueError):
+        def attempt():
             ci.covariance_gaussian_fourier(**invalid)
+        assert_aborts(attempt)
 
 
 def notebook_layout(values, layout):
