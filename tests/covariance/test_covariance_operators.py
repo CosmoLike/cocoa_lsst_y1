@@ -19,6 +19,7 @@ C signatures).
 import ctypes
 import unittest
 
+from abort_check import assert_aborts
 import numpy as np
 from scipy.special import eval_legendre
 
@@ -207,8 +208,9 @@ class CovarianceOperators(unittest.TestCase):
                 integral = np.dot(weights, nodes**degree)
                 np.testing.assert_allclose(integral, 2/(degree+1), rtol=2.e-14)
         for count in (16, 32, 65, 384, 2048):
-            with self.assertRaises(ValueError):
+            def attempt():
                 ci.covariance_integration_rule(nquad=count)
+            assert_aborts(attempt)
 
     def test_thread_and_geometry_roundtrip(self):
         """Bitwise outputs at 1/4/8 threads, with changed/restored angular bins."""

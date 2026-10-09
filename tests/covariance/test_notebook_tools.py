@@ -19,6 +19,7 @@ import unittest
 import matplotlib
 matplotlib.use("Agg")
 from matplotlib import pyplot as plt
+from abort_check import assert_aborts
 import numpy as np
 
 import cosmolike_lsst_y1_interface as ci
@@ -196,9 +197,11 @@ class NotebookCovariance(unittest.TestCase):
             left=left, right=right, ell_min=2, area_sr=0.8*np.pi,
         )
         np.testing.assert_array_equal(x=result, y=saved)
-        with self.assertRaises(ValueError):
-            ci.covariance_project(left=left, right=np.ascontiguousarray(right[:, :-1]),
+        def attempt():
+            ci.covariance_project(left=left,
+                                  right=np.ascontiguousarray(right[:, :-1]),
                                   weight=np.ones(shape=17))
+        assert_aborts(attempt)
 
     def test_public_operators_and_pair_noise(self):
         """The Python operator ordering gives analytic full-sky pair variance."""
