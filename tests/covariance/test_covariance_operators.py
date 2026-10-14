@@ -195,19 +195,20 @@ class CovarianceOperators(unittest.TestCase):
             self.assertLess(error, 1.e-6)
 
     def test_precomputed_rule_floor_and_polynomial_integrals(self):
-        """Accept only tabulated rules >=64, checking their nodes and weights."""
+        """Check tabulated rules and the supported 2048/4096 composite rules."""
         import cosmolike_lsst_y1_interface as ci
-        # each tabulated Gauss-Legendre rule on [-1, 1] must integrate
+        # Each Gauss-Legendre rule on [-1, 1] must integrate
         # x^degree exactly: 2/(degree+1) for even degrees; other node
-        # counts are refused
-        for count in (64, 96, 128, 256, 512, 1024):
+        # counts are refused. The two largest rules join copies of the
+        # tabulated 1024-point rule and retain polynomial exactness.
+        for count in (64, 96, 128, 256, 512, 1024, 2048, 4096):
             nodes, weights = ci.covariance_integration_rule(nquad=count)
             self.assertTrue(np.all(np.diff(nodes) > 0.0))
             self.assertTrue(np.all(weights > 0.0))
             for degree in (0, 2, 10, 20):
                 integral = np.dot(weights, nodes**degree)
                 np.testing.assert_allclose(integral, 2/(degree+1), rtol=2.e-14)
-        for count in (16, 32, 65, 384, 2048):
+        for count in (16, 32, 65, 384, 2049, 8192):
             def attempt():
                 ci.covariance_integration_rule(nquad=count)
             assert_aborts(attempt)
