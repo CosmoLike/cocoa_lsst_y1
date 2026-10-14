@@ -135,8 +135,8 @@ class NotebookCovariance(unittest.TestCase):
                 cov.load_covariance_accuracy(filename=filename, window_accuracyboost=0)
 
     def test_integration_level_is_independent_of_global_boost(self):
-        """Every integrated sector follows the precomputed rule ladder only."""
-        for level, count in enumerate((96, 128, 256, 512, 1024)):
+        """Every integrated sector follows the stored/composite rule ladder only."""
+        for level, count in enumerate((96, 128, 256, 512, 1024, 2048, 4096)):
             for boost in (1, 2, 4, 8):
                 settings = cov.covariance_accuracy(
                     accuracy_boost=boost, integration_accuracy=level,
@@ -144,9 +144,33 @@ class NotebookCovariance(unittest.TestCase):
                 for name in ("radial_nquad", "angle_nquad", "halo_mass_nquad",
                              "tree_nquad"):
                     self.assertEqual(settings[name], count)
-        for level in (-1, 5, 0.5, True):
+        for level in (-1, 7, 0.5, True):
             with self.assertRaises(ValueError):
                 cov.covariance_accuracy(integration_accuracy=level)
+
+    def test_extended_quadrature_moments(self):
+        """Higher levels integrate analytic functions with positive weights.
+
+        The two new sizes use composite stored rules. Exact polynomial
+        moments and exp(x) test their normalization and interval mapping
+        independently of a cosmological model or an n(z) representation.
+        """
+        for count in (2048, 4096):
+            nodes, weights = ci.covariance_integration_rule(nquad=count)
+            self.assertEqual(nodes.size, count)
+            self.assertTrue(np.all(np.diff(nodes) > 0))
+            self.assertTrue(np.all(weights > 0))
+            np.testing.assert_array_equal(nodes, -nodes[::-1])
+            np.testing.assert_array_equal(weights, weights[::-1])
+            for degree in (0, 1, 2, 7, 12, 31, 60):
+                exact = 0.0 if degree % 2 else 2.0/(degree+1)
+                self.assertLess(abs(weights @ nodes**degree-exact), 2.e-14)
+            lo = -0.7
+            hi = 2.3
+            mapped = (lo+hi)/2+(hi-lo)*nodes/2
+            integral = (hi-lo)/2*(weights @ np.exp(mapped))
+            np.testing.assert_allclose(integral, np.exp(hi)-np.exp(lo),
+                                       rtol=2.e-14, atol=0)
 
     def test_non_gaussian_grid_does_not_move_band_endpoints(self):
         """A fixed measured cutoff trims the table without stretching cells."""
