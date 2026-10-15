@@ -128,6 +128,24 @@ class CovarianceSpectra(unittest.TestCase):
                     np.abs(converted-expected), 1.e-12*scale+1.e-30
                 )
 
+    def test_extended_radial_rules(self):
+        """All field pairs accept native GSL rules and match direct contraction."""
+        for count in (2048, 4096, 8192):
+            result = self.compute(nquad=count, linear=True)
+            self.assertEqual(result["geometry"].shape[1], count*(len(self.edges)-1))
+            power = self.reference.power_at_nodes(
+                archive=self.tables, ell=self.ell, geometry=result["geometry"],
+                linear=True,
+            )
+            expected = self.reference.limber_matrix(
+                ell=self.ell, geometry=result["geometry"], windows=result["windows"],
+                nlens=2, power=power,
+            )
+            diagonal = np.diagonal(expected, axis1=1, axis2=2)
+            scale = np.sqrt(np.einsum("ei,ej->eij", diagonal, diagonal))
+            np.testing.assert_array_less(np.abs(result["spectra"]-expected),
+                                         2.e-12*scale+1.e-30)
+
     def test_thread_counts_symmetry_and_psd(self):
         """Require bitwise repetition and PSD before adding positive noise."""
         reference = None
