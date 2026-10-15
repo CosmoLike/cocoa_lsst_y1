@@ -944,45 +944,12 @@ supply the hosts and slots with the cluster's `--hostfile` or `--host` recipe.
 
 # Unit tests <a name="unit_tests"></a>
 
-The `tests/data_vector/` folder holds unit tests for the likelihoods of this
-project: they compare each likelihood against stored reference
-values, check for race conditions from OpenMP threading, and measure
-the numerical error of the default accuracy settings, and the accuracy of the
-hybrid emulated pipelines. The
-tests read nothing from the live project;
-[data-vector test guide](tests/data_vector/README.md) describes every test, the tests'
-own data snapshot, and how to refresh it. The `tests/covariance/` folder checks the
-covariance calculation and needs the optional covariance build
-([covariance test guide](tests/covariance/README.md)); the
-[test overview](tests/README.md) runs both folders.
-
-We assume users are in the Conda cocoa environment from a previous
-`conda activate cocoa` command, that the shell is bash, and that the
-current folder is the cocoa main folder `cocoa/Cocoa`.
-
-**Step :one:**: activate the private Python environment by sourcing
-the script `start_cocoa.sh`
-
-    source start_cocoa.sh
-
-**Step :two:**: run the tests of this project
-
-    python -m pytest ./projects/lsst_y1/tests/data_vector
-
-## Minimum accuracy parameters
-
-The advisory checks in `tests/data_vector/test_accuracy.py` measure the
-numerical error of the default accuracy settings: each setting is
-raised one at a time on the 3x2pt configuration, so a large
-$\Delta\chi^2$ can be attributed to the setting causing it, and
-then every setting at once.
-
-Each check prints the $\Delta\chi^2$
-between the high-accuracy and the default evaluations, to compare
-against the 0.2 band the reference tests allow. No measured values
-are quoted here: rerun the checks to measure them on the current
-code, and see [data-vector test guide](tests/data_vector/README.md) for each check,
-the settings raised, and what each setting controls.
+The `tests/` folder compares likelihood predictions against stored reference
+values, checks for race conditions from OpenMP threading, and measures the
+numerical error of the default accuracy settings. It also checks the
+accuracy of the hybrid emulated pipelines.
+[tests/README.md](tests/README.md) describes the checks, how to run them,
+the input data snapshots, and how to refresh them.
 
 # Exploring notebooks <a name="notebooks"></a>
 
@@ -1044,76 +1011,10 @@ forecast files, figures and refinement workflow.
 
 # Computing covariances <a name="computing_covariances"></a>
 
-> [!WARNING]
-> **CLI for production; notebook wrappers for exploration.**
->
-> Run production and HPC covariance calculations from YAML through the
-> `_interface` bindings. Notebook `_wrapper` APIs expose intermediate
-> quantities for exploration; copying and rearranging their arrays adds
-> overhead. Both routes call the same C kernels.
->
-> For timing measurements, see
-> [Cocoa's main README](https://github.com/CosmoLike/cocoa#overview).
-
-The production CLI saves G, SSC, cNG and total before scale cuts. It reads
-[the covariance evaluate YAML](EXAMPLE_EVALUATE_COVARIANCE.yaml) and calls the shared C kernels.
-
-We assume Cocoa and this project are installed, the Cocoa Conda environment
-is active, the shell is Bash, and the current folder is `cocoa/Cocoa/`.
-
-**Step :one:**: enable this project in `set_installation_options.sh` by commenting out
-`export IGNORE_COSMOLIKE_LSST_Y1_CODE=1` before activation.
-
-**Step :two:**: activate Cocoa.
-
-```bash
-source start_cocoa.sh
-```
-
-**Step :three:**: enable covariance generation.
-
-```bash
-unset IGNORE_COSMOLIKE_LSST_Y1_COVARIANCE
-```
-
-**Step :four:**: compile the project.
-
-```bash
-source ./projects/lsst_y1/scripts/compile_lsst_y1.sh
-```
-
-**Step :five:**: Select the number of OpenMP cores (below, we set it to 8).
-
-  - Linux
-
-        export OMP_NUM_THREADS=8; export OMP_PROC_BIND=close; \
-        export OMP_PLACES=cores; export OMP_DYNAMIC=FALSE; \
-        export OPENBLAS_NUM_THREADS=1; export MKL_NUM_THREADS=1
-
-  - macOS (arm)
-
-        export OMP_NUM_THREADS=8; export OMP_PROC_BIND=disabled; \
-        export OMP_PLACES=cores; export OMP_DYNAMIC=FALSE; \
-        export OPENBLAS_NUM_THREADS=1; export MKL_NUM_THREADS=1
-
-**Step :six:**: compute the fixed YAML cosmology.
-
-```bash
-python ./projects/lsst_y1/covariance/compute_covariance.py ./projects/lsst_y1/EXAMPLE_EVALUATE_COVARIANCE.yaml
-```
-
-Use `--output PATH` for a separate output or `--overwrite` to replace an
-existing computed archive. Paths are relative to `cocoa/Cocoa/`. Threads
-come only from `OMP_NUM_THREADS`, never from the YAML; the runner fixes BLAS
-to one thread. Ordinary likelihoods read their supplied covariance and do
-not generate a new one.
-
-Cobaya's YAML reader supplies the familiar `theory`, `params` and
-`sampler: evaluate` syntax. This runner evaluates one fixed cosmology and
-does not run MCMC. See the [covariance guide](covariance/README.md) for output
-ordering, physics, Gaussian non-Limber/IA limits, plots and test commands,
-and the [accuracy FAQ](#accuracy) for the separate numerical controls.
-
+The covariance tools compute Gaussian (G), super-sample (SSC), connected
+non-Gaussian (cNG) and total matrices before scale cuts.
+[covariance/README.md](covariance/README.md) explains compilation, the production
+CLI, exploratory notebooks, accuracy settings and output files.
 
 # Appendix <a name="appendix"></a>
 
