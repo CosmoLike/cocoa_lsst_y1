@@ -358,25 +358,7 @@ Now, users must follow all the steps below.
         mpirun -n 12 --oversubscribe \
           cobaya-run ./projects/lsst_y1/EXAMPLE_EMUL_POLY2.yaml -r
 
-> [!NOTE]
-> **Running on more than one node.** The flag `--mca btl vader,tcp,self` works unchanged across
-> nodes: Open MPI picks the transport per pair of ranks, using shared memory (`vader`) within a
-> node and TCP between nodes. Three things deserve attention on multi-node runs:
->
-> 1. **Network interface.** The TCP layer must not select an interface that is not routable
->    between compute nodes. The flag `--mca btl_tcp_if_exclude lo,docker0,virbr0,ib0` excludes
->    the common offenders. TCP bandwidth is not a limitation for our workloads, which exchange
->    small, infrequent MPI messages.
->
-> 2. **Environment.** Ranks on remote nodes must see Cocoa's environment (`ROOTDIR`, `PATH`,
->    `LD_LIBRARY_PATH`, `PYTHONPATH`, `CONDA_PREFIX`, the OpenMP/BLAS thread settings, and
->    `CLIK_PATH`/`CLIK_DATA`/`CLIK_PLUGIN`). Slurm forwards the submitting environment
->    automatically; the explicit `-x` flags in our sbatch templates repeat this so the
->    scripts also work under ssh-based launchers. No other Cocoa installation flags are read at runtime.
->
-> 3. **Slurm geometry.** Keep `ntasks-per-node` × `cpus-per-task` no larger than the cores per
->    node, and use `--map-by numa:pe=${OMP_NUM_THREADS}` so each rank reserves the cores its
->    OpenMP threads will use.
+For multi-node runs, see [MPI across nodes](#mpi_across_nodes).
 
 > [!NOTE]
 > **Note on core oversubscription**: an MPI process that is waiting still burns 100% of its
@@ -887,15 +869,13 @@ Neural networks generalize the *syren-new* Eq. 6 of [arXiv:2410.14623](https://a
 > </p>
 
 
-### MPI across nodes
+### MPI across nodes <a name="mpi_across_nodes"></a>
 
 The two-rank commands above disable MPI binding for a portable local run.
 For a cluster allocation, use the explicit binding and placement below.
 
 > [!NOTE]
-> **Running on more than one node.** With the Open MPI 4 launcher used here,
-> `--mca pml ob1 --mca btl vader,tcp,self` selects shared memory within a node
-> and TCP between nodes. The same transport list works across nodes.
+> **Running on more than one node.**
 >
 > 1. **Network interface.** TCP must use an interface routable between compute
 >    nodes. A common exclusion list is
@@ -915,11 +895,6 @@ For a cluster allocation, use the explicit binding and placement below.
 >    `SLURM_CPUS_PER_TASK` and use `--map-by numa:pe=${OMP_NUM_THREADS}`.
 >    The minimization, profile and Nautilus pool reserves one MPI rank as
 >    coordinator; the remaining ranks evaluate the model.
->
-> Open MPI 5 calls the shared-memory transport `sm`; use `sm,tcp,self` there.
-> See the [Open MPI transport guide](https://docs.open-mpi.org/en/main/tuning-apps/networking/shared-memory.html),
-> [TCP interface guidance](https://www.open-mpi.org/faq/?category=tcp), and
-> [Slurm environment options](https://slurm.schedmd.com/sbatch.html#OPT_export).
 
 Within a Slurm allocation, first activate Cocoa in Bash on the launch node.
 The following steps assume Open MPI 4 and shared installation/data paths.
@@ -927,41 +902,11 @@ Omit optional CLIK exports if those variables are not set.
 
 **Step :one:**: match OpenMP threads to the scheduler allocation.
 
-```bash
-export OMP_NUM_THREADS="${SLURM_CPUS_PER_TASK}"
-```
+    export OMP_NUM_THREADS="${SLURM_CPUS_PER_TASK}"; export OMP_PROC_BIND=close; \
+    export OMP_PLACES=cores; export OMP_DYNAMIC=FALSE; \
+    export OPENBLAS_NUM_THREADS=1; export MKL_NUM_THREADS=1
 
-**Step :two:**: bind each OpenMP team to its allocated cores.
-
-```bash
-export OMP_PROC_BIND=close
-```
-
-**Step :three:**: select core placement.
-
-```bash
-export OMP_PLACES=cores
-```
-
-**Step :four:**: disable dynamic team resizing.
-
-```bash
-export OMP_DYNAMIC=FALSE
-```
-
-**Step :five:**: keep OpenBLAS serial.
-
-```bash
-export OPENBLAS_NUM_THREADS=1
-```
-
-**Step :six:**: keep MKL serial.
-
-```bash
-export MKL_NUM_THREADS=1
-```
-
-**Step :seven:**: launch the hybrid minimizer across the allocated ranks.
+**Step :two:**: launch the hybrid minimizer across the allocated ranks.
 
 ```bash
 "${CONDA_PREFIX}"/bin/mpirun -n "${SLURM_NTASKS}" \
