@@ -167,7 +167,8 @@ _CONFIG = {
     "bias_model": [0, 0, 0, 1, 0],    # n(z) photo-z conventions (mirror the likelihood yaml keys):
     # interpolation 0 = cspline, 1 = linear, 2+ = Steffen monotone;
     # z column 0 = Z_LOW (left bin edges), 1 = Z_MID (sample points)
-    "photoz_histogram_akima": 0,  # optional fixed 3x histogram + Akima
+    "photoz_histogram_akima": 0,
+    "photoz_histogram_akima_factor": 3,  # 3, 5 or 7; independent of accuracy
     "photoz_interpolation_type": 0,
     "photoz_zmid_convention": 0,
     # C-FAST-PT internal (convolution) grid / output grid; 1.0 = equal
@@ -271,7 +272,8 @@ def init_cosmolike(CLprobe=None, with_data=False, lmax=None):
         ci.init_bias(bias_model=_CONFIG["bias_model"])
     ci.init_ntable_lmax(lmax=int(lmax))
     ci.init_photoz_histogram_akima(
-        enabled=int(_CONFIG["photoz_histogram_akima"]))
+        enabled=int(_CONFIG["photoz_histogram_akima"]),
+        preparation_factor=int(_CONFIG["photoz_histogram_akima_factor"]))
     ci.init_photoz_conventions(
         int(_CONFIG["photoz_interpolation_type"]),
         int(_CONFIG["photoz_zmid_convention"]))
@@ -356,7 +358,8 @@ def _set_state(omegam, omegab, H0, ns, As_1e9, w, w0pwa,
         0, CLIntegrationAccuracy + abs(3*(CLAccuracyBoost - 1.0)))
     ci.init_ntable_lmax(int(_CONFIG["lmax"] + 20000*(CLAccuracyBoost - 1)))
     ci.init_photoz_histogram_akima(
-        enabled=int(_CONFIG["photoz_histogram_akima"]))
+        enabled=int(_CONFIG["photoz_histogram_akima"]),
+        preparation_factor=int(_CONFIG["photoz_histogram_akima_factor"]))
     ci.init_photoz_conventions(
         int(_CONFIG["photoz_interpolation_type"]),
         int(_CONFIG["photoz_zmid_convention"]))
@@ -1312,7 +1315,8 @@ def compute_probes(sup=None, ell=None):
             lnPNL[i :: len(z_interp_2D)] += np.log(sup[z_val])
     ci.init_ntable_lmax(int(_CONFIG["lmax"]))
     ci.init_photoz_histogram_akima(
-        enabled=int(_CONFIG["photoz_histogram_akima"]))
+        enabled=int(_CONFIG["photoz_histogram_akima"]),
+        preparation_factor=int(_CONFIG["photoz_histogram_akima_factor"]))
     ci.init_photoz_conventions(
         int(_CONFIG["photoz_interpolation_type"]),
         int(_CONFIG["photoz_zmid_convention"]))

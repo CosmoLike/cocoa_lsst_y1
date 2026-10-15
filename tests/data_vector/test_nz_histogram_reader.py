@@ -13,8 +13,9 @@ import pytest
 import cosmolike_lsst_y1_interface as ci
 
 
+@pytest.mark.parametrize("preparation_factor", (3, 5, 7))
 @pytest.mark.parametrize("irregular", (False, True))
-def test_histogram_reader_refinement(irregular, tmp_path):
+def test_histogram_reader_refinement(irregular, preparation_factor, tmp_path):
     """Lookup refinement and thread count preserve the same reconstructed curve."""
     library = ctypes.CDLL(str(Path(ci.__file__).resolve()))
     library.omp_set_num_threads.argtypes = [ctypes.c_int]
@@ -34,7 +35,8 @@ def test_histogram_reader_refinement(irregular, tmp_path):
             ci.initial_setup()
             library.omp_set_num_threads(threads)
             ci.init_accuracy_boost(accuracy_boost=boost, integration_accuracy=0)
-            ci.init_photoz_histogram_akima(enabled=1)
+            ci.init_photoz_histogram_akima(
+                enabled=1, preparation_factor=preparation_factor)
             ci.init_redshift_distributions_from_files(
                 lens_multihisto_file=str(filename), lens_ntomo=2,
                 source_multihisto_file=str(filename), source_ntomo=2)
