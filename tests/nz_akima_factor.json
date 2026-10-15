@@ -70,9 +70,9 @@
     "five_to_seven": 0.1296626007475585
   },
   "practical_levels": {
-    "three": 2,
-    "five": 2,
-    "seven": 2
+    "three": 3,
+    "five": 3,
+    "seven": 3
   },
   "quadrature_scans": {
     "five": [
@@ -150,5 +150,48 @@
     "roundtrips_3_5_3_and_3_7_3_bitwise": true,
     "fresh_yaml_matches_live": true,
     "inverse_covariance_unchanged": true
+  },
+  "initial_practical_levels": {
+    "three": 2,
+    "five": 2,
+    "seven": 2
+  },
+  "raised_accuracy": {
+    "integration_accuracy": 3,
+    "reference_integration_accuracy": 6,
+    "numerical_delta_chi2": {
+      "three": 0.00038056481722310756,
+      "five": 0.0008263087345174438,
+      "seven": 0.0027871433494553845
+    },
+    "pairwise": {
+      "three_to_five": {
+        "raised_delta_chi2": 0.05079556992260548,
+        "reference_delta_chi2": 0.04900402692299461,
+        "displacement_error_delta_chi2": 0.00043819580238743287
+      },
+      "three_to_seven": {
+        "raised_delta_chi2": 0.19356978115091897,
+        "reference_delta_chi2": 0.18367251944748353,
+        "displacement_error_delta_chi2": 0.0024210608690228667
+      },
+      "five_to_seven": {
+        "raised_delta_chi2": 0.1349229939445046,
+        "reference_delta_chi2": 0.1296626007475585,
+        "displacement_error_delta_chi2": 0.0013233169597383204
+      }
+    },
+    "tests": {
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "fresh_vectors_match_previous_scans_bitwise": true,
+    "three_vectors_agree_between_factor_tests_bitwise": true,
+    "vector_sha256": {
+      "5": "769ccd24cdcd0e35a84bd4bdd3df3cef3cea0eaee74fb791c8e2304d734ae020",
+      "7": "cbb669f674e13a99ec2f9391917b6dcc776dee452e0150365ec24219cd52983c"
+    }
   }
 }
