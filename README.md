@@ -48,30 +48,6 @@ flowchart TB
 
 # Running Cosmolike projects (Basic instructions) <a name="running_cosmolike_projects"></a> 
 
-> [!WARNING]
-> **CLI for production; notebook wrappers for exploration.**
->
-> Run production and HPC calculations from YAML through the optimized
-> `_interface` bindings. Notebook `_wrapper` APIs expose intermediate
-> quantities for exploration; copying and rearranging their arrays adds
-> overhead. Both routes call the same C kernels.
->
-> In a matched **LSST Y1 covariance** test on an M2 Pro with eight threads,
-> the CLI averaged **50.23 s** (three runs); one wrapper run took **173.38 s**.
-> The CLI was **3.45× faster**, with bitwise-identical covariance components.
-> See [the production covariance CLI](#computing_covariances).
-
-> [!Warning]
-> CosmoLike supports the optimized strict-IEEE default build and
-> `COSMOLIKE_DEBUG_MODE`. The compiler mode `COSMOLIKE_AGGRESSIVE_MODE`
-> is not supported: the build stops with an error when it is set, because
-> its fast-math configuration produces incorrect covariance inverses.
-> Unset that variable before compiling.
-> Do not enable `-ffast-math`, `-Ofast`, `-funsafe-math-optimizations`,
-> `-fassociative-math`, `-ffinite-math-only`, `-freciprocal-math`,
-> `-fno-signed-zeros`, or `-fno-trapping-math` in CosmoLike builds.
-> This does not change Cocoa's separate `--aggressive` download option.
-
 From `Cocoa/Readme` instructions:
 
 > [!Note]
@@ -325,11 +301,6 @@ Now, users must follow all the steps below.
         mpirun -n 4 --oversubscribe \
           cobaya-run ./projects/lsst_y1/EXAMPLE_EMUL_MCMC1.yaml -r
 
-> [!Note]
-> Below is the cobaya timing of the average data vector computation time
-> in a Metropolis-Hastings chain (`EXAMPLE_EMUL_MCMC1`, no slow/fast decomposition) on a macOS M2 Pro. The emulators take advantage of the CPU-GPU integration on Apple MX chips.
->
-> Cobaya output: `lsst_y1.cosmic_shear : 0.00423518 s (200828 evaluations, 850.543 s total)`
     
   or (Example with `Planck CMB (l < 396) + SN + BAO + LSST-Y1` - $n_{\rm param} = 38$)
 
@@ -1111,6 +1082,17 @@ forecast files, figures and refinement workflow.
 
 
 # Computing covariances <a name="computing_covariances"></a>
+
+> [!WARNING]
+> **CLI for production; notebook wrappers for exploration.**
+>
+> Run production and HPC covariance calculations from YAML through the
+> `_interface` bindings. Notebook `_wrapper` APIs expose intermediate
+> quantities for exploration; copying and rearranging their arrays adds
+> overhead. Both routes call the same C kernels.
+>
+> For timing measurements, see
+> [Cocoa's main README](https://github.com/CosmoLike/cocoa#overview).
 
 The production CLI saves G, SSC, cNG and total before scale cuts. It reads
 [the covariance evaluate YAML](EXAMPLE_EVALUATE_COVARIANCE.yaml) and calls the shared C kernels.
