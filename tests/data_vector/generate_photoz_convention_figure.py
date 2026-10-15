@@ -1,4 +1,4 @@
-"""Regenerate the photo-z convention figures stored in tests/.
+"""Regenerate the photo-z convention figures stored in tests/data_vector/.
 
 Evaluates the frozen cosmic-shear fiducial under the four runtime
 photo-z settings (cspline/Z_LOW default, linear, Steffen, Z_MID; see
@@ -19,7 +19,7 @@ because the two knobs live on different scales:
 To run (from the Cocoa/ folder, cocoa environment active,
 start_cocoa.sh sourced):
 
-    python ./projects/lsst_y1/tests/generate_photoz_convention_figure.py
+    python ./projects/lsst_y1/tests/data_vector/generate_photoz_convention_figure.py
 """
 
 import os
@@ -41,9 +41,12 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
-# tests/ is not a package; put it first on the import path so
-# cocoa_test_utils resolves from any working directory
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# Figures belong beside these data-vector checks. The shared harness and
+# frozen inputs remain one folder above, in tests/. Resolve both from
+# this script so it can be launched from any working directory.
+FIGURES = os.path.dirname(os.path.abspath(__file__))
+TESTS = os.path.dirname(FIGURES)
+sys.path.insert(0, TESTS)
 import cocoa_test_utils as u
 
 # The frozen cosmic-shear configuration and its binning: NTOMO source
@@ -53,7 +56,7 @@ EXAMPLE = "example1"
 NTOMO = 5
 NTHETA = 26
 THETA_MIN, THETA_MAX = 2.5, 900.0
-MASK_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+MASK_FILE = os.path.join(TESTS,
                          "frozen", "data",
                          "lsst_y1_M1_GGLOLAP0.05.mask")
 
@@ -103,7 +106,7 @@ def plot(curves, fname, title, scale=100.0, unit="%", ylim=None):
     Arguments:
       curves = {label: (dxi_plus, dxi_minus)}, each a (npair, NTHETA)
                fractional-difference array with NaN at masked bins.
-      fname  = PNG file name, written next to this script (tests/).
+      fname  = PNG file name, written next to this script (tests/data_vector/).
       title  = figure title.
       scale  = factor applied to the fractions before plotting (100
                for percent).
@@ -152,7 +155,7 @@ def plot(curves, fname, title, scale=100.0, unit="%", ylim=None):
         axes.ravel()[0].set_ylim(-ylim, ylim)
     axes.ravel()[0].legend(fontsize=9, loc="lower left")
     fig.suptitle(title, fontsize=17)
-    fig.savefig(os.path.join(os.path.dirname(os.path.abspath(__file__)),
+    fig.savefig(os.path.join(FIGURES,
                              fname), dpi=120, bbox_inches="tight")
     plt.close(fig)
     print(f"wrote {fname}")
@@ -163,7 +166,7 @@ def main():
 
     Returns:
       nothing; photoz_zmid_dxi.png and photoz_interp_dxi.png are
-      written into tests/.
+      written into tests/data_vector/.
 
     Raises:
       RuntimeError when Cocoa is not activated; AssertionError when
