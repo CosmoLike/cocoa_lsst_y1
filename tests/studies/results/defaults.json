@@ -1,0 +1,75 @@
+{
+  "project": "lsst_y1",
+  "part": "defaults",
+  "point": {
+    "As_1e9": 2.1,
+    "H0": 67.32,
+    "LSST_A1_1": 0.606102,
+    "LSST_A1_2": -1.51541,
+    "LSST_A2_1": 0.0,
+    "LSST_A2_2": -1.51541,
+    "LSST_B1_1": 1.72716,
+    "LSST_B1_2": 1.65168,
+    "LSST_B1_3": 1.61423,
+    "LSST_B1_4": 1.92886,
+    "LSST_B1_5": 2.11633,
+    "LSST_BTA_1": 0.0,
+    "LSST_DZ_L1": 0.00457604,
+    "LSST_DZ_L2": 0.000309875,
+    "LSST_DZ_L3": 0.00855907,
+    "LSST_DZ_L4": -0.00316269,
+    "LSST_DZ_L5": -0.0146753,
+    "LSST_DZ_S1": 0.0414632,
+    "LSST_DZ_S2": 0.00147332,
+    "LSST_DZ_S3": 0.0237035,
+    "LSST_DZ_S4": -0.0773436,
+    "LSST_DZ_S5": -8.67127e-05,
+    "LSST_M1": 0.0191832,
+    "LSST_M2": -0.0431752,
+    "LSST_M3": -0.034961,
+    "LSST_M4": -0.0158096,
+    "LSST_M5": -0.0158096,
+    "mnu": 0.06,
+    "ns": 0.96605,
+    "omegab": 0.04,
+    "omegam": 0.3,
+    "w": -0.9,
+    "w0pwa": -0.9
+  },
+  "input_files": {
+    "source_file": {
+      "name": "lsst_y1_source.nz",
+      "sha256": "de0bd0ee395ade11ca08af7fbee3b414528ff4c628fda8c56a1da76befe995f8"
+    },
+    "lens_file": {
+      "name": "lsst_y1_lens.nz",
+      "sha256": "dcdd1b15476287ffdd7091d605a684ac2c7807728ad2147155b2632f1280b256"
+    },
+    "cov_file": {
+      "name": "lsst_y1_cov",
+      "sha256": "49469cec16a97b8860b59d95e2736207ad659d27c79c2a755d53276936fb0e2e"
+    },
+    "mask_file": {
+      "name": "lsst_y1_M1_GGLOLAP0.05.mask",
+      "sha256": "9d28394a2ae9174c53227e5ac1da74c22bdada7344db252efe12684ec93ff481"
+    },
+    "data_vector_file": {
+      "name": "lsst_y1_theory.modelvector",
+      "sha256": "30325683f40b027a5fe9c17d11a4919d3eaf3901291160344251fd12c7a43cb1"
+    }
+  },
+  "accuracyboost": 1.0,
+  "integration_accuracy": 0,
+  "defaults_yaml_sha256": "e6dd0ad0f0d71fa9c6b29e814a1dd69485f8173a9422cb99cf31b6c1eb8ae7d3",
+  "interface_sha256": "f30a1858abf9b30042f20c3eb1d1902069e3e3e4ba539c3bb6762d2104574879",
+  "study_sha256": "ec356f5fe96ce3c418449392057aba238f77378e798274e807d4f70ff95d821c",
+  "delta_chi2": {},
+  "elapsed_seconds": 4.646081832936034,
+  "thread_environment": {
+    "OMP_NUM_THREADS": "8",
+    "OPENBLAS_NUM_THREADS": "1",
+    "MKL_NUM_THREADS": "1",
+    "VECLIB_MAXIMUM_THREADS": "1"
+  },
+  "inverse_covariance_sha256": "ea5220056727024eff5cf54f37b15797556afa14bcf3c16516fba756ce4048ed"
+}

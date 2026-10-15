@@ -129,8 +129,8 @@ class CovarianceSpectra(unittest.TestCase):
                 )
 
     def test_extended_radial_rules(self):
-        """All field pairs accept 2048/4096 nodes and match direct contraction."""
-        for count in (2048, 4096):
+        """All field pairs accept native GSL rules and match direct contraction."""
+        for count in (2048, 4096, 8192):
             result = self.compute(nquad=count, linear=True)
             self.assertEqual(result["geometry"].shape[1], count*(len(self.edges)-1))
             power = self.reference.power_at_nodes(

@@ -1,3 +1,4 @@
 *.emul filter=lfs diff=lfs merge=lfs -text
 *.h5 filter=lfs diff=lfs merge=lfs -text
 lsst_y1_cov filter=lfs diff=lfs merge=lfs -text
+tests/studies/results/inverse_covariance.npz filter=lfs diff=lfs merge=lfs -text

@@ -162,7 +162,8 @@
     "numerical_delta_chi2": {
       "three": 0.00038056481722310756,
       "five": 0.0008263087345174438,
-      "seven": 0.0027871433494553845
+      "seven": 0.0027871433494553845,
+      "original": 9.743389498599657e-08
     },
     "pairwise": {
       "three_to_five": {
@@ -179,6 +180,11 @@
         "raised_delta_chi2": 0.1349229939445046,
         "reference_delta_chi2": 0.1296626007475585,
         "displacement_error_delta_chi2": 0.0013233169597383204
+      },
+      "original_to_three": {
+        "raised_delta_chi2": 0.9859983777432191,
+        "reference_delta_chi2": 0.9907890318644372,
+        "displacement_error_delta_chi2": 0.00038354263108581556
       }
     },
     "tests": {
@@ -192,6 +198,12 @@
     "vector_sha256": {
       "5": "769ccd24cdcd0e35a84bd4bdd3df3cef3cea0eaee74fb791c8e2304d734ae020",
       "7": "cbb669f674e13a99ec2f9391917b6dcc776dee452e0150365ec24219cd52983c"
+    },
+    "original_vector_source": {
+      "project": "lsst_y1",
+      "level": 3,
+      "status": "reused",
+      "source": "/Users/vivianmiranda/data/COCOA/september2026/test/nz_akima_yaml/results/lsst_y1_level3.npz"
     }
   }
 }

@@ -1,0 +1,21 @@
+{
+  "project": "lsst_y1",
+  "default_accuracyboost": 1.0,
+  "default_integration_accuracy": 0,
+  "refined_accuracyboost": 5.0,
+  "refined_integration_accuracy": 7,
+  "original_default_to_refined": 0.0021653168405796628,
+  "reconstruction_distances": {
+    "original_to_three": 0.021452645097102842,
+    "three_to_five": 0.009772072375720517,
+    "three_to_seven": 0.01650431904897905,
+    "five_to_seven": 0.005330874324656557
+  },
+  "redshift_moment_refinement_delta_chi2": {
+    "original": 7.08421026066607e-26,
+    "three": 8.15906385362049e-17,
+    "five": 1.4629931506693222e-15,
+    "seven": 3.34998891163685e-16
+  },
+  "default_vector_unchanged_bitwise": true
+}
