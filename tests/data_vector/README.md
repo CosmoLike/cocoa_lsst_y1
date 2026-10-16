@@ -81,13 +81,12 @@ configurations and test numbers:
 
 | file | configuration | tests |
 |---|---|---|
-| `test_example1.py` | cosmic shear | 1-4: drift and race, in NLA then TATT |
-| `test_example2.py` | 3x2pt | 5-8: drift and race, in NLA then TATT |
-| `test_fastpt.py` | TATT with python FAST-PT (`IA_code: 1` plus the fastpt theory block) instead of the C cfastpt, on cosmic shear and 3x2pt | 9, 10: $\chi^2$ vs their own stored FASTPT references; each prints the FASTPT-minus-CFASTPT difference next to its stored value |
-| `test_example2_2x2pt.py` | 2x2pt (`lsst_y1.combo_2x2pt`, the 3x2pt configuration reduced to galaxy clustering plus galaxy-galaxy lensing) | 11-14: drift and race, in NLA then TATT |
-| `test_fastpt.py` | the sweep on cosmic shear, the 3x2pt likelihood (`lsst_y1.combo_3x2pt`) and the 2x2pt likelihood (`lsst_y1.combo_2x2pt`) | 15, 16, 17 |
-| `test_ee2.py` | the installed, modified EuclidEmulator2 vs the pre-modification build (commit `ff59f66`), compiled side by side at test time, cosmic shear with NLA | 18: $\Delta\chi^2$ at ten fixed cosmologies, below 0.2 |
-| `test_ee2.py` | cosmic shear, NLA with EE2 (`non_linear_emul: 1`) | 19: race, including EE2's own threaded compute |
+| `test_example1.py` | cosmic shear | 1-4 |
+| `test_example2.py` | 3x2pt | 5-8 |
+| `test_fastpt.py` | frozen FAST-PT references: shear, 3x2pt | 9, 10 |
+| `test_example2_2x2pt.py` | 2x2pt (`lsst_y1.combo_2x2pt`) | 11-14 |
+| `test_fastpt.py` | the sweep: shear; 3x2pt (`lsst_y1.combo_3x2pt`); 2x2pt (`lsst_y1.combo_2x2pt`) | 15, 16, 17 |
+| `test_ee2.py` | modification pin; race | 18; 19 |
 
 ### The CFASTPT vs FASTPT comparison (`test_fastpt.py`, tests 15-17) <a name="cfastpt_fastpt"></a>
 
