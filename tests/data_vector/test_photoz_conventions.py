@@ -49,9 +49,7 @@ import os
 # this must run before any cobaya/cosmolike import in the process.
 os.environ["OMP_NUM_THREADS"] = "4"
 
-import shutil
 import sys
-import tempfile
 import unittest
 
 # The tests folder is not a package; put it on the import path so the
@@ -60,103 +58,11 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(
     os.path.abspath(__file__))))
 import cocoa_test_utils as u
 
-EXAMPLE = "example1"
-
-# (report tag, photoz_interpolation_type, photoz_zmid_convention)
-SETTINGS = (
-    ("cspline/Z_LOW (default)", 0, 0),
-    ("linear", 1, 0),
-    ("steffen", 2, 0),
-    ("Z_MID", 0, 1),
-    ("default again (round trip)", 0, 0),
-)
-
-# The alternatives must be seen (a stale n(z) cache would give exactly
-# zero); the floors are orders of magnitude below the measured deltas,
-# so they only catch a dead flag, never normal numerical drift. Z_MID
-# shifts every distribution by dz/2, hence its larger floor.
-DCHI2_FLOORS = {"linear": 1.0e-8, "steffen": 1.0e-8, "Z_MID": 1.0e-2}
-
-
-class TestPhotozConventions(unittest.TestCase):
-    """The five-setting sweep, sharing one frozen-state verification."""
-
-    @classmethod
-    def setUpClass(cls):
-        """Move to ROOTDIR, verify the frozen state, load the references."""
-        u.require_cocoa_environment()
-        u.verify_frozen()
-        cls.reference = u.load_reference()
-
-    def test_photoz_conventions(self):
-        """Every alternative is seen, and the default round trip is exact."""
-        import numpy as np
-        import cosmolike_lsst_y1_interface as ci
-
-        vectors_dir = tempfile.mkdtemp(prefix="photoz_conventions_")
-        # addCleanup registers a call unittest makes after the test,
-        # pass or fail: here it removes the temporary folder
-        self.addCleanup(shutil.rmtree, vectors_dir, ignore_errors=True)
-
-        results = {}
-        icov = None
-        for tag, interp, zmid in SETTINGS:
-            print(f"  building model ({EXAMPLE}, NLA, {tag}) ...",
-                  flush=True)
-            info = u.load_frozen_info(EXAMPLE, tatt=False)
-            likelihood_block = \
-                info["likelihood"][u.EXAMPLES[EXAMPLE]["likelihood"]]
-            likelihood_block["photoz_interpolation_type"] = interp
-            likelihood_block["photoz_zmid_convention"] = zmid
-            vector_path = os.path.join(
-                vectors_dir, f"dv_{interp}_{zmid}.modelvector")
-            likelihood_block["print_datavector"] = True
-            likelihood_block["print_datavector_file"] = vector_path
-            model = u.make_model(info)
-            point = u.build_point(model, EXAMPLE, tatt=False)
-            chi2 = u.evaluate_chi2(model, point)
-            if not os.path.isfile(vector_path):
-                raise RuntimeError(
-                    f"print_datavector wrote no file at {vector_path}")
-            results[tag] = (chi2, u._load_datavector(vector_path))
-            if icov is None:
-                # all five settings share one dataset (mask, covariance),
-                # so the masked inverse covariance of the first build
-                # serves every comparison
-                icov = np.array(ci.get_inv_cov_masked())
-
-        chi2_default, dv_default = results[SETTINGS[0][0]]
-
-        print(f"\n  chi2 report ({EXAMPLE}, NLA):")
-        print(f"    default: chi2 = {chi2_default:.6f} "
-              f"(frozen reference {self.reference['example1_nla']:.6f})")
-        for tag in ("linear", "steffen", "Z_MID"):
-            chi2, dv = results[tag]
-            delta = dv - dv_default
-            dchi2 = float(delta @ icov @ delta)
-            print(f"    {tag:8s}: chi2 = {chi2:.6f}, "
-                  f"delta^T C^-1 delta vs default = {dchi2:.6e}")
-            self.assertGreater(
-                dchi2, DCHI2_FLOORS[tag],
-                f"{tag}: the flag change was not seen by the n(z) "
-                "cache (delta chi2 at or below the dead-flag floor)")
-
-        # the default must agree with the frozen reference within the
-        # band the reference tests (tests 1-8) demand
-        self.assertLess(
-            abs(chi2_default - self.reference["example1_nla"]),
-            u.CHI2_TOLERANCE)
-
-        # round trip: after all the flips, the default settings must
-        # reproduce the first vector identically: the cache rebuilt
-        # back to the same state
-        _, dv_return = results[SETTINGS[-1][0]]
-        self.assertTrue(
-            np.array_equal(dv_return, dv_default),
-            "returning to the default settings did not reproduce the "
-            "default data vector bit for bit; the n(z) cache did not "
-            "rebuild cleanly on the way back")
-
+# The shared factory (cosmolike_core/cocoa_testing_suites.py) builds
+# the class; assigning its return value to the usual module-level name
+# is what makes pytest collect it here, with unchanged test ids.
+TestPhotozConventions = u.photoz_conventions_suite(
+    u, name="TestPhotozConventions")
 
 # __name__ is "__main__" only when this file runs directly as a
 # script; pytest imports the module instead, so this block stays
