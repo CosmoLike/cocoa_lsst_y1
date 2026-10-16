@@ -32,8 +32,7 @@ no pass/fail).
 3. [Appendix](#appendix)
     1. [FAQ: Do the tests keep their own data?](#frozen_copy)
     2. [FAQ: Why do the TATT tests use their own data vector?](#synthetic_vectors)
-    3. [FAQ: Why were the references refrozen on 2026-09-28?](#gg_growth_fix)
-    4. [FAQ: How can maintainers refresh the snapshot?](#refreeze)
+    3. [FAQ: How can maintainers refresh the snapshot?](#refreeze)
 
 ## Running the tests <a name="run_tests"></a>
 
@@ -168,13 +167,17 @@ are rebased so 1.0 is the converged configuration.
 
 Table measured on 2026-09-22 (cosmic shear, test 15):
 
-| output table (points) | internal grid (points) | max $\Delta\chi^2$ | cost per cosmology |
+| output table (points) | internal grid (points) | max $\Delta\chi^2$ | Runtime / first row |
 |---|---|---|---|
-| 1,100 | 1,100 (shared) | 21.40 | 1.05 s |
-| 16,900 | 1,100 | 0.125 | 1.05 s |
-| 128,900 | 1,100 | 0.0118 | 1.09 s |
-| 1,024,900 (`accuracyboost: 1`, the default) | 1,100 (the default) | 0.0082 | 1.4 s |
-| 2,048,900 (`accuracyboost: 2`) | 1,300 (`internal_accuracyboost: 2`) | 0.0080 | 1.7 s |
+| 1,100 | 1,100 (shared) | 21.40 | 1.00 |
+| 16,900 | 1,100 | 0.125 | 1.00 |
+| 128,900 | 1,100 | 0.0118 | 1.04 |
+| 1,024,900 (`accuracyboost: 1`, the default) | 1,100 (the default) | 0.0082 | 1.33 |
+| 2,048,900 (`accuracyboost: 2`) | 1,300 (`internal_accuracyboost: 2`) | 0.0080 | 1.62 |
+
+Runtime ratios use the first row of this table as the baseline, with the
+same timed scope and machine. They compare sampling costs within this
+project; absolute runtimes depend on the machine.
 
 ![Convergence of the FAST-PT vs cfastpt difference with the table density](cfastpt_vs_fastpt_convergence.png)
 
@@ -738,63 +741,12 @@ sits away from its minimum, where it responds linearly to tiny
 numerical changes; at its own minimum the response is quadratic and
 the drift bounds stay meaningful.
 
-## :interrobang: FAQ: Why were the references refrozen on 2026-09-28? <a name="gg_growth_fix"></a>
-
-On 2026-09-28 the non-Limber galaxy clustering spectrum
-$C_\ell^{gg}$ was fixed, the shipped data vectors were regenerated
-with the fixed code, the galaxy-galaxy lensing default switched to
-non-Limber (`adopt_limber_gs: 0`), and the snapshot was refrozen.
-The bug: below $\ell = 150$ cosmolike's `C_cl_tomo` computes
-
-$$C_\ell = C_\ell^{\rm FFTLog}(P_{\rm lin}) + C_\ell^{\rm Limber}(P_\delta) - C_\ell^{\rm Limber}(P_{\rm lin}),$$
-
-an exact FFTLog projection of the linear power spectrum plus, in the
-Limber approximation, what linear theory misses. Where the Limber
-approximation holds (high $\ell$) the first and third terms must
-converge to the same number and cancel, leaving the Limber
-$C_\ell^{gg}$. The FFTLog term needs separable growth,
-$D(z_1) D(z_2) P_{\rm lin}(k, z=0)$, but the subtracted Limber term
-used CAMB's $P_{\rm lin}(k, z)$, whose growth depends on scale
-(massive neutrinos): the two differ by 0.7% at $z = 0.3$ and 1.6% at
-$z = 1$. The pair never cancelled. Every $C_\ell^{gg}$ below the switch
-to Limber carried a -0.85% to -1.6% offset, and the 1% early exit
-fired near $\ell = 50$, where the decaying non-Limber correction
-happened to cancel the offset, dropping a real 1.3% to 2.2%
-correction for the highest lens bins. With the fix the subtracted
-term uses $D(a)^2 P_{\rm lin}(k, z=0)$, and the two terms agree to
-0.02% to 0.17% at $\ell = 149$.
-
-The fix changes $w(\theta)$ only; cosmic shear and galaxy-galaxy
-lensing are unchanged. Against the pre-fix references, measured on
-2026-09-28 before the refreeze:
-
-- 3x2pt NLA (test 5): $\chi^2 = 1.948$ against the reference 0.443
-  ($|\Delta\chi^2| = 1.50$, limit 0.2).
-- 3x2pt TATT (test 7): 1.520 against 0; TATT with python FAST-PT
-  (test 10): 1.520 against 0.0004.
-- 2x2pt NLA (test 11): 1.606 against 0.170 (1.44); 2x2pt TATT (test
-  13): 1.434 against 0.
-- The $w(\theta)$ change alone was $\delta^T C^{-1} \delta = 1.52$:
-  seven reference checks failed by 1.43 to 1.52 until the refreeze.
-
-The refreeze (next FAQ) regenerated `data/lsst_y1_theory.modelvector`
-(NLA) and `data/lsst_y1_theory_TATT.modelvector` (TATT) at the frozen
-fiducial with the fixed code and the non-Limber ggl default, and made
-the new $\chi^2$ values the references.
-
-The current `C_cl_tomo` anchors the separable spectrum per lens bin
-instead of at $`z = 0`$:
-$`(D(a)/D(a_{\rm piv}))^2\, P_{\rm lin}(k, a_{\rm piv})`$, with
-$a_{\rm piv} = 1/(1+\bar z)$ and $\bar z$ the bin's mean redshift, so
-the separable form is exact at that redshift (see the comments of
-`C_cl_tomo` in the core's `cosmolike/cosmo2D.c`). The `_meta` block of
-`frozen/reference_chi2.json` records when the current references were
-generated.
-
 ## :interrobang: FAQ: How can maintainers refresh the snapshot? <a name="refreeze"></a>
 
 A deliberate change to the data vectors, n(z), covariance, examples,
-or likelihood defaults requires a re-freeze.
+or likelihood defaults requires a re-freeze. The `_meta` block of
+`frozen/reference_chi2.json` records when the current references were
+generated.
 
 We assume users are in the Conda cocoa environment from a previous
 `conda activate cocoa` command, that the shell is bash, and that the
