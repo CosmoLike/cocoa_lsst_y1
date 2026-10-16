@@ -699,6 +699,8 @@ analytic $(1+m_i)(1+m_j)$ block rescale to $10^{-12}$, a no-op update
 must change nothing, and both intrinsic-alignment models run (the
 TATT ladder exercises the FAST-PT rebuild machinery).
 
+## Appendix <a name="appendix"></a>
+
 ## :interrobang: FAQ: Do the tests keep their own data? <a name="frozen_copy"></a>
 
 The tests read nothing from the live project: not `../data`, not the
