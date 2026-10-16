@@ -13,12 +13,11 @@ import sys
 
 # The tests folder first (cocoa_test_utils), then cosmolike_core
 # (cocoa_testing), both computed from this file's location so the
-# imports work no matter where pytest was launched from. In other
-# projects cocoa_test_utils.py is a short binding to the shared harness
-# cosmolike_core/cocoa_testing.py and adds the core path itself; this
-# project's cocoa_test_utils.py is self-contained, so the core path,
-# needed here for cocoa_testing's option functions, is added in this
-# file.
+# imports work no matter where pytest was launched from.
+# cocoa_test_utils.py is the project's short binding to the shared
+# harness cosmolike_core/cocoa_testing.py (it adds the core path
+# itself); the explicit core path below only keeps this file
+# independent of that import order.
 _TESTS_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, _TESTS_DIR)
 sys.path.insert(0, os.path.abspath(os.path.join(

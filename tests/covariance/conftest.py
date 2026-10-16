@@ -1,10 +1,19 @@
-"""Locate this project's compiled interface for covariance-only pytest runs."""
+"""Locate the project interface for the optional covariance test sector.
+
+pytest reads a file named conftest.py before it collects the tests of
+the same folder, so the code here runs first for every test of
+tests/covariance. It puts interface/ (the folder of the compiled
+module) first on the import path and defines one fixture that skips
+the whole folder when the library was compiled without its covariance
+code.
+"""
 
 from pathlib import Path
 import sys
 
-# Resolve from this file, so the documented command works from Cocoa and
-# from tests/. The ordinary project build owns the imported extension.
+# parents[2] of this file is the project folder; its interface/ folder
+# holds the compiled module. Resolving from this file keeps the
+# documented commands working from Cocoa/ and from tests/.
 project = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(project/"interface"))
 

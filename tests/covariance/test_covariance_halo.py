@@ -11,13 +11,20 @@ Wavenumbers are in units of H0/c: k [h/Mpc] times c/H0 = 2997.92458
 Mpc/h.
 """
 
+import os
 from pathlib import Path
 import unittest
 
 import numpy as np
 
+# The halo checks are the fleet's opt-in tier (dozens of full mass
+# integrations): they run only when COCOA_HALO_SLOW=1 is set, the
+# same flag the halo-model suites of every project read.
+RUN_SLOW = os.environ.get("COCOA_HALO_SLOW", "0") == "1"
 
 
+@unittest.skipUnless(RUN_SLOW, "slow halo covariance checks; set "
+                               "COCOA_HALO_SLOW=1 to run")
 class HaloCovariance(unittest.TestCase):
     """Check all five moments, low-mass completion and high-k convergence."""
 
